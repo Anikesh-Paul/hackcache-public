@@ -1,0 +1,83 @@
+# Render Blueprint for Tagada. Every service reads the one `tagada-env` group.
+# Secrets are not in this file: add them to the group in the Render Dashboard
+# (names in .env.example).
+envVarGroups:
+  - name: tagada-env
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: APPWRITE_ENDPOINT
+        value: https://sgp.cloud.appwrite.io/v1
+      - key: APPWRITE_PROJECT
+        value: tagada
+      - key: VITE_APPWRITE_ENDPOINT
+        value: https://sgp.cloud.appwrite.io/v1
+      - key: VITE_APPWRITE_PROJECT
+        value: tagada
+      - key: EMAIL_FROM_DOMAIN
+        value: resend.dev
+      - key: PAY_TOKEN_SECRET
+        generateValue: true
+      # Set in the Dashboard: APPWRITE_KEY, ELEVENLABS_API_KEY, ELEVENLABS_AGENT_ID,
+      # ELEVENLABS_WEBHOOK_SECRET, GEMINI_API_KEY, RESEND_API_KEY, RENDER_API_KEY,
+      # WEB_ORIGIN (the app-web URL) and VITE_SERVER_URL (the app-server URL).
+
+services:
+  - type: web
+    name: app-web
+    runtime: static
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tagada/web build
+    staticPublishPath: apps/web/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000; includeSubDomains
+      - path: /*
+        name: Permissions-Policy
+        value: microphone=(self), camera=(), geolocation=()
+    envVars:
+      - fromGroup: tagada-env
+
+  - type: web
+    name: app-server
+    runtime: node
+    plan: starter
+    region: singapore
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tagada/server build
+    startCommand: node apps/server/dist/index.js
+    healthCheckPath: /healthz
+    envVars:
+      - fromGroup: tagada-env
+
+  - type: workflow
+    name: app-ladder
+    runtime: node
+    region: singapore
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tagada/workflows build
+    startCommand: node apps/workflows/dist/index.js
+    envVars:
+      - fromGroup: tagada-env
+
+  - type: cron
+    name: app-cron
+    runtime: node
+    plan: starter
+    region: singapore
+    schedule: "30 4 * * *" # 10:00 IST
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @tagada/server build
+    startCommand: node apps/server/dist/cron.js
+    envVars:
+      - fromGroup: tagada-env

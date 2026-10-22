@@ -1,0 +1,15 @@
+{
+  "name": "@tagada/appwrite",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./setup": "./src/setup.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "node-appwrite": "31.0.0"
+  }
+}

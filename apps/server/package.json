@@ -1,0 +1,19 @@
+{
+  "name": "@tagada/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "node ../../scripts/bundle.mjs src/index.ts src/cron.ts src/start-hello.ts",
+    "start": "node dist/index.js",
+    "start-hello": "tsx --env-file-if-exists=../../.env src/start-hello.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "@renderinc/sdk": "1.4.0",
+    "hono": "4.13.13",
+    "node-appwrite": "31.0.0",
+    "@tagada/appwrite": "workspace:*"
+  }
+}

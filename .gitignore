@@ -1,6 +1,12 @@
 # Secrets: live API keys and tokens
 .env
 .env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
 
 # Personal / hackathon-internal notes, not for the public repo
 private/

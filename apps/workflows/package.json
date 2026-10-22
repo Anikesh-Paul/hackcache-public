@@ -1,0 +1,13 @@
+{
+  "name": "@tagada/workflows",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/bundle.mjs src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@renderinc/sdk": "1.4.0"
+  }
+}
