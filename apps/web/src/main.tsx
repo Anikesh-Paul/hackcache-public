@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createBrowserRouter } from "react-router";
 import { Shell, Placeholder } from "./Shell.tsx";
+import { Proof } from "./Proof.tsx";
 import "./index.css";
 
 // Every route from build plan §6.3 exists from day one, so deep links (and the
@@ -30,7 +31,10 @@ const router = createBrowserRouter([
   {
     element: <Shell />,
     children: [
-      ...screens.map(([path, name]) => ({ path, element: <Placeholder name={name} /> })),
+      ...screens.map(([path, name]) => ({
+        path,
+        element: path === "/proof" ? <Proof /> : <Placeholder name={name} />,
+      })),
       { path: "*", element: <Placeholder name="Page not found" notFound /> },
     ],
   },
