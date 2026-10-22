@@ -10,7 +10,13 @@ export {
 } from "./config.ts";
 export type { GstRate } from "./config.ts";
 
+export { addDays, daysBetween, formatDate, weekday } from "./date.ts";
+
 export { formatInr, formatRateBps } from "./format.ts";
+
+export { differencePaise, percentOfPaise, sumPaise, upiPayUri } from "./ledger.ts";
+
+export { stateName } from "./states.ts";
 
 export { checkGstin, gstinCheckDigit } from "./gstin.ts";
 export type { GstinCheck } from "./gstin.ts";

@@ -70,6 +70,7 @@ export const tables = {
   workspaces: table("workspaces", [
     id("ownerUserId"),
     str("businessName", 128, true),
+    str("address", 256),
     str("gstin", 15),
     str("stateCode", 2),
     oneOf("registrationType", ["regular", "composition", "unregistered"]),
@@ -89,6 +90,7 @@ export const tables = {
 
   customers: table("customers", [
     str("name", 128, true),
+    str("address", 256),
     str("gstin", 15),
     str("stateCode", 2),
     str("place", 64),

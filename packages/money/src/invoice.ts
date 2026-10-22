@@ -1,10 +1,4 @@
-import {
-  COMPOSITION_HEADING,
-  E_INVOICE_NOTE,
-  E_INVOICE_TURNOVER_PAISE,
-  isGstRate,
-  type GstRate,
-} from "./config.ts";
+import { COMPOSITION_HEADING, E_INVOICE_NOTE, E_INVOICE_TURNOVER_PAISE, isGstRate, type GstRate } from "./config.ts";
 import { divRound, requireInt, toInt } from "./integer.ts";
 import { amountInWords } from "./words.ts";
 
@@ -47,6 +41,8 @@ export type InvoiceTotals = {
   title: string;
   compositionHeading: string | null;
   lines: InvoiceLine[];
+  /** Supplier and place of supply in the same state: CGST + SGST, not IGST. */
+  intraState: boolean;
   taxablePaise: number;
   cgstPaise: number;
   sgstPaise: number;
@@ -169,6 +165,7 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
   return {
     ...doc,
     lines,
+    intraState: intra,
     taxablePaise: toInt(taxable, "taxable"),
     cgstPaise: toInt(cgst, "cgst"),
     sgstPaise: toInt(sgst, "sgst"),

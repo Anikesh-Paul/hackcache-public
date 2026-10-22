@@ -59,6 +59,23 @@ export function daysBetween(from: string, to: string): number {
   return dayNumber(to) - dayNumber(from);
 }
 
+/** The date `days` after `iso` (before it when negative). */
+export function addDays(iso: string, days: number): string {
+  if (!Number.isSafeInteger(days)) throw new Error("days must be an integer");
+  let n = dayNumber(iso) + days;
+  // Inverse of dayNumber (Hinnant's civil_from_days).
+  n += 719_468;
+  const era = div(n >= 0 ? n : n - 146_096, 146_097);
+  const dayOfEra = n - era * 146_097;
+  const yearOfEra = div(dayOfEra - div(dayOfEra, 1460) + div(dayOfEra, 36_524) - div(dayOfEra, 146_096), 365);
+  const dayOfYear = dayOfEra - (365 * yearOfEra + div(yearOfEra, 4) - div(yearOfEra, 100));
+  const mp = div(5 * dayOfYear + 2, 153);
+  const day = dayOfYear - div(153 * mp + 2, 5) + 1;
+  const month = mp < 10 ? mp + 3 : mp - 9;
+  const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
+  return formatCivilDate({ year, month, day });
+}
+
 /** 0 = Sunday … 6 = Saturday. Null when `iso` is not a real date. */
 export function weekday(iso: string): number | null {
   const date = parseCivilDate(iso);
@@ -70,4 +87,17 @@ export function weekday(iso: string): number | null {
   const offset = offsets[date.month - 1];
   if (offset === undefined) return null;
   return (year + div(year, 4) - div(year, 100) + div(year, 400) + offset + date.day) % 7;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "2026-09-25" → "Fri 25 Sep"; with `year`, "Fri 25 Sep 2026". Fixed English, never the locale's. */
+export function formatDate(iso: string, options?: { weekday?: boolean; year?: boolean }): string {
+  const date = parseCivilDate(iso);
+  if (!date) throw new Error(`not a date: ${iso}`);
+  const parts = [`${date.day} ${MONTHS[date.month - 1]}`];
+  if (options?.weekday ?? true) parts.unshift(WEEKDAYS[weekday(iso) ?? 0] ?? "");
+  if (options?.year) parts.push(String(date.year));
+  return parts.join(" ");
 }

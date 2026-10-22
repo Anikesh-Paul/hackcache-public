@@ -1,16 +1,14 @@
 @import "tailwindcss";
 
-/* "Ledger and bamboo" tokens (build plan §6.2). Light by default, dark from the
-   system setting or [data-theme="dark"]. */
+/* "Ledger and bamboo" (build plan §6.2, comps in prototype/comps.html, fixes §6.7).
+   Light by default; dark from the system setting unless the toggle chose light,
+   or from the toggle. */
 :root {
   --ink: #1f2a24;
   --ink-2: #55615a;
   --paper: #fbf8f1;
   --rule: #e6dfcf;
   --rule-strong: #cfc4ac;
-  --desk: color-mix(in srgb, var(--paper) 70%, var(--rule));
-  --cover: var(--ink);
-  --cover-ink: #fbf8f1;
   --bamboo: #4f7a3a;
   --bamboo-ink: #3e6330;
   --bamboo-soft: #e3edd9;
@@ -19,44 +17,73 @@
   --turmeric-soft: #f6ead0;
   --sindoor: #b3412e;
   --sindoor-soft: #f5e1dc;
+  --desk: color-mix(in srgb, var(--paper) 52%, var(--rule));
+  --cover: var(--ink);
+  --on-cover: #efeadf;
+  --on-cover-2: #b9c2b9;
+  --cover-line: #3a453e;
+  --on-primary: #ffffff;
+  --sheet-shadow: 0 1px 1px rgba(31, 42, 36, 0.06), 0 18px 40px -22px rgba(31, 42, 36, 0.35);
+  --margin: 72px;
+  --amount: 128px;
+  color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ink: #ece6d8;
-    --ink-2: #b5ad9c;
-    --paper: #1c211e;
-    --rule: #333a35;
-    --rule-strong: #4a524c;
-    --cover: #111513;
-    --cover-ink: #ece6d8;
-    --bamboo: #8cbf6e;
-    --bamboo-ink: #a6d48a;
-    --bamboo-soft: #24331d;
-    --turmeric: #e0a84a;
-    --turmeric-ink: #f0c070;
-    --turmeric-soft: #3a2f1a;
-    --sindoor: #e07a66;
-    --sindoor-soft: #3d221d;
+    --ink: #ece7da;
+    --ink-2: #a9b0a6;
+    --paper: #171c18;
+    --rule: #2d3530;
+    --rule-strong: #46514a;
+    --bamboo: #8db874;
+    --bamboo-ink: #a9cc93;
+    --bamboo-soft: #233220;
+    --turmeric: #e0a740;
+    --turmeric-ink: #e8b85c;
+    --turmeric-soft: #3a2e17;
+    --sindoor: #e3826d;
+    --sindoor-soft: #3d211b;
+    --desk: #0d100e;
+    --cover: #0d100e;
+    --on-cover: #ece7da;
+    --on-cover-2: #a2aaa2;
+    --cover-line: #2d3530;
+    --on-primary: #10170f;
+    --sheet-shadow: 0 0 0 1px #262e29, 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+    color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --ink: #ece6d8;
-  --ink-2: #b5ad9c;
-  --paper: #1c211e;
-  --rule: #333a35;
-  --rule-strong: #4a524c;
-  --cover: #111513;
-  --cover-ink: #ece6d8;
-  --bamboo: #8cbf6e;
-  --bamboo-ink: #a6d48a;
-  --bamboo-soft: #24331d;
-  --turmeric: #e0a84a;
-  --turmeric-ink: #f0c070;
-  --turmeric-soft: #3a2f1a;
-  --sindoor: #e07a66;
-  --sindoor-soft: #3d221d;
+  --ink: #ece7da;
+  --ink-2: #a9b0a6;
+  --paper: #171c18;
+  --rule: #2d3530;
+  --rule-strong: #46514a;
+  --bamboo: #8db874;
+  --bamboo-ink: #a9cc93;
+  --bamboo-soft: #233220;
+  --turmeric: #e0a740;
+  --turmeric-ink: #e8b85c;
+  --turmeric-soft: #3a2e17;
+  --sindoor: #e3826d;
+  --sindoor-soft: #3d211b;
+  --desk: #0d100e;
+  --cover: #0d100e;
+  --on-cover: #ece7da;
+  --on-cover-2: #a2aaa2;
+  --cover-line: #2d3530;
+  --on-primary: #10170f;
+  --sheet-shadow: 0 0 0 1px #262e29, 0 18px 40px -20px rgba(0, 0, 0, 0.8);
+  color-scheme: dark;
+}
+
+@media (max-width: 639px) {
+  :root {
+    --margin: 54px;
+    --amount: 100px;
+  }
 }
 
 @theme inline {
@@ -67,9 +94,17 @@
   --color-rule-strong: var(--rule-strong);
   --color-desk: var(--desk);
   --color-cover: var(--cover);
-  --color-cover-ink: var(--cover-ink);
+  --color-on-cover: var(--on-cover);
+  --color-on-cover-2: var(--on-cover-2);
+  --color-cover-line: var(--cover-line);
   --color-bamboo: var(--bamboo);
   --color-bamboo-ink: var(--bamboo-ink);
+  --color-bamboo-soft: var(--bamboo-soft);
+  --color-turmeric: var(--turmeric);
+  --color-turmeric-ink: var(--turmeric-ink);
+  --color-turmeric-soft: var(--turmeric-soft);
+  --color-sindoor: var(--sindoor);
+  --color-sindoor-soft: var(--sindoor-soft);
   --font-sans: "IBM Plex Sans", "IBM Plex Sans Devanagari", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -79,5 +114,407 @@ body {
   background: var(--desk);
   color: var(--ink);
   font-family: var(--font-sans);
+}
+/* On body, not html: Tailwind sizes (44px targets) are rems of the 16px root. */
+body {
+  font-size: 15px;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+:lang(hi) {
+  font-family: "IBM Plex Sans Devanagari", "IBM Plex Sans", sans-serif;
+}
+::selection {
+  background: var(--bamboo-soft);
+  color: var(--ink);
+}
+:focus-visible {
+  outline: 2px solid var(--bamboo);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.cover :focus-visible {
+  outline-color: var(--on-cover);
+}
+h1,
+h2,
+h3 {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-wrap: balance;
+}
+
+@layer components {
+  .mono {
+    font-family: var(--font-mono);
+    font-size: max(0.9em, 12px);
+    letter-spacing: -0.01em;
+  }
+
+  /* ---------- the ledger page ---------- */
+  .leaf {
+    background-color: var(--paper);
+    background-image: linear-gradient(
+      to right,
+      transparent calc(var(--margin) - 5px),
+      var(--rule-strong) calc(var(--margin) - 5px),
+      var(--rule-strong) calc(var(--margin) - 4px),
+      transparent calc(var(--margin) - 4px),
+      transparent calc(var(--margin) - 1px),
+      var(--rule-strong) calc(var(--margin) - 1px),
+      var(--rule-strong) var(--margin),
+      transparent var(--margin)
+    );
+    padding: 28px 24px 36px 0;
+    min-width: 0;
+    position: relative;
+  }
+  @media (max-width: 639px) {
+    .leaf {
+      padding: 20px 14px 28px 0;
+    }
+  }
+
+  /* a ledger line: margin | particulars | amount */
+  .ln {
+    display: grid;
+    grid-template-columns: var(--margin) minmax(0, 1fr) var(--amount);
+  }
+  .ln > .m {
+    padding: 0 10px 0 0;
+    text-align: right;
+    color: var(--ink-2);
+    font-size: 13px;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  @media (max-width: 639px) {
+    .ln > .m {
+      padding-right: 8px;
+      font-size: 12px;
+    }
+  }
+  .ln > .p {
+    padding: 0 14px;
+    min-width: 0;
+  }
+  .ln > .a {
+    padding: 0 0 0 12px;
+    text-align: right;
+    border-left: 1px solid var(--rule);
+    white-space: nowrap;
+  }
+  /* §6.7 fix 8: no amount column where there is no money */
+  .ln.wide > .p {
+    grid-column: 2 / -1;
+  }
+  .entries > .ln {
+    padding: 11px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .entries > .ln:last-child {
+    border-bottom: 0;
+  }
+  .entries > .ln > .a {
+    margin: -11px 0;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+  .entries .p small,
+  .ln .p small {
+    display: block;
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+  .ln.head {
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--ink);
+    align-items: end;
+  }
+  .ln.head h2 {
+    font-size: 19px;
+  }
+  .ln.head > .a,
+  .ln.head > .m {
+    font-size: 12px;
+    color: var(--ink-2);
+    border-left-color: transparent;
+  }
+  .sect + .sect {
+    margin-top: 36px;
+  }
+  .dbl {
+    border-bottom: 3px double currentColor;
+    padding-bottom: 1px;
+  }
+  .ln.sub {
+    padding: 4px 0;
+    border-bottom: 0;
+  }
+  .ln.sub > .a {
+    margin: -4px 0;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+  .ln.sub .p {
+    color: var(--ink-2);
+  }
+  .ln.tot {
+    font-weight: 600;
+    font-size: 16px;
+    padding-top: 10px;
+  }
+  .ln.tot > .a {
+    border-top: 1px solid var(--ink);
+  }
+  @media (hover: hover) {
+    .entries > .ln.ruler:hover {
+      background: color-mix(in srgb, var(--turmeric-soft) 55%, transparent);
+      box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--turmeric) 70%, transparent);
+    }
+  }
+
+  .figure {
+    font-size: 36px;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+    display: inline-block;
+  }
+  @media (max-width: 639px) {
+    .figure {
+      font-size: 28px;
+    }
+  }
+
+  /* ---------- buttons and words ---------- */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 7px;
+    padding: 10px 14px;
+    min-height: 44px;
+    font-weight: 500;
+    font-size: 14px;
+    border: 1px solid transparent;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color 0.15s,
+      border-color 0.15s;
+  }
+  .btn svg {
+    width: 17px;
+    height: 17px;
+    flex: none;
+  }
+  .btn.primary {
+    background: var(--bamboo);
+    color: var(--on-primary);
+  }
+  .btn.primary:hover {
+    background: color-mix(in srgb, var(--bamboo) 86%, var(--ink));
+  }
+  .btn.secondary {
+    background: transparent;
+    border-color: var(--rule-strong);
+    color: var(--ink);
+  }
+  .btn.secondary:hover {
+    border-color: var(--ink-2);
+    background: color-mix(in srgb, var(--rule) 35%, transparent);
+  }
+  .btn.bare {
+    background: none;
+    color: var(--ink-2);
+  }
+  .btn:disabled,
+  .btn[aria-disabled="true"] {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .linkbtn {
+    border: 0;
+    background: none;
+    padding: 0;
+    color: var(--bamboo-ink);
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--bamboo) 40%, transparent);
+    text-underline-offset: 3px;
+  }
+  .linkbtn:hover {
+    text-decoration-color: currentColor;
+  }
+  .word {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .word svg {
+    width: 14px;
+    height: 14px;
+    flex: none;
+  }
+  .word.warn {
+    color: var(--turmeric-ink);
+  }
+  .word.ok {
+    color: var(--bamboo-ink);
+  }
+  .word.short {
+    color: var(--sindoor);
+  }
+  .word.plain {
+    color: var(--ink-2);
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    padding: 1px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .badge.real {
+    background: var(--bamboo-soft);
+    color: var(--bamboo-ink);
+  }
+  .badge.sim {
+    background: var(--turmeric-soft);
+    color: var(--turmeric-ink);
+  }
+
+  /* ---------- rubber stamp: one moment only (§6.7 fix 4) ---------- */
+  .stamp {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px 4px;
+    border: 3px double currentColor;
+    border-radius: 5px;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+    transform: rotate(-4deg);
+  }
+  .stamp.ok {
+    color: var(--bamboo-ink);
+  }
+
+  /* ---------- bamboo ladder: stage 1 at the foot ---------- */
+  .ladder {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column-reverse;
+  }
+  .ladder li {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    align-items: center;
+    min-height: 56px;
+  }
+  .ladder .rails {
+    position: relative;
+    align-self: stretch;
+  }
+  .ladder .rails::before,
+  .ladder .rails::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 7px;
+    background: var(--bamboo);
+  }
+  .ladder .rails::before {
+    left: 6px;
+  }
+  .ladder .rails::after {
+    right: 6px;
+  }
+  .ladder li:last-child .rails::before,
+  .ladder li:last-child .rails::after {
+    top: 6px;
+    border-radius: 2px 2px 0 0;
+  }
+  .ladder li:first-child .rails::before,
+  .ladder li:first-child .rails::after {
+    bottom: 4px;
+  }
+  .ladder .rung {
+    position: absolute;
+    left: 11px;
+    right: 11px;
+    top: 50%;
+    height: 5px;
+    margin-top: -2.5px;
+    border-radius: 3px;
+    background: var(--bamboo);
+  }
+  .ladder li.next .rails::before,
+  .ladder li.next .rails::after {
+    background: color-mix(in srgb, var(--bamboo) 32%, var(--paper));
+  }
+  .ladder li.next .rung {
+    background: transparent;
+    border: 1.5px dashed var(--rule-strong);
+    height: 7px;
+    margin-top: -3.5px;
+  }
+  .ladder li.today .rung {
+    background: var(--turmeric);
+    height: 7px;
+    margin-top: -3.5px;
+    box-shadow: 0 0 0 4px var(--turmeric-soft);
+  }
+  .ladder .lbl {
+    padding-left: 12px;
+    font-size: 14.5px;
+  }
+  .ladder .lbl small {
+    display: block;
+    color: var(--ink-2);
+    font-size: 12.5px;
+  }
+  .ladder li.today .lbl {
+    font-weight: 600;
+  }
+  .ladder li.next .lbl {
+    color: var(--ink-2);
+  }
+}
+
+/* A4 print pages: no app chrome, black on white. */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+  /* as specific as the dark-mode rules above, and later, so print always wins */
+  :root,
+  :root:not([data-theme="light"]),
+  :root[data-theme] {
+    --ink: #000;
+    --ink-2: #333;
+    --paper: #fff;
+    --rule: #bbb;
+    --rule-strong: #888;
+    --desk: #fff;
+    color-scheme: light;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

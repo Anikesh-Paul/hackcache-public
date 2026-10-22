@@ -14,6 +14,7 @@
     "@renderinc/sdk": "1.4.0",
     "hono": "4.13.13",
     "node-appwrite": "31.0.0",
-    "@tagada/appwrite": "workspace:*"
+    "@tagada/appwrite": "workspace:*",
+    "@tagada/seed": "workspace:*"
   }
 }

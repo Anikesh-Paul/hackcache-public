@@ -56,6 +56,8 @@ describe("GST", () => {
     expect(priced.sgstPaise).toBe(0);
     expect(priced.igstPaise).toBe(180_000);
     expect(priced.totalPaise).toBe(1_180_000);
+    expect(priced.intraState).toBe(false);
+    expect(bill([TEN_THOUSAND]).intraState).toBe(true);
   });
 
   it("prices 3 × ₹333 at 5% from the line total, not from ₹1,000", () => {
