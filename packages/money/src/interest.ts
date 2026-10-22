@@ -21,6 +21,13 @@ export type Section16Interest = {
   rests: Section16Rest[];
 };
 
+type Section16Base = { principalPaise: number; months: number };
+
+/** A flat rate for every rest, or a start date so each rest reads the Bank Rate table. */
+export type Section16Input =
+  | (Section16Base & { from: string; annualBps?: undefined })
+  | (Section16Base & { annualBps: number; from?: undefined });
+
 /** §16 rate in force on `isoDate`. */
 export function section16RateBps(isoDate: string): number {
   if (!parseCivilDate(isoDate)) throw new Error(`not a date: ${isoDate}`);
@@ -39,33 +46,23 @@ function oneRest(balance: bigint, annualBps: number): bigint {
  * Pass `from` to date each rest: rest `i` falls on `from` plus `i` months and
  * uses the Bank Rate table. `from` is the first day interest accrues.
  */
-export function section16Interest(input: {
-  principalPaise: number;
-  months: number;
-  from?: string;
-  annualBps?: number;
-}): Section16Interest {
+export function section16Interest(input: Section16Input): Section16Interest {
   const principal = requireInt(input.principalPaise, "principalPaise");
   if (principal < 0n) throw new Error("principalPaise must be ≥ 0");
   if (!Number.isSafeInteger(input.months) || input.months < 0) {
     throw new Error("months must be a non-negative integer");
   }
-  const dated = input.from !== undefined;
-  const flat = input.annualBps !== undefined;
-  if (dated === flat) throw new Error("pass from or annualBps, not both");
-  if (input.annualBps !== undefined && (!Number.isSafeInteger(input.annualBps) || input.annualBps < 0)) {
-    throw new Error("annualBps must be a non-negative integer");
-  }
-  if (dated && !parseCivilDate(input.from ?? "")) throw new Error(`not a date: ${input.from}`);
-  const flatRate = input.annualBps;
+
+  const rateAt =
+    input.from !== undefined
+      ? datedRates(input.from)
+      : flatRate(input.annualBps);
 
   let balance = principal;
   let interest = 0n;
   const rests: Section16Rest[] = [];
-  for (let i = 1; i <= input.months; i++) {
-    const asOf = input.from === undefined ? null : addMonths(input.from, i);
-    const annualBps = asOf === null ? flatRate : section16RateBps(asOf);
-    if (annualBps === undefined) throw new Error("pass from or annualBps, not both");
+  for (let month = 1; month <= input.months; month++) {
+    const { asOf, annualBps } = rateAt(month);
     const gained = oneRest(balance, annualBps);
     balance += gained;
     interest += gained;
@@ -77,4 +74,19 @@ export function section16Interest(input: {
     });
   }
   return { interestPaise: toInt(interest, "interest"), rests };
+}
+
+function datedRates(from: string): (month: number) => { asOf: string; annualBps: number } {
+  if (!parseCivilDate(from)) throw new Error(`not a date: ${from}`);
+  return (month) => {
+    const asOf = addMonths(from, month);
+    return { asOf, annualBps: section16RateBps(asOf) };
+  };
+}
+
+function flatRate(annualBps: number): (month: number) => { asOf: null; annualBps: number } {
+  if (!Number.isSafeInteger(annualBps) || annualBps < 0) {
+    throw new Error("annualBps must be a non-negative integer");
+  }
+  return () => ({ asOf: null, annualBps });
 }

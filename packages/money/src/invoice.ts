@@ -3,6 +3,7 @@ import {
   E_INVOICE_NOTE,
   E_INVOICE_TURNOVER_PAISE,
   isGstRate,
+  type GstRate,
 } from "./config.ts";
 import { divRound, requireInt, toInt } from "./integer.ts";
 import { amountInWords } from "./words.ts";
@@ -18,8 +19,8 @@ export type InvoiceLineInput = {
   ratePaise: number;
   /** Whole percent taken off the line before tax. Defaults to 0. */
   discountPercent?: number;
-  /** Whole percent, one of `GST_RATES`. Ignored when the seller charges no GST. */
-  gstRatePercent: number;
+  /** One of `GST_RATES`. Ignored when the seller charges no GST. */
+  gstRatePercent: GstRate;
 };
 
 export type InvoiceInput = {
@@ -35,7 +36,7 @@ export type InvoiceLine = {
   taxablePaise: number;
   discountPaise: number;
   /** Rate that was asked for. A Bill of Supply still records it, and charges none of it. */
-  gstRatePercent: number;
+  gstRatePercent: GstRate;
   cgstPaise: number;
   sgstPaise: number;
   igstPaise: number;
@@ -97,9 +98,7 @@ function stateCode(value: string, name: string): string {
 }
 
 function roundPaiseToRupee(paise: bigint): bigint {
-  const rupees = paise / 100n;
-  const rem = paise % 100n;
-  return (rem * 2n >= 100n ? rupees + 1n : rupees) * 100n;
+  return divRound(paise, 100n) * 100n;
 }
 
 /**

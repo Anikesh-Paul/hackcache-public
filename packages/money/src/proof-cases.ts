@@ -109,7 +109,7 @@ const CASES: readonly ProofCase[] = [
     input: "₹1 at 5%. CGST and SGST each rounded to the paisa",
     expected: "CGST ₹0.03 + SGST ₹0.03; IGST ₹0.05",
     actual: () => {
-      const line = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
+      const line: InvoiceLineInput = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
       const intra = price([line]);
       const inter = price([line], { placeOfSupplyStateCode: "19" });
       return `CGST ${formatInr(intra.cgstPaise)} + SGST ${formatInr(intra.sgstPaise)}; IGST ${formatInr(inter.igstPaise)}`;

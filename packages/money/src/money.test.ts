@@ -15,6 +15,7 @@ import {
   invoiceNumber,
   invoiceTotals,
   needsEInvoice,
+  type GstRate,
   parseAmountPaise,
   runProofCases,
   section16Interest,
@@ -109,7 +110,7 @@ describe("GST", () => {
   });
 
   it("rounds CGST and SGST separately, so they need not equal IGST", () => {
-    const line = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
+    const line: InvoiceLineInput = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
     const intra = bill([line]);
     const inter = bill([line], { placeOfSupplyStateCode: "19" });
     expect(intra.cgstPaise).toBe(3);
@@ -118,7 +119,7 @@ describe("GST", () => {
   });
 
   it("rounds each line before adding, so two ₹1 lines are not one ₹2 line", () => {
-    const line = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
+    const line: InvoiceLineInput = { quantity: 1, ratePaise: 100, gstRatePercent: 5 };
     expect(bill([line, line]).cgstPaise).toBe(6);
   });
 
@@ -158,7 +159,8 @@ describe("GST", () => {
 
   it("refuses a GST rate that is not configured", () => {
     expect(GST_RATES).toEqual([0, 5, 18]);
-    expect(() => bill([{ quantity: 1, ratePaise: 100, gstRatePercent: 12 }])).toThrow(/not configured/);
+    const unconfigured = 12 as GstRate;
+    expect(() => bill([{ quantity: 1, ratePaise: 100, gstRatePercent: unconfigured }])).toThrow(/not configured/);
   });
 
   it("refuses money that is not an integer number of paise", () => {
