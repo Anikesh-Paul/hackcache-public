@@ -1,0 +1,9 @@
+# Secrets: live API keys and tokens
+.env
+.env.*
+
+# Personal / hackathon-internal notes, not for the public repo
+private/
+
+# Local desktop-app dev config, not part of the project
+.claude/
