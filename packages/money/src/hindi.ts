@@ -1,5 +1,5 @@
 import { parseCivilDate, weekday } from "./date.ts";
-import { requireInt } from "./integer.ts";
+import { divRound, requireInt } from "./integer.ts";
 
 // Ported from prototype/call-test.html. The agent copies these words; it must
 // not turn digits into Hindi itself.
@@ -50,9 +50,14 @@ export function hindiNumber(rupees: number): string {
   return hindiBig(value);
 }
 
-/** `hindiNumber` plus " रुपये", which is what the call agent is told to say. */
-export function hindiRupees(rupees: number): string {
-  return `${hindiNumber(rupees)} रुपये`;
+/**
+ * An amount in paise as the call agent says it: whole rupees (half up, as the
+ * prototype's Math.round did) plus " रुपये". 5900000 → "उनसठ हज़ार रुपये".
+ */
+export function hindiRupees(paise: number): string {
+  const value = requireInt(paise, "paise");
+  if (value < 0n) throw new Error("paise must be ≥ 0");
+  return `${hindiBig(divRound(value, 100n))} रुपये`;
 }
 
 /**

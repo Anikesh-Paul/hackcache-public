@@ -42,6 +42,23 @@ export function addMonths(iso: string, months: number): string {
   return formatCivilDate({ year, month, day });
 }
 
+/** Days since 1970-01-01 (Hinnant's days_from_civil). Valid for the positive years an invoice date uses. */
+function dayNumber(iso: string): number {
+  const date = parseCivilDate(iso);
+  if (!date) throw new Error(`not a date: ${iso}`);
+  const year = date.month <= 2 ? date.year - 1 : date.year;
+  const era = div(year, 400);
+  const yearOfEra = year - era * 400;
+  const dayOfYear = div(153 * (date.month + (date.month > 2 ? -3 : 9)) + 2, 5) + date.day - 1;
+  const dayOfEra = yearOfEra * 365 + div(yearOfEra, 4) - div(yearOfEra, 100) + dayOfYear;
+  return era * 146_097 + dayOfEra - 719_468;
+}
+
+/** Whole days from `from` to `to`. Negative when `to` is earlier. */
+export function daysBetween(from: string, to: string): number {
+  return dayNumber(to) - dayNumber(from);
+}
+
 /** 0 = Sunday … 6 = Saturday. Null when `iso` is not a real date. */
 export function weekday(iso: string): number | null {
   const date = parseCivilDate(iso);

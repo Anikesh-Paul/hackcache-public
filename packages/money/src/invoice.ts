@@ -51,6 +51,8 @@ export type InvoiceTotals = {
   cgstPaise: number;
   sgstPaise: number;
   igstPaise: number;
+  /** CGST + SGST + IGST. */
+  taxPaise: number;
   /** Added so `totalPaise` is a whole rupee. Negative when the paisa were rounded down. */
   roundOffPaise: number;
   totalPaise: number;
@@ -116,6 +118,10 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
   const supplier = stateCode(input.supplierStateCode, "supplierStateCode");
   const place = stateCode(input.placeOfSupplyStateCode, "placeOfSupplyStateCode");
   const intra = supplier === place;
+  // §10(2)(c) CGST Act: a composition seller may not make inter-state supplies.
+  if (doc.docType === "bill_of_supply" && !intra) {
+    throw new Error("a composition seller cannot supply to another state");
+  }
   if (input.lines.length === 0) throw new Error("an invoice needs a line");
 
   let taxable = 0n;
@@ -138,8 +144,9 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
     const lineTaxable = gross - discount;
     const halfBps = BigInt(line.gstRatePercent) * 50n;
     const fullBps = BigInt(line.gstRatePercent) * 100n;
+    // CGST and SGST are each half the rate, rounded to the paisa on their own, so they are equal.
     const lineCgst = chargesGst && intra ? divRound(lineTaxable * halfBps, 10_000n) : 0n;
-    const lineSgst = chargesGst && intra ? divRound(lineTaxable * halfBps, 10_000n) : 0n;
+    const lineSgst = lineCgst;
     const lineIgst = chargesGst && !intra ? divRound(lineTaxable * fullBps, 10_000n) : 0n;
 
     taxable += lineTaxable;
@@ -166,6 +173,7 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
     cgstPaise: toInt(cgst, "cgst"),
     sgstPaise: toInt(sgst, "sgst"),
     igstPaise: toInt(igst, "igst"),
+    taxPaise: toInt(cgst + sgst + igst, "tax"),
     roundOffPaise: toInt(total - exact, "round-off"),
     totalPaise,
     amountInWords: amountInWords(totalPaise),

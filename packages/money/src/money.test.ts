@@ -163,6 +163,18 @@ describe("GST", () => {
     expect(() => bill([{ quantity: 1, ratePaise: 100, gstRatePercent: unconfigured }])).toThrow(/not configured/);
   });
 
+  it("refuses a composition seller supplying to another state", () => {
+    expect(() => bill([TEN_THOUSAND], { registration: "composition", placeOfSupplyStateCode: "19" })).toThrow(
+      /another state/,
+    );
+  });
+
+  it("totals the tax so callers never add the heads themselves", () => {
+    expect(bill([TEN_THOUSAND]).taxPaise).toBe(180_000);
+    expect(bill([TEN_THOUSAND], { placeOfSupplyStateCode: "19" }).taxPaise).toBe(180_000);
+    expect(bill([TEN_THOUSAND], { registration: "composition" }).taxPaise).toBe(0);
+  });
+
   it("refuses money that is not an integer number of paise", () => {
     expect(() => bill([{ quantity: 1, ratePaise: 10.5, gstRatePercent: 0 }])).toThrow(/integer/);
   });
@@ -212,26 +224,67 @@ describe("§16 interest", () => {
   it("uses 16.5% through 6 Oct 2026 and 17.25% from 7 Oct 2026", () => {
     expect(section16RateBps("2026-10-06")).toBe(1650);
     expect(section16RateBps("2026-10-07")).toBe(1725);
-    const spanned = section16Interest({ principalPaise: 11_800_000, months: 2, from: "2026-08-07" });
-    expect(spanned.rests.map((rest) => [rest.asOf, rest.annualBps, rest.interestPaise])).toEqual([
-      ["2026-09-07", 1650, 162_250],
-      ["2026-10-07", 1725, 171_957],
+    const spanned = section16Interest({ principalPaise: 11_800_000, from: "2026-09-07", to: "2026-11-07" });
+    expect(spanned.rests.map((rest) => [rest.start, rest.end, rest.rates, rest.interestPaise])).toEqual([
+      ["2026-09-07", "2026-10-07", [{ annualBps: 1650, days: 30 }], 162_250],
+      ["2026-10-07", "2026-11-07", [{ annualBps: 1725, days: 31 }], 171_957],
     ]);
     expect(spanned.interestPaise).toBe(334_207);
   });
 
-  it("dates a rest on the real month end when the start day does not exist", () => {
-    const result = section16Interest({ principalPaise: 11_800_000, months: 2, from: "2026-08-31" });
-    expect(result.rests.map((rest) => [rest.asOf, rest.annualBps])).toEqual([
-      ["2026-09-30", 1650],
-      ["2026-10-31", 1725],
+  it("charges a month that ends on 7 Oct 2026 at 16.5%, the rate during it", () => {
+    // The month 7 Sep–7 Oct is all before the hike. Charging it at the rest-day rate gave ₹3,342.07.
+    const before = section16Interest({ principalPaise: 11_800_000, from: "2026-08-07", to: "2026-10-07" });
+    expect(before.rests.map((rest) => rest.rates)).toEqual([
+      [{ annualBps: 1650, days: 31 }],
+      [{ annualBps: 1650, days: 30 }],
     ]);
+    expect(before.interestPaise).toBe(326_731);
   });
 
-  it("matches the flat 17.25% figure when every rest falls after the rate change", () => {
-    const dated = section16Interest({ principalPaise: 11_800_000, months: 2, from: "2026-10-07" });
+  it("splits a month the rate changes inside by days, and pro-rates the part month", () => {
+    // Gupta: due 25 Sep, interest from 26 Sep, worked out on the demo date 2 Nov.
+    const gupta = section16Interest({ principalPaise: 11_800_000, from: "2026-09-26", to: "2026-11-02" });
+    expect(gupta.rests.map((rest) => [rest.end, rest.rates, rest.interestPaise])).toEqual([
+      [
+        "2026-10-26",
+        [
+          { annualBps: 1650, days: 11 },
+          { annualBps: 1725, days: 19 },
+        ],
+        166_921,
+      ],
+      ["2026-11-02", [{ annualBps: 1725, days: 7 }], 38_844],
+    ]);
+    expect(gupta.interestPaise).toBe(205_765);
+  });
+
+  it("dates a rest on the real month end when the start day does not exist", () => {
+    const result = section16Interest({ principalPaise: 11_800_000, from: "2026-08-31", to: "2026-10-31" });
+    expect(result.rests.map((rest) => [rest.end, rest.rates])).toEqual([
+      ["2026-09-30", [{ annualBps: 1650, days: 30 }]],
+      [
+        "2026-10-31",
+        [
+          { annualBps: 1650, days: 7 },
+          { annualBps: 1725, days: 24 },
+        ],
+      ],
+    ]);
+    expect(result.interestPaise).toBe(332_519);
+  });
+
+  it("matches the flat 17.25% figure when every day falls after the rate change", () => {
+    const dated = section16Interest({ principalPaise: 11_800_000, from: "2026-10-07", to: "2026-12-07" });
     expect(dated.interestPaise).toBe(341_688);
-    expect(dated.rests.every((rest) => rest.annualBps === 1725)).toBe(true);
+  });
+
+  it("charges nothing for no days and refuses a range that runs backwards", () => {
+    expect(section16Interest({ principalPaise: 11_800_000, from: "2026-11-02", to: "2026-11-02" })).toEqual({
+      interestPaise: 0,
+      rests: [],
+    });
+    expect(() => section16Interest({ principalPaise: 100, from: "2026-11-02", to: "2026-11-01" })).toThrow(/before/);
   });
 });
 
@@ -240,6 +293,16 @@ describe("GSTIN", () => {
     expect(checkGstin("27AAPFU0939F1ZV")).toEqual({ ok: true });
     expect(gstinCheckDigit("27AAPFU0939F1Z")).toBe("V");
     expect(checkGstin("27AAPFU0939F1ZX")).toEqual({ ok: false, reason: "check-digit" });
+  });
+
+  it("agrees with the check digit of real-format GSTINs from several states", () => {
+    for (const gstin of ["29AAGCB7383J1Z4", "27AAACR5055K1Z7", "24AAACC1206D1ZM"]) {
+      expect(checkGstin(gstin)).toEqual({ ok: true });
+    }
+    // The call prototype's sample is not a valid GSTIN: its check character should be S.
+    expect(gstinCheckDigit("16AAKFT4821M1Z")).toBe("S");
+    expect(checkGstin("16AAKFT4821M1Z5")).toEqual({ ok: false, reason: "check-digit" });
+    expect(checkGstin(" 27aapfu0939f1zv ")).toEqual({ ok: true });
   });
 
   it("rejects a GSTIN that does not match the pattern", () => {
@@ -268,13 +331,23 @@ describe("financial year numbers", () => {
 describe("Hindi words", () => {
   it("matches the call prototype", () => {
     expect(hindiNumber(59_000)).toBe("उनसठ हज़ार");
-    expect(hindiRupees(59_000)).toBe("उनसठ हज़ार रुपये");
+    expect(hindiRupees(5_900_000)).toBe("उनसठ हज़ार रुपये");
     expect(hindiNumber(1)).toBe("एक");
     expect(hindiNumber(99)).toBe("निन्यानवे");
     expect(hindiNumber(100)).toBe("एक सौ");
     expect(hindiNumber(100_000)).toBe("एक लाख");
     expect(hindiNumber(118_000)).toBe("एक लाख अठारह हज़ार");
     expect(hindiNumber(1_000_000)).toBe("दस लाख");
+    expect(hindiNumber(101)).toBe("एक सौ एक");
+    expect(hindiNumber(1_050)).toBe("एक हज़ार पचास");
+    expect(hindiNumber(20_000_000)).toBe("दो करोड़");
+    expect(hindiNumber(0)).toBe("शून्य");
+  });
+
+  it("says an amount in paise as whole rupees, half up like the prototype", () => {
+    expect(hindiRupees(11_800_000)).toBe("एक लाख अठारह हज़ार रुपये");
+    expect(hindiRupees(5_899_950)).toBe("उनसठ हज़ार रुपये");
+    expect(hindiRupees(5_899_949)).toBe("अट्ठावन हज़ार नौ सौ निन्यानवे रुपये");
   });
 
   it("names the weekday and the date", () => {
@@ -296,6 +369,20 @@ describe("printed amounts", () => {
     expect(parseAmountPaise("₹5,619.05")).toBe(561_905);
     expect(parseAmountPaise("₹1,18,000")).toBe(11_800_000);
     expect(parseAmountPaise("₹1,18,000.50")).toBe(11_800_050);
+    expect(parseAmountPaise("INR 60,000")).toBe(6_000_000);
+    expect(parseAmountPaise("₹ 60,000.00")).toBe(6_000_000);
+    expect(parseAmountPaise("Rs.60000")).toBe(6_000_000);
+    expect(parseAmountPaise("60,000.00 INR")).toBe(6_000_000);
+    expect(parseAmountPaise("₹60,000 only")).toBe(6_000_000);
+    expect(parseAmountPaise("₹60,000.5")).toBe(6_000_050);
+    expect(parseAmountPaise("1,000,000")).toBe(100_000_000);
+  });
+
+  it("refuses commas out of place rather than guess", () => {
+    expect(parseAmountPaise("60.000,00")).toBeNull();
+    expect(parseAmountPaise("₹6,0,000")).toBeNull();
+    expect(parseAmountPaise("60,00")).toBeNull();
+    expect(parseAmountPaise("-500")).toBeNull();
   });
 
   it("rounds a third decimal place half up and rejects text that is not an amount", () => {
@@ -332,7 +419,8 @@ describe("/proof cases", () => {
       "taxable ₹1,12,381 + IGST ₹5,619.05, round-off −₹0.05 = ₹1,18,000 · One Lakh Eighteen Thousand Rupees Only",
       "₹3,416.88",
       "₹10,550.34",
-      "16.5% ₹1,622.50, then 17.25% ₹1,719.57 = ₹3,342.07",
+      "16.5% for 30 days ₹1,622.50, then 17.25% for 31 days ₹1,719.57 = ₹3,342.07",
+      "16.5% for 11 days + 17.25% for 19 days ₹1,669.21, then 17.25% for 7 days ₹388.44 = ₹2,057.65",
       "valid, then check-digit",
       "INV/25-26/0012 → INV/26-27/0001",
       "उनसठ हज़ार · शुक्रवार, छह नवंबर",

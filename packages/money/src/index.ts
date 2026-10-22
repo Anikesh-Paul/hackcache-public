@@ -18,7 +18,7 @@ export type { GstinCheck } from "./gstin.ts";
 export { hindiDate, hindiNumber, hindiRupees } from "./hindi.ts";
 
 export { section16Interest, section16RateBps } from "./interest.ts";
-export type { Section16Input, Section16Interest, Section16Rest } from "./interest.ts";
+export type { Section16Input, Section16Interest, Section16RatePart, Section16Rest } from "./interest.ts";
 
 export { documentFor, invoiceTotals, needsEInvoice } from "./invoice.ts";
 export type {

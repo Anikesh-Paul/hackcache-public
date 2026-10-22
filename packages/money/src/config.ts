@@ -1,5 +1,5 @@
 // Rates live here so a later notification changes one table, not the arithmetic.
-// A rate is an integer number of basis points of a percent: 5% is 500, 17.25% is 1725.
+// GST rates are whole percent. §16 rates are basis points: 16.5% is 1650, 17.25% is 1725.
 
 /** GST rates the invoice form is allowed to charge, in whole percent. */
 export const GST_RATES = [0, 5, 18] as const;

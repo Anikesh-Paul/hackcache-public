@@ -2,7 +2,7 @@ import { E_INVOICE_TURNOVER_PAISE } from "./config.ts";
 import { formatInr, formatRateBps } from "./format.ts";
 import { checkGstin } from "./gstin.ts";
 import { hindiDate, hindiNumber } from "./hindi.ts";
-import { section16Interest } from "./interest.ts";
+import { section16Interest, type Section16Interest } from "./interest.ts";
 import { documentFor, invoiceTotals, type InvoiceInput, type InvoiceLineInput } from "./invoice.ts";
 import { invoiceNumber } from "./numbering.ts";
 import { parseAmountPaise } from "./parse.ts";
@@ -38,6 +38,14 @@ function price(lines: InvoiceLineInput[], over: Partial<InvoiceInput> = {}) {
 function taxLine(bill: ReturnType<typeof invoiceTotals>, kind: "split" | "igst"): string {
   if (kind === "igst") return `IGST ${formatInr(bill.igstPaise)} = ${formatInr(bill.totalPaise)}`;
   return `CGST ${formatInr(bill.cgstPaise)} + SGST ${formatInr(bill.sgstPaise)} = ${formatInr(bill.totalPaise)}`;
+}
+
+function restsLine(result: Section16Interest): string {
+  const rests = result.rests.map((rest) => {
+    const rates = rest.rates.map((part) => `${formatRateBps(part.annualBps)} for ${part.days} days`);
+    return `${rates.join(" + ")} ${formatInr(rest.interestPaise)}`;
+  });
+  return `${rests.join(", then ")} = ${formatInr(result.interestPaise)}`;
 }
 
 const CASES: readonly ProofCase[] = [
@@ -88,8 +96,7 @@ const CASES: readonly ProofCase[] = [
       const bill = price([{ quantity: 1, ratePaise: 1_000_000, gstRatePercent: 18 }], {
         registration: "composition",
       });
-      const tax = bill.cgstPaise + bill.sgstPaise + bill.igstPaise;
-      return `${bill.title}, tax ${formatInr(tax)} = ${formatInr(bill.totalPaise)}`;
+      return `${bill.title}, tax ${formatInr(bill.taxPaise)} = ${formatInr(bill.totalPaise)}`;
     },
   },
   {
@@ -99,8 +106,7 @@ const CASES: readonly ProofCase[] = [
     expected: "Tax Invoice, tax ₹0 = ₹500",
     actual: () => {
       const bill = price([{ quantity: 1, ratePaise: 50_000, gstRatePercent: 0 }]);
-      const tax = bill.cgstPaise + bill.sgstPaise + bill.igstPaise;
-      return `${bill.title}, tax ${formatInr(tax)} = ${formatInr(bill.totalPaise)}`;
+      return `${bill.title}, tax ${formatInr(bill.taxPaise)} = ${formatInr(bill.totalPaise)}`;
     },
   },
   {
@@ -166,13 +172,16 @@ const CASES: readonly ProofCase[] = [
   {
     id: "interest-span",
     area: "Interest",
-    input: "₹1,18,000, monthly rests ending 7 Sep 2026 and 7 Oct 2026",
-    expected: "16.5% ₹1,622.50, then 17.25% ₹1,719.57 = ₹3,342.07",
-    actual: () => {
-      const result = section16Interest({ principalPaise: 11_800_000, months: 2, from: "2026-08-07" });
-      const parts = result.rests.map((rest) => `${formatRateBps(rest.annualBps)} ${formatInr(rest.interestPaise)}`);
-      return `${parts.join(", then ")} = ${formatInr(result.interestPaise)}`;
-    },
+    input: "₹1,18,000 from 7 Sep 2026 to 7 Nov 2026, across the 7 Oct rate change",
+    expected: "16.5% for 30 days ₹1,622.50, then 17.25% for 31 days ₹1,719.57 = ₹3,342.07",
+    actual: () => restsLine(section16Interest({ principalPaise: 11_800_000, from: "2026-09-07", to: "2026-11-07" })),
+  },
+  {
+    id: "interest-gupta",
+    area: "Interest",
+    input: "Gupta ₹1,18,000, due 25 Sep 2026, worked out on 2 Nov 2026",
+    expected: "16.5% for 11 days + 17.25% for 19 days ₹1,669.21, then 17.25% for 7 days ₹388.44 = ₹2,057.65",
+    actual: () => restsLine(section16Interest({ principalPaise: 11_800_000, from: "2026-09-26", to: "2026-11-02" })),
   },
   {
     id: "gstin",
