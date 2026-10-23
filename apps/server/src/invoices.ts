@@ -149,7 +149,7 @@ export async function issueInvoice(
   worlds: WorldStore,
   userId: string,
   body: unknown,
-  ids: { row: () => string; payToken: () => string },
+  ids: { row: () => string; payToken: (invoiceId: string) => string },
 ): Promise<IssueSuccess | IssueFailure> {
   if (!isRecord(body)) return fail(400, "invalid_body");
   const hasId = body.customerId !== undefined;
@@ -263,7 +263,7 @@ export async function issueInvoice(
   const number = nextInvoiceNumber(existing, today);
   const invoiceId = ids.row();
   const dueDate = addDays(today, creditDays);
-  const payToken = ids.payToken();
+  const payToken = ids.payToken(invoiceId);
 
   const invoice: InvoiceRow = {
     $id: invoiceId,

@@ -10,6 +10,9 @@ export type { InvoiceFacts, InvoiceFilter, InvoiceStanding, InvoiceState, Promis
 export { LADDER_STAGES, ladderRungs } from "./ladder.ts";
 export type { LadderStage, Rung } from "./ladder.ts";
 
+export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
+export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
+
 export { msmedInterest } from "./msmed.ts";
 export type { MsmedMeter, SellerFacts } from "./msmed.ts";
 

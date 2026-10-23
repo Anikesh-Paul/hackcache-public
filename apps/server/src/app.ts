@@ -1,19 +1,36 @@
 import { randomBytes } from "node:crypto";
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
+import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
 import { issueInvoice } from "./invoices.ts";
+import {
+  MAX_SCREENSHOT_BYTES,
+  choosePlan,
+  claimPaid,
+  paySlip,
+  raiseDispute,
+  readAloud,
+  uploadScreenshot,
+  type FileStore,
+  type PayResult,
+  type Voice,
+} from "./pay.ts";
+import type { PayLink } from "./pay-token.ts";
 
 export type AppDeps = {
   /** Resolves when Appwrite answers a read made with the server's API key. */
   probeAppwrite: () => Promise<void>;
   demo: DemoDeps;
+  /** Storage buckets: UPI screenshots and read-aloud clips. */
+  files: FileStore;
+  voice: Voice;
   /** Browser origin allowed to call /api (the static site). */
   webOrigin?: string;
 };
 
-export function createApp({ probeAppwrite, demo, webOrigin }: AppDeps) {
+export function createApp({ probeAppwrite, demo, files, voice, webOrigin }: AppDeps) {
   const app = new Hono();
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
@@ -64,7 +81,7 @@ export function createApp({ probeAppwrite, demo, webOrigin }: AppDeps) {
       if (!userId) return c.json({ error: "unauthorized" }, 401);
       const result = await issueInvoice(demo.worlds, userId, body, {
         row: () => `n${randomBytes(12).toString("hex")}`,
-        payToken: () => randomBytes(16).toString("hex"),
+        payToken: (invoiceId) => demo.tokens.sign({ workspaceId: workspaceIdFor(userId), invoiceId }),
       });
       if (!result.ok) return c.json({ error: result.error }, result.status);
       return c.json({ invoice: result.invoice, customer: result.customer });
@@ -72,6 +89,72 @@ export function createApp({ probeAppwrite, demo, webOrigin }: AppDeps) {
       return failed(c, "/api/invoices", e);
     }
   });
+
+  app.post("/api/invoices/:id/dispute", async (c) => {
+    const jwt = bearer(c);
+    if (!jwt) return c.json({ error: "unauthorized" }, 401);
+    const body = await c.req.json().catch(() => null);
+    try {
+      const userId = await demo.userFromJwt(jwt);
+      if (!userId) return c.json({ error: "unauthorized" }, 401);
+      const ref = { workspaceId: workspaceIdFor(userId), invoiceId: c.req.param("id") };
+      return answer(c, await raiseDispute(demo.worlds, ref, body, "owner"));
+    } catch (e) {
+      return failed(c, "/api/invoices/:id/dispute", e);
+    }
+  });
+
+  // The Customer side: the pay token is the only credential. It is checked
+  // with the secret before anything is read, so a guess costs no lookup.
+  const answer = (c: Context, result: PayResult) =>
+    result.ok
+      ? c.json(result.slip)
+      : c.json({ error: result.error, ...(result.reason ? { reason: result.reason } : {}) }, result.status);
+  const pay = (path: string, run: (ref: PayLink, c: Context) => Promise<Response>) => async (c: Context) => {
+    const check = demo.tokens.verify(c.req.param("token") ?? "");
+    if (!check.ok) {
+      return check.reason === "expired"
+        ? c.json({ error: "link_expired" }, 410)
+        : c.json({ error: "invalid_link" }, 404);
+    }
+    try {
+      return await run(check.ref, c);
+    } catch (e) {
+      console.error(`${path} failed`, e);
+      return c.json({ error: "pay_unavailable" }, 500);
+    }
+  };
+  const json = (c: Context) => c.req.json().catch(() => null);
+
+  app.get("/api/pay/:token", pay("/api/pay", async (ref, c) => answer(c, await paySlip(demo.worlds, ref))));
+  app.post("/api/pay/:token/paid", pay("/api/pay/paid", async (ref, c) => answer(c, await claimPaid(demo.worlds, ref))));
+  app.post(
+    "/api/pay/:token/accept-plan",
+    pay("/api/pay/accept-plan", async (ref, c) => answer(c, await choosePlan(demo.worlds, ref, await json(c)))),
+  );
+  app.post(
+    "/api/pay/:token/dispute",
+    pay("/api/pay/dispute", async (ref, c) =>
+      answer(c, await raiseDispute(demo.worlds, ref, await json(c), "customer")),
+    ),
+  );
+  app.post(
+    "/api/pay/:token/screenshot",
+    bodyLimit({ maxSize: MAX_SCREENSHOT_BYTES + 64 * 1024, onError: (c) => c.json({ error: "invalid_file" }, 400) }),
+    pay("/api/pay/screenshot", async (ref, c) => {
+      const form = await c.req.parseBody().catch(() => null);
+      const file = form?.file;
+      return answer(c, await uploadScreenshot({ worlds: demo.worlds, files, voice }, ref, file));
+    }),
+  );
+  app.get(
+    "/api/pay/:token/audio",
+    pay("/api/pay/audio", async (ref, c) => {
+      const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref);
+      if (!clip) return c.json({ error: "invalid_link" }, 404);
+      return c.body(new Uint8Array(clip), 200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=3600" });
+    }),
+  );
 
   app.post("/api/demo/reset", async (c) => {
     const jwt = bearer(c);

@@ -155,3 +155,43 @@ export type DemoStarted =
       seeded: true;
       world: { workspaces: WorkspaceRow[]; customers: CustomerRow[]; invoices: InvoiceRow[]; promises: PromiseRow[] };
     };
+
+export type InboxKind = "paid_claim" | "dispute" | "plan_accepted" | "needs_decision" | "proof_uploaded";
+
+export type InboxRow = Row<{
+  kind: InboxKind;
+  /** The event row that says what happened. */
+  refId: string;
+  read: boolean;
+}>;
+
+export type PayInstalment = { amountPaise: number; date: string };
+
+/**
+ * What `GET /api/pay/:token` answers: one Invoice as its Customer sees it,
+ * and nothing else of the Owner's books.
+ */
+export type PaySlip = {
+  today: string;
+  from: { businessName: string; gstin: string | null; upiVpa: string | null };
+  customer: { name: string; lang: string | null };
+  invoice: {
+    number: string;
+    issueDate: string;
+    dueDate: string;
+    totalPaise: number;
+    balancePaise: number;
+    daysLate: number;
+  };
+  /**
+   * What the Customer has already done here: `asked` is a Plan or a talk
+   * waiting on the Owner; `paid_claim` is "already paid".
+   */
+  state: "owing" | "plan" | "asked" | "paid_claim" | "disputed" | "paid";
+  /** The agreed (or asked-for) instalments, with what is still to come. */
+  plan: PayInstalment[] | null;
+  screenshotSent: boolean;
+  /** Plans inside the Owner's rule the Customer can pick. */
+  choices: PayInstalment[][];
+  rule: { minFirstPct: number; firstWithinDays: number; restWithinDays: number };
+};

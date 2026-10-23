@@ -4,6 +4,8 @@ import {
   daysBetween,
   differencePaise,
   formatDate,
+  isCivilDate,
+  minimumSharePaise,
   nearestPaise,
   percentOfPaise,
   sharePaise,
@@ -32,6 +34,13 @@ describe("paise sums", () => {
     expect(percentOfPaise(450_000, 200)).toBe(9_000); // 2% TDS on ₹4,500 installation
     expect(percentOfPaise(3_000_000, 10)).toBe(3_000); // 0.1% TDS on ₹30,000
     expect(percentOfPaise(333, 50)).toBe(2); // ₹3.33 × 0.5% = 1.665 paise → 2
+  });
+
+  it("takes the smallest whole-rupee amount that is at least a share, for a Plan's first instalment", () => {
+    expect(minimumSharePaise(11_800_000, 5_000)).toBe(5_900_000); // 50% of ₹1,18,000
+    expect(minimumSharePaise(100_001, 5_000)).toBe(50_100); // 50% of ₹1,000.01 is ₹500.005 → ₹501
+    expect(minimumSharePaise(11_800_000, 7_500)).toBe(8_850_000);
+    expect(minimumSharePaise(0, 5_000)).toBe(0);
   });
 
   it("splits an amount into equal shares, rounded half up to the paisa", () => {
@@ -81,6 +90,12 @@ describe("calendar days", () => {
   it("counts whole days between two dates", () => {
     expect(daysBetween("2026-09-25", "2026-11-02")).toBe(38);
     expect(daysBetween("2026-11-02", "2026-09-25")).toBe(-38);
+  });
+
+  it("tells a real calendar date from anything else", () => {
+    expect(isCivilDate("2026-11-06")).toBe(true);
+    expect(isCivilDate("2026-02-30")).toBe(false);
+    expect(isCivilDate("Friday")).toBe(false);
   });
 
   it("adds days across months and years", () => {

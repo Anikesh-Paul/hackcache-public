@@ -5,8 +5,9 @@ import { formatDate, formatInr } from "@tagada/money";
 import { CHASE_WHY, type AgeingBucket, type ExpectedReceipt, type Outflow, type TodayBook } from "@tagada/domain";
 import { ForecastChart, ForecastTable, PayPackets, SalaryFigure } from "../books.tsx";
 import { useTodayBook } from "../lib/today.ts";
-import { useWorld } from "../lib/world.tsx";
+import { useInbox, usePaymentHistory, useWorld } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
+import { InboxLine, inboxItems } from "./Inbox.tsx";
 
 const day = (iso: string) => formatDate(iso, { weekday: false });
 
@@ -36,14 +37,7 @@ export function Today() {
       </Paper>
       <Paper label="Today's work">
         <DaysToGetPaid book={book} />
-        <div className="sect">
-          <Head title="Inbox" a={<Link to="/app/inbox">Open</Link>} />
-          <Ln m={<Inbox size={16} aria-hidden />}>
-            <p className="text-sm text-ink-2">
-              Replies from the pay link land here: paid claims, Disputes, Plans and screenshots.
-            </p>
-          </Ln>
-        </div>
+        <LatestInbox />
       </Paper>
     </div>
   );
@@ -412,6 +406,32 @@ function DaysToGetPaid({ book }: { book: TodayBook }) {
           </p>
         )}
       </Ln>
+    </div>
+  );
+}
+
+/** The latest 3 things Customers did on their pay links, live. */
+function LatestInbox() {
+  const world = useWorld();
+  const inbox = useInbox();
+  const history = usePaymentHistory();
+  const items = Array.isArray(inbox) ? inboxItems(world, inbox, Array.isArray(history) ? history : null).slice(0, 3) : [];
+  return (
+    <div className="sect">
+      <Head title="Inbox" a={<Link to="/app/inbox">Open</Link>} />
+      <div className="entries" aria-live="polite">
+        {items.length > 0 ? (
+          items.map((item) => <InboxLine key={item.row.$id} item={item} fresh={!item.row.read} />)
+        ) : (
+          <Ln m={<Inbox size={16} aria-hidden className="ml-auto" />}>
+            <p className="text-sm text-ink-2">
+              {inbox === "loading"
+                ? "Loading the Inbox…"
+                : "Replies from the pay link land here: paid claims, Disputes, Plans and screenshots."}
+            </p>
+          </Ln>
+        )}
+      </div>
     </div>
   );
 }

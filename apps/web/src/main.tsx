@@ -10,6 +10,8 @@ import { InvoiceDetail } from "./screens/InvoiceDetail.tsx";
 import { NewInvoice } from "./screens/NewInvoice.tsx";
 import { Customers } from "./screens/Customers.tsx";
 import { Today } from "./screens/Today.tsx";
+import { Inbox } from "./screens/Inbox.tsx";
+import { PayLink } from "./screens/PayLink.tsx";
 import { CustomerDetail } from "./screens/CustomerDetail.tsx";
 import { DuplicatePreview, PrintInvoice } from "./screens/PrintInvoice.tsx";
 import "./index.css";
@@ -18,7 +20,6 @@ import "./index.css";
 // static site's SPA rewrite) work before each screen is built.
 const ownerScreens: [path: string, name: string][] = [
   ["/app/bank", "Bank"],
-  ["/app/inbox", "Inbox"],
   ["/app/automation", "Automation"],
   ["/app/settings", "Settings"],
 ];
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
           { path: "/app/invoices/:id", element: <InvoiceDetail /> },
           { path: "/app/customers", element: <Customers /> },
           { path: "/app/customers/:id", element: <CustomerDetail /> },
+          { path: "/app/inbox", element: <Inbox /> },
         ],
       },
       {
@@ -73,11 +75,12 @@ const router = createBrowserRouter([
       },
     ],
   },
+  // The Customer side never touches the Owner's session, or Appwrite: only the server, with the pay token.
+  { path: "/pay/:token", element: <PayLink /> },
   {
-    // The Customer side and /proof never touch the Owner's session.
+    // /proof never touches the Owner's session either.
     element: <Shell />,
     children: [
-      { path: "/pay/:token", element: <Placeholder name="Pay link" /> },
       { path: "/proof", element: <Proof /> },
       { path: "*", element: <Placeholder name="Page not found" notFound /> },
     ],

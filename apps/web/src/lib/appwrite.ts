@@ -1,6 +1,6 @@
 // The browser's only link to Appwrite: the endpoint and project ID, never a key.
 // The visitor's anonymous session reads their own rows; row permissions do the rest.
-import { Account, AppwriteException, Client, Query, TablesDB } from "appwrite";
+import { Account, AppwriteException, Channel, Client, Query, Realtime, TablesDB, type RealtimeSubscription } from "appwrite";
 import { DATABASE_ID, type DemoStarted } from "@tagada/appwrite";
 
 export type { DemoStarted };
@@ -11,6 +11,7 @@ const client = new Client()
 
 const account = new Account(client);
 const db = new TablesDB(client);
+const realtime = new Realtime(client);
 const SERVER_URL = import.meta.env.VITE_SERVER_URL;
 
 /** Every row of one table in a workspace, optionally narrowed by more equalities. */
@@ -118,4 +119,54 @@ export async function createInvoice(body: unknown): Promise<{ invoiceId: string 
   const data = (await res.json().catch(() => null)) as { error?: string; invoice?: { $id?: string } } | null;
   if (!res.ok || !data?.invoice?.$id) throw new SaveError(data?.error ?? "save_failed");
   return { invoiceId: data.invoice.$id };
+}
+
+export type LiveRow = { $id: string; $tableId: string; workspaceId: string } & Record<string, unknown>;
+
+/**
+ * Calls `onChange` for every row of these tables that changes in this
+ * workspace. Appwrite only sends rows this visitor can read; the workspace
+ * check keeps a second world of the same visitor apart. Returns a stop.
+ */
+export function watchRows(
+  workspaceId: string,
+  tableIds: readonly string[],
+  onChange: (row: LiveRow, deleted: boolean) => void,
+): () => void {
+  let subscription: RealtimeSubscription | null = null;
+  let stopped = false;
+  const channels = tableIds.map((tableId) => Channel.tablesdb(DATABASE_ID).table(tableId).row());
+  realtime
+    .subscribe(channels, (event) => {
+      const row = event.payload as LiveRow | undefined;
+      if (!row || row.workspaceId !== workspaceId || !tableIds.includes(row.$tableId)) return;
+      onChange(row, event.events.some((name) => name.endsWith(".delete")));
+    })
+    .then(
+      (s) => (stopped ? void s.unsubscribe() : (subscription = s)),
+      (e: unknown) => console.error("live updates could not start", e),
+    );
+  return () => {
+    stopped = true;
+    void subscription?.unsubscribe();
+  };
+}
+
+/** The Owner has seen these Inbox items. Row permissions let the Owner update their own. */
+export async function markInboxRead(ids: readonly string[]): Promise<void> {
+  await Promise.all(
+    ids.map((rowId) => db.updateRow({ databaseId: DATABASE_ID, tableId: "inbox", rowId, data: { read: true } })),
+  );
+}
+
+/** The Owner's "Mark as disputed". The server writes the Invoice, its event and the pause. */
+export async function markDisputed(invoiceId: string, reason: string): Promise<void> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}/api/invoices/${encodeURIComponent(invoiceId)}/dispute`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string } | null;
+  if (!res.ok) throw new SaveError(data?.error ?? "save_failed");
 }

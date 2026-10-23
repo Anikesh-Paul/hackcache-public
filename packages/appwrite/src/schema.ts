@@ -241,6 +241,14 @@ export const schema: Schema = {
       antivirus: true,
     },
     {
+      id: "audio",
+      name: "Pay link read-aloud clips",
+      maximumFileSize: 2 * 1024 * 1024,
+      allowedFileExtensions: ["mp3"],
+      encryption: false,
+      antivirus: false,
+    },
+    {
       id: "documents",
       name: "Generated documents",
       maximumFileSize: 10 * 1024 * 1024,

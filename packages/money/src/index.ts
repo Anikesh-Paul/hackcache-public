@@ -10,11 +10,11 @@ export {
 } from "./config.ts";
 export type { GstRate } from "./config.ts";
 
-export { addDays, addMonths, daysBetween, formatDate, weekday } from "./date.ts";
+export { addDays, addMonths, daysBetween, formatDate, isCivilDate, weekday } from "./date.ts";
 
 export { formatInr, formatInrShort, formatRateBps } from "./format.ts";
 
-export { differencePaise, nearestPaise, percentOfPaise, sharePaise, sumPaise, upiPayUri } from "./ledger.ts";
+export { differencePaise, minimumSharePaise, nearestPaise, percentOfPaise, sharePaise, sumPaise, upiPayUri } from "./ledger.ts";
 
 export { indianStates, stateName } from "./states.ts";
 

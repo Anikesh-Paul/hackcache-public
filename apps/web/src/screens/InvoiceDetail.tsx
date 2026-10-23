@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import {
   Bot,
   CalendarClock,
   Copy,
+  ExternalLink,
   FileText,
   Flag,
   IndianRupee,
@@ -25,7 +26,8 @@ import {
   stateName,
 } from "@tagada/money";
 import { ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter } from "@tagada/domain";
-import { useInvoiceRows, useWorld, viewOf } from "../lib/world.tsx";
+import { markDisputed } from "../lib/appwrite.ts";
+import { useInvoiceRows, usePaymentHistory, useWorld, viewOf } from "../lib/world.tsx";
 import { istDay, priceLines, storedTotalsMatch } from "../lib/pricing.ts";
 import { Badge, Head, Ln, StatusWord } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
@@ -42,7 +44,10 @@ export function InvoiceDetail() {
   const world = useWorld();
   const invoice = world.invoices.find((i) => i.$id === id);
   const lines = useInvoiceRows<InvoiceLineRow>("invoice_lines", invoice?.$id);
-  const events = useInvoiceRows<EventRow>("events", invoice?.$id);
+  // The whole workspace's events, kept live, so what a Customer does on the pay link appears here at once.
+  const history = usePaymentHistory();
+  const events: EventRow[] | "failed" | null =
+    history === "loading" ? null : history === "failed" ? "failed" : history.filter((e) => e.invoiceId === invoice?.$id);
   if (!invoice) return <NotFound what="Invoice" />;
 
   const { customer, standing } = viewOf(world, invoice);
@@ -106,6 +111,7 @@ export function InvoiceDetail() {
           customerName={customer?.name ?? "the Customer"}
           payToken={invoice.payToken}
           open={standing.state !== "paid"}
+          disputed={standing.state === "disputed"}
         />
         <div className="lg:order-first">
           <Head title="The Ladder" a="never repeats a step" />
@@ -289,7 +295,7 @@ function LadderNote({ state, pauseReason }: { state: InvoiceState; pauseReason: 
     return (
       <p className="mt-3 text-sm">
         <span className="word ok">
-          <Pause aria-hidden /> Paused: Promise
+          <Pause aria-hidden /> Paused: {pauseReason === "plan" ? "Plan agreed" : "Promise"}
         </span>{" "}
         <span className="text-ink-2">If the money doesn't arrive by its date, the Ladder climbs again.</span>
       </p>
@@ -362,18 +368,25 @@ function Actions({
   customerName,
   payToken,
   open,
+  disputed,
 }: {
   invoiceId: string;
   customerName: string;
   payToken: string | null;
   open: boolean;
+  disputed: boolean;
 }) {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
+  const [disputing, setDisputing] = useState(false);
   const payLink = payToken ? `${location.origin}/pay/${payToken}` : null;
   const copy = async () => {
     if (!payLink) return;
-    await navigator.clipboard.writeText(payLink);
-    setCopied(true);
+    try {
+      await navigator.clipboard.writeText(payLink);
+      setCopied("yes");
+    } catch {
+      setCopied("failed");
+    }
   };
   return (
     <div>
@@ -394,12 +407,22 @@ function Actions({
               disabled={!payLink}
               aria-describedby={payLink ? undefined : `paynote-${invoiceId}`}
             >
-              <Copy aria-hidden /> {copied ? "Pay link copied" : "Copy pay link"}
+              <Copy aria-hidden /> {copied === "yes" ? "Pay link copied" : "Copy pay link"}
             </button>
+          )}
+          {open && copied === "failed" && payLink && (
+            <small className="-mt-1 text-xs break-all text-ink-2" role="status">
+              Copying was blocked. The link is <span className="mono">{payLink}</span>
+            </small>
+          )}
+          {open && payLink && (
+            <a href={payLink} target="_blank" rel="noopener" className="btn bare -mt-1 justify-start">
+              <ExternalLink aria-hidden /> Open pay link as {customerName}
+            </a>
           )}
           {open && !payLink && (
             <small id={`paynote-${invoiceId}`} className="-mt-1 text-xs text-ink-2">
-              Pay links switch on with the Customer pay link screen.
+              This Demo world was made before pay links existed. Reset demo to give every Invoice one.
             </small>
           )}
           {open && (
@@ -423,13 +446,60 @@ function Actions({
           <Link to={`/app/invoices/${invoiceId}/duplicate`} className="btn secondary">
             <Copy aria-hidden /> Duplicate this invoice
           </Link>
-          {open && (
-            <button type="button" className="btn bare" disabled title="Comes with the Inbox">
+          {open && !disputed && !disputing && (
+            <button type="button" className="btn bare justify-start" onClick={() => setDisputing(true)}>
               <Flag aria-hidden /> Mark as disputed
             </button>
           )}
+          {open && !disputed && disputing && <DisputeForm invoiceId={invoiceId} onDone={() => setDisputing(false)} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/** The Owner records a Dispute. The Ladder pauses until it is resolved. */
+function DisputeForm({ invoiceId, onDone }: { invoiceId: string; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [state, setState] = useState<"idle" | "saving" | "failed">("idle");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+    setState("saving");
+    try {
+      await markDisputed(invoiceId, reason.trim());
+      onDone();
+    } catch {
+      setState("failed");
+    }
+  };
+  return (
+    <form onSubmit={submit} className="mt-1 grid gap-2">
+      <label htmlFor={`dispute-${invoiceId}`} className="text-sm font-medium">
+        What does the Customer say is wrong?
+      </label>
+      <textarea
+        id={`dispute-${invoiceId}`}
+        rows={2}
+        maxLength={500}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        className="w-full rounded-md border border-rule-strong bg-paper p-2 text-sm"
+      />
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className="btn secondary" disabled={state === "saving" || !reason.trim()}>
+          <Flag aria-hidden /> {state === "saving" ? "Saving…" : "Mark as disputed"}
+        </button>
+        <button type="button" className="btn bare" onClick={onDone}>
+          Cancel
+        </button>
+      </div>
+      {state === "failed" && (
+        <small className="text-xs text-sindoor" role="alert">
+          It could not be saved. Try again.
+        </small>
+      )}
+      <small className="text-xs text-ink-2">Nothing more is sent to the Customer until you resolve it.</small>
+    </form>
   );
 }

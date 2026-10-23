@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import type { DemoStarted } from "./demo.ts";
-import { memoryStore } from "./memory-store.ts";
+import { memoryFiles, memoryStore } from "./memory-store.ts";
+import { payTokens } from "./pay-token.ts";
 
 const USERS: Record<string, string> = { "jwt-asha": "64f0c2a91be7d3e85f10", "jwt-ravi": "64f0c2a91be7d3e85f20" };
 
@@ -22,7 +23,10 @@ beforeEach(() => {
       userFromJwt: async (jwt) => USERS[jwt] ?? null,
       worlds: db.store,
       later: (task) => void pending.push(task),
+      tokens: payTokens("test-secret"),
     },
+    files: memoryFiles().files,
+    voice: { speak: async () => new Uint8Array() },
   });
 });
 

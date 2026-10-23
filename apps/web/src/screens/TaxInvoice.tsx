@@ -206,7 +206,7 @@ function Row({ label, paise }: { label: string; paise: number }) {
   );
 }
 
-function UpiQr({ uri, label }: { uri: string; label: string }) {
+export function UpiQr({ uri, label, className = "size-28" }: { uri: string; label: string; className?: string }) {
   const [svg, setSvg] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -219,7 +219,7 @@ function UpiQr({ uri, label }: { uri: string; label: string }) {
     <div
       role="img"
       aria-label={label}
-      className="size-28 flex-none bg-white p-1 [&>svg]:size-full"
+      className={`${className} flex-none bg-white p-1 [&>svg]:size-full`}
       // The SVG is generated locally from the UPI link, never from user HTML.
       dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
     />
