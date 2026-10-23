@@ -132,6 +132,28 @@ export function appwriteWorlds(client: Client): WorldStore {
   };
 }
 
+/** Every workspace and its Demo date, a page at a time. */
+export async function* everyWorkspace(client: Client): AsyncGenerator<{ workspaceId: string; today: string }> {
+  const db = new TablesDB(client);
+  let after: string | null = null;
+  for (;;) {
+    const cursor: string | null = after;
+    const { rows }: { rows: { $id: string; today?: unknown }[] } = await withRetry(() =>
+      db.listRows({
+        databaseId: DATABASE_ID,
+        tableId: "workspaces",
+        queries: [Query.select(["$id", "today"]), Query.limit(100), ...(cursor ? [Query.cursorAfter(cursor)] : [])],
+        total: false,
+      }),
+    );
+    for (const row of rows) {
+      if (typeof row.today === "string") yield { workspaceId: row.$id, today: row.today };
+    }
+    if (rows.length < 100) return;
+    after = rows[rows.length - 1]?.$id ?? null;
+  }
+}
+
 /** The `screenshots` and `audio` buckets, written with the server key. */
 export function appwriteFiles(client: Client): FileStore {
   const storage = new Storage(client);

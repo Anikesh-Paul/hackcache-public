@@ -121,6 +121,36 @@ export async function createInvoice(body: unknown): Promise<{ invoiceId: string 
   return { invoiceId: data.invoice.$id };
 }
 
+export type ImportReport = { already: number; added: number; summary: string };
+
+async function authed(path: string, body: unknown): Promise<unknown> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+  if (!res.ok) throw new SaveError(data?.message ?? data?.error ?? "save_failed");
+  return data;
+}
+
+/** Import statement 2, or a CSV. The summary is "N already imported, N new". */
+export async function importBank(body: { sample?: true; csv?: string }): Promise<ImportReport> {
+  const data = (await authed("/api/bank/import", body)) as Partial<ImportReport> | null;
+  if (!data || typeof data.summary !== "string" || typeof data.already !== "number" || typeof data.added !== "number") {
+    throw new SaveError("import_failed");
+  }
+  return { already: data.already, added: data.added, summary: data.summary };
+}
+
+/** Confirm suggestions. `allExact` confirms every Exact credit and nothing else. */
+export async function confirmBank(body: { ids?: string[]; allExact?: boolean }): Promise<number> {
+  const data = (await authed("/api/bank/confirm", body)) as { confirmed?: number } | null;
+  if (!data || typeof data.confirmed !== "number") throw new SaveError("confirm_failed");
+  return data.confirmed;
+}
+
 export type LiveRow = { $id: string; $tableId: string; workspaceId: string } & Record<string, unknown>;
 
 /**
@@ -179,4 +209,44 @@ export async function ownerApi<T>(path: string, init: RequestInit = {}): Promise
     headers: { authorization: `Bearer ${jwt}`, ...(init.body ? { "content-type": "application/json" } : {}) },
   });
   return { status: res.status, data: (await res.json().catch(() => null)) as T | null };
+}
+
+/** What a Ladder run did, as `/api/ladder/run` answers. */
+export type LadderRun = {
+  runId: string;
+  demoDate: string;
+  scanned: number;
+  sent: number;
+  skippedDuplicate: number;
+  retried: number;
+  failed: number;
+  ready: number;
+  capped: number;
+};
+
+/** The header's ‹ › stepper: moves the Demo date and runs the daily Ladder for it, as the 10:00 cron does. */
+export async function runLadder(date: string): Promise<LadderRun> {
+  const data = (await authed("/api/ladder/run", { date })) as Partial<LadderRun> | null;
+  if (!data || typeof data.runId !== "string" || typeof data.sent !== "number") throw new SaveError("run_failed");
+  return data as LadderRun;
+}
+
+/** The Owner sent a ready Reminder from their own phone or mail. */
+export async function markReminderSent(body: { invoiceId: string; stage: number; channel: "whatsapp_link" | "email" }) {
+  await authed("/api/ladder/sent", body);
+}
+
+/** Where reminder emails go, and whether this server can send them at all. */
+export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean }> {
+  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean }>("/api/settings/email");
+  if (status !== 200 || !data) throw new SaveError("email_setup_failed");
+  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true };
+}
+
+/** Saves some Settings. A refusal names the field it could not use. */
+export async function saveSettings(patch: Record<string, unknown>): Promise<{ ok: true } | { ok: false; field: string }> {
+  const { status, data } = await ownerApi<{ field?: string }>("/api/settings", { method: "POST", body: JSON.stringify(patch) });
+  if (status === 200) return { ok: true };
+  if (status === 400 && typeof data?.field === "string") return { ok: false, field: data.field };
+  throw new SaveError("save_failed");
 }

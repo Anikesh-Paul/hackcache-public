@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
+import { confirmMatches, importStatement } from "./bank.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
   CALL_LIMITS,
@@ -30,6 +31,10 @@ import {
   type Voice,
 } from "./pay.ts";
 import type { PayLink } from "./pay-token.ts";
+import type { Mailer } from "./email.ts";
+import { inProcessRunner, ownerSent, stepDemoDate, type LadderRunner } from "./ladder.ts";
+import { saveSettings } from "./settings.ts";
+import type { ProofReader } from "./proof-read.ts";
 
 export type CallDeps = {
   /** The private ElevenLabs agent; null when it is not set up. */
@@ -39,6 +44,16 @@ export type CallDeps = {
   gloss: Gloss | null;
   limits?: CallLimits;
   now?: () => number;
+};
+
+export type LadderAppDeps = {
+  mailer: Mailer | null;
+  demoInbox: string | null;
+  webOrigin: string;
+  /** Starts the run: on Render, the `dailyLadder` workflow; by default, in this process. */
+  runner?: LadderRunner;
+  /** Run IDs for the in-process runner. */
+  runId?: () => string;
 };
 
 export type AppDeps = {
@@ -51,9 +66,12 @@ export type AppDeps = {
   call?: CallDeps;
   /** Browser origin allowed to call /api (the static site). */
   webOrigin?: string;
+  /** Reads a UPI screenshot. Null when Gemini is not configured. */
+  proof?: ProofReader | null;
+  ladder?: LadderAppDeps;
 };
 
-export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }: AppDeps) {
+export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, proof, ladder }: AppDeps) {
   const app = new Hono();
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
@@ -167,7 +185,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }
     pay("/api/pay/screenshot", async (ref, c) => {
       const form = await c.req.parseBody().catch(() => null);
       const file = form?.file;
-      return answer(c, await uploadScreenshot({ worlds: demo.worlds, files, voice }, ref, file));
+      return answer(c, await uploadScreenshot({ worlds: demo.worlds, files, voice, proof: proof ?? null }, ref, file));
     }),
   );
   app.get(
@@ -182,13 +200,17 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }
   // Call with AI. The Owner's session names the workspace; the browser's word is never taken for it.
   const now = call?.now ?? Date.now;
   const daily = dailyCounter(now);
-  const owned = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
+  const workspaceOf = async (c: Context) => {
     const jwt = bearer(c);
-    if (!jwt) return c.json({ error: "unauthorized" }, 401);
+    if (!jwt) return null;
+    const userId = await demo.userFromJwt(jwt);
+    return userId ? workspaceIdFor(userId) : null;
+  };
+  const owned = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
     try {
-      const userId = await demo.userFromJwt(jwt);
-      if (!userId) return c.json({ error: "unauthorized" }, 401);
-      return await run(workspaceIdFor(userId), c);
+      const workspaceId = await workspaceOf(c);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      return await run(workspaceId, c);
     } catch (e) {
       console.error(`${path} failed`, e);
       return c.json({ error: "call_unavailable" }, 500);
@@ -241,6 +263,87 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }
       return c.json({ error: "webhook_failed" }, 500);
     }
   });
+
+  app.post(
+    "/api/bank/import",
+    bodyLimit({
+      maxSize: 1024 * 1024,
+      onError: (c) => c.json({ error: "invalid_csv", message: "That file is too large." }, 400),
+    }),
+    async (c) => {
+      const workspaceId = await workspaceOf(c);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      try {
+        const result = await importStatement(demo.worlds, workspaceId, await json(c));
+        return result.ok ? c.json(result) : c.json({ error: result.error, message: result.message }, result.status);
+      } catch (e) {
+        console.error("/api/bank/import failed", e);
+        return c.json({ error: "bank_unavailable" }, 500);
+      }
+    },
+  );
+  app.post("/api/bank/confirm", async (c) => {
+    const workspaceId = await workspaceOf(c);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const result = await confirmMatches(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json(result) : c.json({ error: result.error }, result.status);
+    } catch (e) {
+      console.error("/api/bank/confirm failed", e);
+      return c.json({ error: "bank_unavailable" }, 500);
+    }
+  });
+
+  // The Ladder. The header's ‹ › stepper moves the Demo date and runs the same workflow the cron does.
+  const ladderDeps = {
+    worlds: demo.worlds,
+    mailer: ladder?.mailer ?? null,
+    demoInbox: ladder?.demoInbox ?? null,
+    webOrigin: ladder?.webOrigin ?? webOrigin ?? "",
+  };
+  const runner = ladder?.runner ?? inProcessRunner(ladderDeps, ladder?.runId);
+  const ownerRoute =
+    (path: string, unavailable: string, run: (workspaceId: string, c: Context) => Promise<Response>) =>
+    async (c: Context) => {
+      const workspaceId = await workspaceOf(c).catch(() => null);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      try {
+        return await run(workspaceId, c);
+      } catch (e) {
+        console.error(`${path} failed`, e);
+        return c.json({ error: unavailable }, 500);
+      }
+    };
+  app.post(
+    "/api/ladder/run",
+    ownerRoute("/api/ladder/run", "ladder_unavailable", async (workspaceId, c) => {
+      const result = await stepDemoDate(demo.worlds, runner, workspaceId, await json(c));
+      return result.ok ? c.json(result.summary) : c.json({ error: result.error }, result.status);
+    }),
+  );
+  app.post(
+    "/api/ladder/sent",
+    ownerRoute("/api/ladder/sent", "ladder_unavailable", async (workspaceId, c) => {
+      const result = await ownerSent(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
+    }),
+  );
+
+  app.post(
+    "/api/settings",
+    ownerRoute("/api/settings", "settings_unavailable", async (workspaceId, c) => {
+      const result = await saveSettings(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json({ ok: true }) : c.json({ error: result.error, field: result.field }, result.status);
+    }),
+  );
+
+  // Settings shows where reminder emails go. Without a Resend key and an inbox, every email fails and says why.
+  app.get(
+    "/api/settings/email",
+    ownerRoute("/api/settings/email", "settings_unavailable", async (_workspaceId, c) =>
+      c.json({ demoInbox: ladderDeps.demoInbox, emailReady: ladderDeps.mailer !== null && ladderDeps.demoInbox !== null }),
+    ),
+  );
 
   app.post("/api/demo/reset", async (c) => {
     const jwt = bearer(c);

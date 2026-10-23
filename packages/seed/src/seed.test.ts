@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { checkGstin, invoiceTotals, sumPaise, type GstRate } from "@tagada/money";
-import { gradeCustomer, invoiceStanding } from "@tagada/domain";
-import { DEMO_TODAY, seedWorld, type World } from "./index.ts";
+import { gradeCustomer, invoiceStanding, matchCredit, parseStatement } from "@tagada/domain";
+import {
+  DEMO_TODAY,
+  GUPTA_PROOF_UTR,
+  STATEMENT_2_CSV,
+  failsFirstSend,
+  invoicesForMatch,
+  seedWorld,
+  type World,
+} from "./index.ts";
 
 const ids = { workspaceId: "w64f0c2a91be7d3e85f10", ownerUserId: "64f0c2a91be7d3e85f10" };
 const world = seedWorld(ids);
@@ -259,5 +267,92 @@ describe("seedWorld", () => {
 
   it("never writes stage numbers or reminder keys into an event the Owner reads", () => {
     for (const e of world.events) expect(e.summary).not.toMatch(/rem_|stage \d/i);
+  });
+
+  it("gives every seeded Bank credit the kind the matcher suggests", () => {
+    const invoices = invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines });
+    expect(world.bank_txns.length).toBeGreaterThan(0);
+    for (const txn of world.bank_txns) {
+      const match = matchCredit(
+        { date: txn.date, narration: txn.narration, reference: txn.utr ?? "", amountPaise: txn.amountPaise },
+        invoices,
+      );
+      expect(match.kind, txn.narration).toBe(txn.matchKind);
+      if (txn.matchKind === "unknown") expect(match.allocations).toEqual([]);
+      else expect(match.allocations).toEqual(JSON.parse(txn.allocations ?? "null"));
+    }
+  });
+
+  it("reads statement 2 as Gupta Traders' ₹60,000, which the seed does not already contain", () => {
+    const parsed = parseStatement(STATEMENT_2_CSV);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.credits).toEqual([
+      expect.objectContaining({ reference: GUPTA_PROOF_UTR, amountPaise: 6_000_000 }),
+    ]);
+    expect(world.bank_txns.some((txn) => txn.utr === GUPTA_PROOF_UTR)).toBe(false);
+    const [credit] = parsed.credits;
+    if (!credit) throw new Error("statement 2 is empty");
+    const match = matchCredit(
+      credit,
+      invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines }),
+    );
+    const [gupta] = openOf("Gupta Traders");
+    expect(match.kind).toBe("part");
+    expect(match.allocations).toEqual([{ invoiceId: gupta!.$id, amountPaise: 6_000_000 }]);
+  });
+});
+
+describe("the Ladder's history", () => {
+  const reminderEvents = world.events.filter((e) => e.type === "reminder");
+
+  it("keeps one Reminder per stage taken, keyed by Invoice and stage, each sent", () => {
+    expect(world.reminders).toHaveLength(reminderEvents.length);
+    for (const event of reminderEvents) {
+      const { stage } = JSON.parse(event.payload ?? "{}") as { stage: number };
+      const reminder = world.reminders.find((r) => r.$id === `rem_${event.invoiceId}_s${stage}`);
+      expect(reminder, event.summary).toMatchObject({
+        invoiceId: event.invoiceId,
+        stage,
+        status: "sent",
+        sentDate: event.at.slice(0, 10),
+        channel: event.actor === "workflow" ? "email" : "whatsapp_link",
+      });
+    }
+    for (const invoice of world.invoices) {
+      const taken = world.reminders.filter((r) => r.invoiceId === invoice.$id).map((r) => r.stage);
+      expect(Math.max(0, ...taken)).toBe(invoice.ladderStage);
+    }
+  });
+
+  it("logs a daily run for every day the workflow sent something, counting what it sent", () => {
+    const days = new Set(world.reminders.filter((r) => r.runId).map((r) => r.sentDate));
+    expect(world.workflow_runs).toHaveLength(days.size);
+    for (const run of world.workflow_runs) {
+      const sent = world.reminders.filter((r) => r.runId === run.runId);
+      expect(sent.length, run.demoDate).toBeGreaterThan(0);
+      expect(run.sent).toBe(sent.length);
+      expect(run.startedAt).toBe(`${run.demoDate}T10:00:00.000+05:30`);
+      expect(run.skippedDuplicate).toBe(0);
+      expect(run.failed).toBe(0);
+    }
+  });
+
+  it("shows Paul Gift House's one failed send, retried under the same key and then sent", () => {
+    const retried = world.reminders.filter((r) => (r.attempts ?? 0) > 1);
+    expect(retried).toHaveLength(1);
+    const [paul] = retried;
+    expect(paul?.customerId).toBe(customer("Paul Gift House").$id);
+    expect(paul).toMatchObject({ status: "sent", attempts: 2 });
+    expect(paul?.error).toBeTruthy();
+    const run = world.workflow_runs.find((r) => r.runId === paul?.runId);
+    expect(run?.retried).toBe(1);
+    expect(world.workflow_runs.reduce((n, r) => n + r.retried, 0)).toBe(1);
+  });
+
+  it("marks only Paul Gift House's first live send to fail", () => {
+    for (const c of world.customers) {
+      expect(failsFirstSend(c.$id, ids.workspaceId), c.name).toBe(c.name === "Paul Gift House");
+    }
   });
 });

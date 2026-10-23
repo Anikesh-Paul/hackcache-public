@@ -121,6 +121,12 @@ importers:
       '@renderinc/sdk':
         specifier: 1.4.0
         version: 1.4.0
+      '@tagada/server':
+        specifier: workspace:*
+        version: link:../server
+      node-appwrite:
+        specifier: 31.0.0
+        version: 31.0.0
 
   packages/appwrite:
     dependencies:
@@ -141,13 +147,12 @@ importers:
       '@tagada/appwrite':
         specifier: workspace:*
         version: link:../appwrite
-      '@tagada/money':
-        specifier: workspace:*
-        version: link:../money
-    devDependencies:
       '@tagada/domain':
         specifier: workspace:*
         version: link:../domain
+      '@tagada/money':
+        specifier: workspace:*
+        version: link:../money
 
 packages:
 

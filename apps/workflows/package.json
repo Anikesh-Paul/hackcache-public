@@ -8,6 +8,8 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@renderinc/sdk": "1.4.0"
+    "@renderinc/sdk": "1.4.0",
+    "@tagada/server": "workspace:*",
+    "node-appwrite": "31.0.0"
   }
 }

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
 import { Bell, ChevronLeft, ChevronRight, Moon, RotateCcw, Sun } from "lucide-react";
-import { formatDate } from "@tagada/money";
+import { addDays, formatDate } from "@tagada/money";
+import { runLadder, type LadderRun } from "./lib/appwrite.ts";
 import { useLang, useTheme, type Lang } from "./lib/prefs.ts";
 import { useInbox, useWorldState } from "./lib/world.tsx";
 import { Badge } from "./ui.tsx";
@@ -9,17 +10,43 @@ import { Badge } from "./ui.tsx";
 const WORDS = {
   en: {
     demoDate: "Demo date",
+    prevDay: "Previous day: run the Ladder for it",
+    nextDay: "Next day: run the Ladder for it",
+    running: (date: string) => `Running the daily Ladder for ${date}…`,
+    ran: (date: string, r: LadderRun) =>
+      `The daily Ladder ran for ${date}: ${plural(r.sent, "email")} sent` +
+      (r.retried ? ` (${r.retried} after a retry)` : "") +
+      (r.failed ? `, ${r.failed} failed` : "") +
+      (r.skippedDuplicate ? `, ${r.skippedDuplicate} already sent, skipped` : "") +
+      `, ${r.ready} ready for you.`,
+    runFailed: "The daily Ladder could not run. The Demo date may not have moved; try again.",
+    log: "Automation log",
     reset: "Reset demo",
     inbox: (n: number) => (n === 0 ? "Inbox, nothing new" : `Inbox, ${n} new`),
     confirmReset: "Reset the demo? Anything you changed is deleted and the starting story comes back.",
   },
   hi: {
     demoDate: "डेमो तारीख",
+    prevDay: "पिछला दिन: उस दिन की सीढ़ी चलाएँ",
+    nextDay: "अगला दिन: उस दिन की सीढ़ी चलाएँ",
+    running: (date: string) => `${date} की रोज़ की सीढ़ी चल रही है…`,
+    ran: (date: string, r: LadderRun) =>
+      `${date} की रोज़ की सीढ़ी चली: ${r.sent} ईमेल गए` +
+      (r.retried ? ` (${r.retried} दोबारा कोशिश के बाद)` : "") +
+      (r.failed ? `, ${r.failed} नहीं गए` : "") +
+      (r.skippedDuplicate ? `, ${r.skippedDuplicate} पहले ही जा चुके थे` : "") +
+      `, ${r.ready} आपके भेजने के लिए तैयार।`,
+    runFailed: "रोज़ की सीढ़ी नहीं चल पाई। फिर से कोशिश करें।",
+    log: "ऑटोमेशन लॉग",
     reset: "डेमो फिर से",
     inbox: (n: number) => (n === 0 ? "इनबॉक्स, कुछ नया नहीं" : `इनबॉक्स, ${n} नए`),
     confirmReset: "डेमो फिर से शुरू करें? आपके बदलाव हट जाएंगे और शुरुआती कहानी लौट आएगी।",
   },
 } satisfies Record<Lang, unknown>;
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
 
 const TABS = [
   { to: "/app", en: "Today", hi: "आज" },
@@ -37,6 +64,8 @@ export function AppShell() {
   const { theme, toggle } = useTheme();
   const { lang, choose } = useLang();
   const [resetting, setResetting] = useState(false);
+  const [stepping, setStepping] = useState(false);
+  const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null);
   const t = WORDS[lang];
   const inbox = useInbox();
   const unread = Array.isArray(inbox) ? inbox.filter((row) => !row.read).length : 0;
@@ -47,6 +76,25 @@ export function AppShell() {
     setResetting(true);
     await state.reset();
     setResetting(false);
+  };
+
+  // The same workflow the 10:00 cron starts, for this world and the new date.
+  const step = async (days: number) => {
+    if (!workspace) return;
+    const date = addDays(workspace.today, days);
+    setStepping(true);
+    setNote({ text: t.running(formatDate(date)) });
+    try {
+      const run = await runLadder(date);
+      await state.reload();
+      setNote({ text: t.ran(formatDate(date), run) });
+    } catch (e) {
+      console.error("ladder run failed", e);
+      setNote({ text: t.runFailed, failed: true });
+      await state.reload().catch(() => {});
+    } finally {
+      setStepping(false);
+    }
   };
 
   return (
@@ -69,9 +117,10 @@ export function AppShell() {
             <div className="flex items-center" title="Every screen uses this date, not the clock">
               <button
                 type="button"
-                disabled
-                aria-label="Previous day (comes with the daily run)"
-                className="grid size-11 place-items-center rounded-md text-on-cover-2 disabled:opacity-50"
+                disabled={stepping}
+                onClick={() => step(-1)}
+                aria-label={t.prevDay}
+                className="grid size-11 place-items-center rounded-md text-on-cover-2 hover:text-on-cover disabled:opacity-50"
               >
                 <ChevronLeft size={18} aria-hidden />
               </button>
@@ -81,9 +130,10 @@ export function AppShell() {
               </span>
               <button
                 type="button"
-                disabled
-                aria-label="Next day (comes with the daily run)"
-                className="grid size-11 place-items-center rounded-md text-on-cover-2 disabled:opacity-50"
+                disabled={stepping}
+                onClick={() => step(1)}
+                aria-label={t.nextDay}
+                className="grid size-11 place-items-center rounded-md text-on-cover-2 hover:text-on-cover disabled:opacity-50"
               >
                 <ChevronRight size={18} aria-hidden />
               </button>
@@ -157,6 +207,14 @@ export function AppShell() {
         </nav>
       </header>
       <main className="mx-auto max-w-[1240px] px-3 pt-5 pb-16 sm:px-7 sm:pt-7">
+        <p role="status" aria-live="polite" className={note ? "no-print mb-4 text-sm" : "sr-only"}>
+          {note && (
+            <span className={note.failed ? "text-sindoor" : "text-ink-2"}>
+              {note.text}{" "}
+              {!note.failed && !stepping && <Link to="/app/automation">{t.log}</Link>}
+            </span>
+          )}
+        </p>
         <WorldGate>
           <Outlet />
         </WorldGate>
