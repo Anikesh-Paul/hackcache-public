@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 
 const ok = async () => {};
-const demo = { userFromJwt: async () => null, worlds: { exists: async () => false, remove: ok, write: ok } };
+const demo = {
+  userFromJwt: async () => null,
+  worlds: { exists: async () => false, remove: ok, write: ok },
+  later: () => {},
+};
 
 describe("GET /healthz", () => {
   it("is OK when Appwrite can be read with the server key", async () => {

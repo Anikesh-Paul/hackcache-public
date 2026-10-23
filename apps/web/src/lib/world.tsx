@@ -105,7 +105,11 @@ export function viewOf(world: World, invoice: InvoiceRow): InvoiceView {
   };
 }
 
-/** Rows that hang off one Invoice (its lines, its events), loaded on demand: null while loading. */
+/**
+ * Rows that hang off one Invoice (its lines, its events), loaded on demand:
+ * null while loading. Every Invoice has both, so an empty answer means a
+ * fresh world is still being written; it is asked again a few times.
+ */
 export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined) {
   const state = useWorldState();
   // A new world object (first load, or after Reset demo) loads the rows again.
@@ -115,8 +119,16 @@ export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined
     if (!world || !invoiceId) return;
     let live = true;
     setRows(null);
-    rowsOf<T>(tableId, world.workspace.$id, { invoiceId }).then(
-      (r) => live && setRows(r),
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<T>(tableId, world.workspace.$id, { invoiceId });
+        if (found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
+      (r) => live && setRows(r.length > 0 ? r : "failed"),
       (e: unknown) => {
         console.error(`${tableId} failed to load`, e);
         if (live) setRows("failed");

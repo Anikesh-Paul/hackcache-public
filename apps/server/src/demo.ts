@@ -13,11 +13,11 @@ export type OwnedRow = { $id: string; workspaceId: string; $permissions: string[
 export type WorldRows = Record<string, OwnedRow[]>;
 
 export type WorldStore = {
-  /** True once a workspace's world is completely written. */
+  /** True once the workspace row is written, which happens last. */
   exists(workspaceId: string): Promise<boolean>;
   /** Deletes every row of the workspace, in every table. */
   remove(workspaceId: string): Promise<void>;
-  /** Creates or overwrites the rows. The workspace row must land last. */
+  /** Creates or overwrites the rows, all tables at once. */
   write(world: WorldRows): Promise<void>;
 };
 
@@ -25,6 +25,8 @@ export type DemoDeps = {
   /** The Appwrite user a session JWT belongs to, or null when it is not valid. */
   userFromJwt: (jwt: string) => Promise<string | null>;
   worlds: WorldStore;
+  /** Runs work after the answer has gone; it must log its own failure. */
+  later: (task: Promise<void>) => void;
 };
 
 export function workspaceIdFor(userId: string): string {
@@ -36,28 +38,49 @@ function seedFor(userId: string): World {
 }
 
 /** The seed for this visitor, every row owned by them alone. */
-export function ownedWorld(userId: string, world = seedFor(userId)): WorldRows {
+export function ownedWorld(userId: string, world = seedFor(userId)): Record<keyof World, OwnedRow[]> {
   const permissions = [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
   return Object.fromEntries(
     Object.entries(world).map(([tableId, rows]) => [
       tableId,
       rows.map((row: { $id: string; workspaceId: string }) => ({ ...row, $permissions: [...permissions] })),
     ]),
-  );
+  ) as Record<keyof World, OwnedRow[]>;
 }
 
-async function seed(worlds: WorldStore, userId: string): Promise<DemoStarted> {
+/**
+ * Writes what the first screens read (Customers, Invoices, Promises), then
+ * answers; the lines, events, bank and cash rows follow, and the workspace
+ * row last. Until it lands the world does not "exist", so a reload in that
+ * second seeds again, which only rewrites the same rows.
+ */
+async function seed({ worlds, later }: DemoDeps, userId: string): Promise<DemoStarted> {
   const world = seedFor(userId);
-  await worlds.write(ownedWorld(userId, world));
-  const { workspaces, customers, invoices, promises } = world;
-  return { workspaceId: workspaceIdFor(userId), seeded: true, world: { workspaces, customers, invoices, promises } };
+  const { workspaces, customers, invoices, promises, ...rest } = ownedWorld(userId, world);
+  await worlds.write({ customers, invoices, promises });
+  later(
+    worlds
+      .write(rest)
+      .then(() => worlds.write({ workspaces }))
+      .catch((e: unknown) => console.error(`seeding the rest of ${workspaceIdFor(userId)} failed`, e)),
+  );
+  return {
+    workspaceId: workspaceIdFor(userId),
+    seeded: true,
+    world: {
+      workspaces: world.workspaces,
+      customers: world.customers,
+      invoices: world.invoices,
+      promises: world.promises,
+    },
+  };
 }
 
 /** Seeds the visitor's world unless it is already there. `exists` skips the lookup when already known. */
-export async function startDemo(worlds: WorldStore, userId: string, exists?: boolean): Promise<DemoStarted> {
+export async function startDemo(deps: DemoDeps, userId: string, exists?: boolean): Promise<DemoStarted> {
   const workspaceId = workspaceIdFor(userId);
-  if (exists ?? (await worlds.exists(workspaceId))) return { workspaceId, seeded: false };
-  return seed(worlds, userId);
+  if (exists ?? (await deps.worlds.exists(workspaceId))) return { workspaceId, seeded: false };
+  return seed(deps, userId);
 }
 
 /**
@@ -75,7 +98,7 @@ export function claimedUserId(jwt: string): string | null {
 }
 
 /** Deletes the visitor's world and seeds it again. Nobody else's rows are touched. */
-export async function resetDemo(worlds: WorldStore, userId: string): Promise<DemoStarted> {
-  await worlds.remove(workspaceIdFor(userId));
-  return seed(worlds, userId);
+export async function resetDemo(deps: DemoDeps, userId: string): Promise<DemoStarted> {
+  await deps.worlds.remove(workspaceIdFor(userId));
+  return seed(deps, userId);
 }

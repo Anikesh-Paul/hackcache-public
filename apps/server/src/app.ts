@@ -42,7 +42,7 @@ export function createApp({ probeAppwrite, demo, webOrigin }: AppDeps) {
       const early = claimed ? demo.worlds.exists(workspaceIdFor(claimed)).catch(() => undefined) : undefined;
       const userId = await demo.userFromJwt(jwt);
       if (!userId) return c.json({ error: "unauthorized" }, 401);
-      return c.json(await startDemo(demo.worlds, userId, userId === claimed ? await early : undefined));
+      return c.json(await startDemo(demo, userId, userId === claimed ? await early : undefined));
     } catch (e) {
       return failed(c, "/api/demo/start", e);
     }
@@ -54,7 +54,7 @@ export function createApp({ probeAppwrite, demo, webOrigin }: AppDeps) {
     try {
       const userId = await demo.userFromJwt(jwt);
       if (!userId) return c.json({ error: "unauthorized" }, 401);
-      return c.json(await resetDemo(demo.worlds, userId));
+      return c.json(await resetDemo(demo, userId));
     } catch (e) {
       return failed(c, "/api/demo/reset", e);
     }

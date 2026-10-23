@@ -37,12 +37,22 @@ const USERS: Record<string, string> = { "jwt-asha": "64f0c2a91be7d3e85f10", "jwt
 
 let db: ReturnType<typeof memoryStore>;
 let app: ReturnType<typeof createApp>;
+/** Work the server does after answering; tests wait for it with settle(). */
+let pending: Promise<void>[];
+const settle = async () => {
+  while (pending.length) await pending.shift();
+};
 
 beforeEach(() => {
   db = memoryStore();
+  pending = [];
   app = createApp({
     probeAppwrite: async () => {},
-    demo: { userFromJwt: async (jwt) => USERS[jwt] ?? null, worlds: db.store },
+    demo: {
+      userFromJwt: async (jwt) => USERS[jwt] ?? null,
+      worlds: db.store,
+      later: (task) => void pending.push(task),
+    },
   });
 });
 
@@ -60,13 +70,43 @@ describe("POST /api/demo/start", () => {
     const first = await post("/api/demo/start", "jwt-asha");
     expect(first.status).toBe(200);
     expect(await first.json()).toMatchObject({ workspaceId: "w64f0c2a91be7d3e85f10", seeded: true });
+    await settle();
     const count = db.rows().length;
     expect(count).toBeGreaterThan(100);
+    const writes = db.writes();
 
     const again = await post("/api/demo/start", "jwt-asha");
     expect(await again.json()).toEqual({ workspaceId: "w64f0c2a91be7d3e85f10", seeded: false });
-    expect(db.writes()).toBe(1);
+    await settle();
+    expect(db.writes()).toBe(writes);
     expect(db.rows()).toHaveLength(count);
+  });
+
+  it("answers once the first screens' rows are saved, and saves the rest right after", async () => {
+    // Hold every write after the first until the answer has been checked.
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const write = db.store.write;
+    let calls = 0;
+    db.store.write = async (rows) => {
+      if (calls++ > 0) await gate;
+      return write(rows);
+    };
+    const res = await post("/api/demo/start", "jwt-asha");
+    expect(res.status).toBe(200);
+    const tableOf = (id: string) => db.rowsOf("w64f0c2a91be7d3e85f10").filter((r) => r.$id.startsWith(id));
+    expect(tableOf("i")).toHaveLength(31);
+    expect(tableOf("c")).toHaveLength(12);
+    expect(tableOf("l")).toHaveLength(0);
+    // The world does not count as there until its last row is saved.
+    expect(await db.store.exists("w64f0c2a91be7d3e85f10")).toBe(false);
+
+    release();
+    await settle();
+    expect(tableOf("l").length).toBeGreaterThan(31);
+    expect(tableOf("e").length).toBeGreaterThan(31);
+    expect(tableOf("bt_")).toHaveLength(7);
+    expect(await db.store.exists("w64f0c2a91be7d3e85f10")).toBe(true);
   });
 
   it("hands a fresh world straight back, so the browser need not read it again", async () => {
@@ -80,6 +120,7 @@ describe("POST /api/demo/start", () => {
 
   it("lets only this visitor read and update every row it writes", async () => {
     await post("/api/demo/start", "jwt-asha");
+    await settle();
     for (const row of db.rows()) {
       expect(row.$permissions).toEqual(['read("user:64f0c2a91be7d3e85f10")', 'update("user:64f0c2a91be7d3e85f10")']);
     }
@@ -88,6 +129,7 @@ describe("POST /api/demo/start", () => {
   it("gives two visitors separate worlds that share no row", async () => {
     await post("/api/demo/start", "jwt-asha");
     await post("/api/demo/start", "jwt-ravi");
+    await settle();
     const asha = db.rowsOf("w64f0c2a91be7d3e85f10");
     const ravi = db.rowsOf("w64f0c2a91be7d3e85f20");
     expect(asha.length).toBe(ravi.length);
@@ -102,6 +144,7 @@ describe("POST /api/demo/start", () => {
     await post("/api/demo/start", "jwt-asha");
     const res = await post("/api/demo/start", claimsAsha);
     expect(await res.json()).toMatchObject({ workspaceId: "w64f0c2a91be7d3e85f20", seeded: true });
+    await settle();
     expect(db.rowsOf("w64f0c2a91be7d3e85f20").length).toBeGreaterThan(100);
     delete USERS[claimsAsha];
   });
@@ -110,11 +153,13 @@ describe("POST /api/demo/start", () => {
     const asha = `x.${btoa(JSON.stringify({ userId: "64f0c2a91be7d3e85f10" }))}.y`;
     USERS[asha] = "64f0c2a91be7d3e85f10";
     await post("/api/demo/start", asha);
+    await settle();
+    const writes = db.writes();
     expect(await (await post("/api/demo/start", asha)).json()).toEqual({
       workspaceId: "w64f0c2a91be7d3e85f10",
       seeded: false,
     });
-    expect(db.writes()).toBe(1);
+    expect(db.writes()).toBe(writes);
     delete USERS[asha];
   });
 
@@ -136,6 +181,7 @@ describe("POST /api/demo/reset", () => {
   it("puts back the starting story for this visitor only", async () => {
     await post("/api/demo/start", "jwt-asha");
     await post("/api/demo/start", "jwt-ravi");
+    await settle();
     const startingStory = JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f10"));
     const ravisWorld = JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f20"));
 
@@ -147,6 +193,7 @@ describe("POST /api/demo/reset", () => {
     const res = await post("/api/demo/reset", "jwt-asha");
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ workspaceId: "w64f0c2a91be7d3e85f10", seeded: true });
+    await settle();
     expect(JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f10"))).toBe(startingStory);
     expect(JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f20"))).toBe(ravisWorld);
   });

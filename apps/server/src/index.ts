@@ -5,7 +5,8 @@ import { adminClient, appwriteWorlds, probeAppwrite, userFromJwt } from "./appwr
 const admin = adminClient();
 const app = createApp({
   probeAppwrite: () => probeAppwrite(admin),
-  demo: { userFromJwt, worlds: appwriteWorlds(admin) },
+  // Seeding the rest of a world after answering: the task logs its own failure.
+  demo: { userFromJwt, worlds: appwriteWorlds(admin), later: () => {} },
   webOrigin: process.env.WEB_ORIGIN,
 });
 

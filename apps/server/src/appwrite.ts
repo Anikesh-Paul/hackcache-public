@@ -79,17 +79,13 @@ export function appwriteWorlds(client: Client): WorldStore {
     async write(world) {
       // Upserts: the seed is deterministic, so a second write of the same world is harmless.
       // Appwrite's time grows with rows per call, so small batches in parallel are faster.
-      const { workspaces, ...rest } = world;
       await Promise.all(
-        Object.entries(rest).flatMap(([tableId, rows]) =>
+        Object.entries(world).flatMap(([tableId, rows]) =>
           batches(rows, 25).map((batch) =>
             withRetry(() => db.upsertRows({ databaseId: DATABASE_ID, tableId, rows: batch })),
           ),
         ),
       );
-      if (workspaces?.length) {
-        await withRetry(() => db.upsertRows({ databaseId: DATABASE_ID, tableId: "workspaces", rows: workspaces }));
-      }
     },
   };
 }
