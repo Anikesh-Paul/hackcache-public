@@ -23,10 +23,10 @@ import {
   SECTION16_RATE_BEFORE_BPS,
   SECTION16_RATE_CHANGE,
   SECTION16_RATE_FROM_BPS,
-  parseAmountPaise,
   stateName,
 } from "@tagada/money";
-import { PROOF_LABEL, ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
+import { ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
+import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
 import { markDisputed } from "../lib/appwrite.ts";
 import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { istDay, priceLines, storedTotalsMatch } from "../lib/pricing.ts";
@@ -470,20 +470,10 @@ function ProofLine({ invoiceId }: { invoiceId: string }) {
     .filter((proof) => proof.invoiceId === invoiceId && proof.result)
     .sort((a, b) => (b.checkedAt ?? "").localeCompare(a.checkedAt ?? ""))[0];
   if (!latest?.result) return null;
-  let amount = "";
-  try {
-    const parsed = JSON.parse(latest.extracted ?? "null") as { amountText?: unknown } | null;
-    if (parsed && typeof parsed.amountText === "string") {
-      const paise = parseAmountPaise(parsed.amountText);
-      if (paise !== null) amount = formatInr(paise);
-    }
-  } catch {
-    amount = "";
-  }
-  const tone = latest.result === "found" ? "ok" : latest.result === "amount_mismatch" ? "warn" : "plain";
+  const amount = proofAmount(latest.extracted);
   return (
     <p className="mt-2">
-      <span className={`word ${tone}`}>{PROOF_LABEL[latest.result]}</span>
+      <span className={`word ${proofTone(latest.result)}`}>{proofLabel(latest.result)}</span>
       {amount && <span className="ml-2 text-sm text-ink-2">{amount}</span>}
     </p>
   );

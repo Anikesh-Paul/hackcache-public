@@ -3,8 +3,9 @@ import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router";
 import { Check, CircleDot, CircleHelp, Copy, Flag, Scale } from "lucide-react";
 import type { BankAllocation, BankTxnRow, InvoiceLineRow } from "@tagada/appwrite";
-import { MATCH_LABEL, PROOF_LABEL, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
-import { formatDate, formatInr, parseAmountPaise } from "@tagada/money";
+import { MATCH_LABEL, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
+import { formatDate, formatInr } from "@tagada/money";
+import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
 import { SaveError, confirmBank, importBank } from "../lib/appwrite.ts";
 import { useWorkspaceRows, useWorld, useWorldState } from "../lib/world.tsx";
 import { Badge, Head, Ln, Paper } from "../ui.tsx";
@@ -39,22 +40,6 @@ function allocations(row: BankTxnRow): BankAllocation[] {
   } catch {
     return [];
   }
-}
-
-function proofAmount(extracted: string | null): string {
-  if (!extracted) return "";
-  try {
-    const parsed = JSON.parse(extracted) as { amountText?: unknown };
-    if (typeof parsed.amountText !== "string") return "";
-    const paise = parseAmountPaise(parsed.amountText);
-    return paise === null ? "" : formatInr(paise);
-  } catch {
-    return "";
-  }
-}
-
-export function proofLabel(result: ProofResultKind | null): string {
-  return result ? PROOF_LABEL[result] : "Not found yet";
 }
 
 /** /app/bank: import a statement, read the suggestion, confirm it. */
@@ -276,7 +261,7 @@ export function Bank() {
               const invoice = invoiceOf(proof.invoiceId);
               const label = proofLabel(proof.result);
               const amount = proofAmount(proof.extracted);
-              const tone = proof.result === "found" ? "ok" : proof.result === "amount_mismatch" ? "warn" : "plain";
+              const tone = proofTone(proof.result);
               return (
                 <li key={proof.$id} className="ln wide ruler">
                   <div className="m" />

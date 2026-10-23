@@ -111,6 +111,27 @@ describe("checkProof", () => {
     expect(view.label).toBe("Matched ✓");
   });
 
+  it("does not match when the date cannot be read, even if the UTR is in the bank", () => {
+    const view = checkProof({
+      extracted: extracted({ dateText: "yesterday" }),
+      today: TODAY,
+      balancePaise: GUPTA_BALANCE,
+      credits: [{ utr: UTR, amountPaise: 6_000_000 }],
+    });
+    expect(view.result).toBe("not_found_yet");
+    expect(view.label).not.toBe("Matched ✓");
+  });
+
+  it("reads a date printed as 1 Nov 2026", () => {
+    const view = checkProof({
+      extracted: extracted({ dateText: "1 Nov 2026, 10:30 AM" }),
+      today: TODAY,
+      balancePaise: GUPTA_BALANCE,
+      credits: [{ utr: UTR, amountPaise: 6_000_000 }],
+    });
+    expect(view.result).toBe("found");
+  });
+
   it("does not call a screenshot dated after the Demo date matched", () => {
     const view = checkProof({
       extracted: extracted({ dateText: "03/11/2026" }),

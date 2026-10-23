@@ -1,11 +1,11 @@
 // Suggest which Invoices a Bank credit pays. Nothing here marks an Invoice paid:
 // the Owner confirms that on the Bank page. Money arithmetic stays in `money`.
+import { printedDate } from "./printed-date.ts";
 import {
   differencePaise,
   formatInr,
   formatRateBps,
   invoiceTotals,
-  isCivilDate,
   isGstRate,
   parseAmountPaise,
   percentOfPaise,
@@ -373,15 +373,6 @@ function columnKey(header: string): "date" | "narration" | "reference" | "amount
   return COLUMNS[header.toLowerCase().replace(/[\s_.]+/g, "")] ?? null;
 }
 
-function asDate(cell: string): string | null {
-  const text = cell.trim();
-  if (isCivilDate(text)) return text;
-  const match = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(text);
-  if (!match) return null;
-  const iso = `${match[3]}-${(match[2] ?? "").padStart(2, "0")}-${(match[1] ?? "").padStart(2, "0")}`;
-  return isCivilDate(iso) ? iso : null;
-}
-
 /** A statement CSV into credits. Amounts go through `parseAmountPaise`. */
 export function parseStatement(text: string): ParsedStatement {
   const rows = splitCsv(text);
@@ -401,7 +392,7 @@ export function parseStatement(text: string): ParsedStatement {
     const amountCell = take("amount");
     if (!amountCell) continue;
     const amountPaise = parseAmountPaise(amountCell);
-    const date = asDate(take("date"));
+    const date = printedDate(take("date"));
     const narration = take("narration");
     const reference = take("reference") || narration;
     if (amountPaise === null || amountPaise < 0 || !date || !reference) {

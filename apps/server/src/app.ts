@@ -186,13 +186,17 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
   // Call with AI. The Owner's session names the workspace; the browser's word is never taken for it.
   const now = call?.now ?? Date.now;
   const daily = dailyCounter(now);
-  const owned = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
+  const workspaceOf = async (c: Context) => {
     const jwt = bearer(c);
-    if (!jwt) return c.json({ error: "unauthorized" }, 401);
+    if (!jwt) return null;
+    const userId = await demo.userFromJwt(jwt);
+    return userId ? workspaceIdFor(userId) : null;
+  };
+  const owned = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
     try {
-      const userId = await demo.userFromJwt(jwt);
-      if (!userId) return c.json({ error: "unauthorized" }, 401);
-      return await run(workspaceIdFor(userId), c);
+      const workspaceId = await workspaceOf(c);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      return await run(workspaceId, c);
     } catch (e) {
       console.error(`${path} failed`, e);
       return c.json({ error: "call_unavailable" }, 500);
@@ -246,12 +250,6 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     }
   });
 
-  const session = async (c: Context) => {
-    const jwt = bearer(c);
-    if (!jwt) return null;
-    const userId = await demo.userFromJwt(jwt);
-    return userId ? workspaceIdFor(userId) : null;
-  };
   app.post(
     "/api/bank/import",
     bodyLimit({
@@ -259,7 +257,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       onError: (c) => c.json({ error: "invalid_csv", message: "That file is too large." }, 400),
     }),
     async (c) => {
-      const workspaceId = await session(c);
+      const workspaceId = await workspaceOf(c);
       if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
       try {
         const result = await importStatement(demo.worlds, workspaceId, await json(c));
@@ -271,7 +269,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     },
   );
   app.post("/api/bank/confirm", async (c) => {
-    const workspaceId = await session(c);
+    const workspaceId = await workspaceOf(c);
     if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
     try {
       const result = await confirmMatches(demo.worlds, workspaceId, await json(c));

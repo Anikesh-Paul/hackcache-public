@@ -32,6 +32,11 @@ function permissionsOf(userId: string): string[] {
   return [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
 }
 
+function ownerAccess(workspace: StoredRow, workspaceId: string): { permissions: string[]; today: string } {
+  const userId = text(workspace.ownerUserId) ?? workspaceId.slice(1);
+  return { permissions: permissionsOf(userId), today: text(workspace.today) ?? "" };
+}
+
 function readJson(value: unknown): unknown {
   if (typeof value !== "string") return value;
   try {
@@ -139,8 +144,7 @@ export async function importStatement(worlds: WorldStore, workspaceId: string, b
 
   const { workspace, customers, invoices, lines, bank } = await books(worlds, workspaceId);
   if (!workspace) return { ok: false, status: 400, error: "no_workspace", message: "This Demo world is not ready." };
-  const userId = text(workspace.ownerUserId) ?? workspaceId.slice(1);
-  const permissions = permissionsOf(userId);
+  const { permissions } = ownerAccess(workspace, workspaceId);
   const open = matchRows(customers, invoices, lines);
   const incoming = parsed.credits.map((credit) => ({
     credit,
@@ -168,9 +172,7 @@ export async function importStatement(worlds: WorldStore, workspaceId: string, b
 async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<void> {
   const { workspace, invoices, bank, proofs } = await books(worlds, workspaceId);
   if (!workspace) return;
-  const userId = text(workspace.ownerUserId) ?? workspaceId.slice(1);
-  const permissions = permissionsOf(userId);
-  const today = text(workspace.today) ?? "";
+  const { permissions, today } = ownerAccess(workspace, workspaceId);
   const credits = bank.map((row) => ({ utr: text(row.utr), amountPaise: whole(row.amountPaise) }));
   for (const proof of proofs) {
     if (proof.result !== "not_found_yet") continue;
@@ -215,9 +217,7 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
   const loaded = await books(worlds, workspaceId);
   if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
   const chosen = choose(loaded.bank, body);
-  const userId = text(loaded.workspace.ownerUserId) ?? workspaceId.slice(1);
-  const permissions = permissionsOf(userId);
-  const today = text(loaded.workspace.today) ?? "";
+  const { permissions, today } = ownerAccess(loaded.workspace, workspaceId);
   const invoices = new Map(loaded.invoices.map((row) => [row.$id, row]));
   const events: OwnedRow[] = [];
 

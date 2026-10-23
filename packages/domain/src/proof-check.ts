@@ -1,6 +1,7 @@
 // A UPI screenshot checked against Bank credits. The model returns the amount
 // as printed text; only `money` turns that text into paise.
-import { daysBetween, isCivilDate, parseAmountPaise } from "@tagada/money";
+import { daysBetween, parseAmountPaise } from "@tagada/money";
+import { printedDate } from "./printed-date.ts";
 
 export type ProofExtract = {
   utr: string;
@@ -49,15 +50,6 @@ export function proofFromModel(value: unknown): ProofExtract | null {
   };
 }
 
-function asDate(text: string): string | null {
-  const trimmed = text.trim();
-  if (isCivilDate(trimmed)) return trimmed;
-  const match = /^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/.exec(trimmed);
-  if (!match?.[1] || !match[2] || !match[3]) return null;
-  const iso = `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
-  return isCivilDate(iso) ? iso : null;
-}
-
 /** Spaces and hyphens are not part of a UTR. "6098 1234 5678" is the same as "609812345678". */
 export function normalUtr(utr: string): string {
   return utr.trim().toUpperCase().replace(/[\s-]/g, "");
@@ -86,8 +78,11 @@ export function checkProof(input: {
   if (amountPaise <= 0 || amountPaise > input.balancePaise) {
     return view("amount_mismatch", amountPaise, "The amount on the screenshot is more than what is still owed on this Invoice.");
   }
-  const date = asDate(input.extracted.dateText);
-  if (date && daysBetween(input.today, date) > 0) {
+  const date = printedDate(input.extracted.dateText);
+  if (!date) {
+    return view("not_found_yet", amountPaise, "The date on the screenshot could not be read, so it is not confirmed yet.");
+  }
+  if (daysBetween(input.today, date) > 0) {
     return view("not_found_yet", amountPaise, "The date on the screenshot is after today, so it is not in the statement yet.");
   }
   const utr = normalUtr(input.extracted.utr);
