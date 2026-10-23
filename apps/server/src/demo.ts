@@ -4,10 +4,14 @@
 import { Permission, Role } from "node-appwrite";
 import type { DemoStarted } from "@tagada/appwrite";
 import { seedWorld, type World } from "@tagada/seed";
+import type { PayTokens } from "./pay-token.ts";
 
 export type { DemoStarted };
 
 export type OwnedRow = { $id: string; workspaceId: string; $permissions: string[] } & Record<string, unknown>;
+
+/** A row as listed back. `$permissions` is only present when this process wrote it. */
+export type StoredRow = { $id: string; workspaceId: string } & Record<string, unknown>;
 
 /** Rows to write, by table ID. */
 export type WorldRows = Record<string, OwnedRow[]>;
@@ -19,6 +23,14 @@ export type WorldStore = {
   remove(workspaceId: string): Promise<void>;
   /** Creates or overwrites the rows, all tables at once. */
   write(world: WorldRows): Promise<void>;
+  /** Creates one row, unless a row with its ID is already there: then nothing is written. */
+  create(tableId: string, row: OwnedRow): Promise<"created" | "exists">;
+  /** One row by ID, or null. */
+  get(tableId: string, rowId: string): Promise<StoredRow | null>;
+  /** Changes some columns of one row. */
+  update(tableId: string, rowId: string, patch: Record<string, unknown>): Promise<void>;
+  /** Every row of one table in one workspace, optionally narrowed by equal columns. A demo world fits in one page. */
+  list(tableId: string, workspaceId: string, where?: Record<string, string>): Promise<StoredRow[]>;
 };
 
 export type DemoDeps = {
@@ -27,18 +39,29 @@ export type DemoDeps = {
   worlds: WorldStore;
   /** Runs work after the answer has gone; it must log its own failure. */
   later: (task: Promise<void>) => void;
+  /** Signs each Invoice's pay link. */
+  tokens: PayTokens;
 };
 
 export function workspaceIdFor(userId: string): string {
   return `w${userId}`;
 }
 
-function seedFor(userId: string): World {
-  return seedWorld({ workspaceId: workspaceIdFor(userId), ownerUserId: userId });
+/** The seed for this visitor, every Invoice with its signed pay link. */
+function seedFor(userId: string, tokens: PayTokens): World {
+  const workspaceId = workspaceIdFor(userId);
+  const world = seedWorld({ workspaceId, ownerUserId: userId });
+  return {
+    ...world,
+    invoices: world.invoices.map((invoice) => ({
+      ...invoice,
+      payToken: tokens.sign({ workspaceId, invoiceId: invoice.$id }),
+    })),
+  };
 }
 
 /** The seed for this visitor, every row owned by them alone. */
-export function ownedWorld(userId: string, world = seedFor(userId)): Record<keyof World, OwnedRow[]> {
+export function ownedWorld(userId: string, world: World): Record<keyof World, OwnedRow[]> {
   const permissions = [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
   return Object.fromEntries(
     Object.entries(world).map(([tableId, rows]) => [
@@ -54,8 +77,8 @@ export function ownedWorld(userId: string, world = seedFor(userId)): Record<keyo
  * row last. Until it lands the world does not "exist", so a reload in that
  * second seeds again, which only rewrites the same rows.
  */
-async function seed({ worlds, later }: DemoDeps, userId: string): Promise<DemoStarted> {
-  const world = seedFor(userId);
+async function seed({ worlds, later, tokens }: DemoDeps, userId: string): Promise<DemoStarted> {
+  const world = seedFor(userId, tokens);
   const { workspaces, customers, invoices, promises, ...rest } = ownedWorld(userId, world);
   await worlds.write({ customers, invoices, promises });
   later(

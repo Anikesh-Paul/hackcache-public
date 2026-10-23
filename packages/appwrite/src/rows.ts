@@ -17,6 +17,8 @@ export type WorkspaceRow = Row<{
   ownerEmail: string | null;
   demoInboxEmail: string | null;
   today: string;
+  /** "HH:MM" IST on the Demo date; null reads as 11:20. */
+  clock?: string | null;
   salaryDay: string | null;
   openingCashPaise: number | null;
   /** JSON: { minFirstPct, firstWithinDays, restWithinDays } */
@@ -108,8 +110,35 @@ export type BankTxnRow = Row<{
   amountPaise: number;
   matchStatus: "unmatched" | "suggested" | "confirmed";
   matchKind: "exact" | "part" | "multi" | "overpay" | "unknown" | "tds" | null;
-  /** JSON: [{ invoiceId, amountPaise }] */
+  /** JSON: BankAllocation[] */
   allocations: string | null;
+}>;
+
+/** One Invoice's share of a Bank credit. `tdsPaise` is what the Customer kept back as TDS. */
+export type BankAllocation = { invoiceId: string; amountPaise: number; tdsPaise?: number };
+
+export type CallRow = Row<{
+  invoiceId: string;
+  conversationId: string | null;
+  startedAt: string | null;
+  durationS: number | null;
+  outcome: string | null;
+  /** JSON transcript. */
+  transcript: string | null;
+  consentShown: boolean;
+}>;
+
+export type ReminderRow = Row<{
+  invoiceId: string;
+  customerId: string;
+  sentDate: string | null;
+  stage: number;
+  channel: "email" | "whatsapp_link" | "call";
+  status: "queued" | "sent" | "failed" | "retried" | "skipped_cap" | "skipped_stage_off";
+  attempts: number | null;
+  providerMessageId: string | null;
+  error: string | null;
+  runId: string | null;
 }>;
 
 export type CashItemRow = Row<{
@@ -128,3 +157,56 @@ export type DemoStarted =
       seeded: true;
       world: { workspaces: WorkspaceRow[]; customers: CustomerRow[]; invoices: InvoiceRow[]; promises: PromiseRow[] };
     };
+
+export type InboxKind = "paid_claim" | "dispute" | "plan_accepted" | "needs_decision" | "proof_uploaded";
+
+export type InboxRow = Row<{
+  kind: InboxKind;
+  /** The event row that says what happened. */
+  refId: string;
+  read: boolean;
+}>;
+
+export type PayInstalment = { amountPaise: number; date: string };
+
+/** What `GET /api/call/signed-url` answers: a private session for one call about one Invoice. */
+export type CallSession = {
+  conversationToken: string;
+  callId: string;
+  /** Every fact the agent is told, as strings, from the database. */
+  dynamicVariables: Record<string, string>;
+  context: {
+    owedPaise: number;
+    today: string;
+    rule: { minFirstPct: number; firstWithinDays: number; restWithinDays: number };
+  };
+};
+
+/**
+ * What `GET /api/pay/:token` answers: one Invoice as its Customer sees it,
+ * and nothing else of the Owner's books.
+ */
+export type PaySlip = {
+  today: string;
+  from: { businessName: string; gstin: string | null; upiVpa: string | null };
+  customer: { name: string; lang: string | null };
+  invoice: {
+    number: string;
+    issueDate: string;
+    dueDate: string;
+    totalPaise: number;
+    balancePaise: number;
+    daysLate: number;
+  };
+  /**
+   * What the Customer has already done here: `asked` is a Plan or a talk
+   * waiting on the Owner; `paid_claim` is "already paid".
+   */
+  state: "owing" | "plan" | "asked" | "paid_claim" | "disputed" | "paid";
+  /** The agreed (or asked-for) instalments, with what is still to come. */
+  plan: PayInstalment[] | null;
+  screenshotSent: boolean;
+  /** Plans inside the Owner's rule the Customer can pick. */
+  choices: PayInstalment[][];
+  rule: { minFirstPct: number; firstWithinDays: number; restWithinDays: number };
+};

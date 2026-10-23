@@ -7,7 +7,9 @@ import {
   checkGstin,
   documentFor,
   financialYear,
+  formatAmountInput,
   formatInr,
+  formatInrShort,
   gstinCheckDigit,
   hindiDate,
   hindiNumber,
@@ -364,6 +366,13 @@ describe("Hindi words", () => {
 });
 
 describe("printed amounts", () => {
+  it("writes a stored rate back into the form so it reads the same", () => {
+    expect(formatAmountInput(18_000)).toBe("180");
+    expect(formatAmountInput(18_050)).toBe("180.50");
+    expect(formatAmountInput(5)).toBe("0.05");
+    for (const paise of [0, 5, 18_050, 11_800_000]) expect(parseAmountPaise(formatAmountInput(paise))).toBe(paise);
+  });
+
   it("parses the shapes a screenshot prints", () => {
     expect(parseAmountPaise("₹60,000.00")).toBe(6_000_000);
     expect(parseAmountPaise("60000")).toBe(6_000_000);
@@ -403,6 +412,15 @@ describe("format", () => {
     expect(formatInr(561_905)).toBe("₹5,619.05");
     expect(formatInr(-5)).toBe("−₹0.05");
     expect(formatInr(4, { signed: true })).toBe("+₹0.04");
+  });
+
+  it("shortens to thousands or lakhs for a chart label", () => {
+    expect(formatInrShort(-4_800_000)).toBe("−₹48k");
+    expect(formatInrShort(1_200_000)).toBe("₹12k");
+    expect(formatInrShort(8_984_000)).toBe("₹90k");
+    expect(formatInrShort(39_060_000)).toBe("₹3.9L");
+    expect(formatInrShort(-21_000_000)).toBe("−₹2.1L");
+    expect(formatInrShort(30_000)).toBe("₹300");
   });
 });
 

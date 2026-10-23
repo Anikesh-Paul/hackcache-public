@@ -44,3 +44,8 @@ const STATES: Readonly<Record<string, string>> = {
 export function stateName(code: string): string | null {
   return STATES[code] ?? null;
 }
+
+/** Every GST state code, in code order, for a place-of-supply picker. */
+export function indianStates(): { code: string; name: string }[] {
+  return Object.entries(STATES).map(([code, name]) => ({ code, name }));
+}

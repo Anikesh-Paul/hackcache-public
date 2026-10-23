@@ -20,6 +20,33 @@ export function percentOfPaise(paise: number, bps: number): number {
   return toInt(divRound(amount * rate, 10_000n), "percentage");
 }
 
+/**
+ * The smallest whole-rupee amount that is at least `bps` of an amount: a
+ * Plan's minimum first instalment. 50% of ₹1,000.01 is ₹501.
+ */
+export function minimumSharePaise(paise: number, bps: number): number {
+  const amount = requireInt(paise, "paise");
+  const rate = requireInt(bps, "bps");
+  if (amount < 0n || rate < 0n) throw new Error("paise and bps must be ≥ 0");
+  const scaled = amount * rate; // paise × 10,000
+  const perRupee = 100n * 10_000n;
+  return toInt(((scaled + perRupee - 1n) / perRupee) * 100n, "minimum");
+}
+
+/** One of `parts` equal shares of an amount, rounded half up to the paisa. */
+export function sharePaise(paise: number, parts: number): number {
+  const count = requireInt(parts, "parts");
+  if (count <= 0n) throw new Error("parts must be at least 1");
+  return toInt(divRound(requireInt(paise, "paise"), count), "share");
+}
+
+/** The amount to the nearest `stepPaise` (50_000 is ₹500), half away from zero: for an "about" figure. */
+export function nearestPaise(paise: number, stepPaise: number): number {
+  const step = requireInt(stepPaise, "stepPaise");
+  if (step <= 0n) throw new Error("step must be more than ₹0");
+  return toInt(divRound(requireInt(paise, "paise"), step) * step, "rounded");
+}
+
 /** Paise as the rupee string UPI expects: 11800000 → "118000.00". */
 function upiAmount(paise: number): string {
   const value = requireInt(paise, "amountPaise");

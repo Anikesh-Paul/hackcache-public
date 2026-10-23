@@ -26,6 +26,11 @@ export function parseCivilDate(iso: string): CivilDate | null {
   return { year, month, day };
 }
 
+/** True for a real "YYYY-MM-DD" calendar date. */
+export function isCivilDate(iso: string): boolean {
+  return parseCivilDate(iso) !== null;
+}
+
 export function formatCivilDate({ year, month, day }: CivilDate): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${year}-${pad(month)}-${pad(day)}`;

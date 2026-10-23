@@ -1,18 +1,35 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CustomerRow, InvoiceRow, PromiseRow, WorkspaceRow } from "@tagada/appwrite";
+import type { CustomerRow, EventRow, InboxRow, InvoiceRow, PromiseRow, WorkspaceRow } from "@tagada/appwrite";
 import { invoiceStanding, type InvoiceStanding, type PromiseFacts } from "@tagada/domain";
-import { resetDemo, rowsOf, startDemo, type DemoStarted } from "./appwrite.ts";
+import { resetDemo, rowsOf, startDemo, watchRows, type DemoStarted, type LiveRow } from "./appwrite.ts";
 
 export type World = {
   workspace: WorkspaceRow;
   customers: Map<string, CustomerRow>;
   invoices: InvoiceRow[];
+  promises: PromiseRow[];
   promisesByInvoice: Map<string, PromiseFacts[]>;
+  /** Changes on every load or reset, not on live updates: rows read on demand are read again only then. */
+  generation: number;
 };
 
 type WorldState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; world: World };
 
-type WorldContext = WorldState & { reset: () => Promise<void>; retry: () => void };
+/** Payment history for grades. "loading" until the seed's events have been read. */
+export type PaymentHistory = EventRow[] | "loading" | "failed";
+
+/** What Customers did on the pay link, kept live. */
+export type InboxState = InboxRow[] | "loading" | "failed";
+
+type WorldContext = WorldState & {
+  reset: () => Promise<void>;
+  retry: () => void;
+  /** Reads the world again, including rows saved after the page opened. */
+  reload: () => Promise<void>;
+  /** One load for every screen, retried while a fresh seed is still writing events. Kept live. */
+  events: PaymentHistory;
+  inbox: InboxState;
+};
 
 const Ctx = createContext<WorldContext | null>(null);
 
@@ -28,25 +45,70 @@ async function readWorld(workspaceId: string): Promise<FirstLoad> {
   return { workspaces, customers, invoices, promises };
 }
 
+function byInvoice(promises: readonly PromiseRow[]): Map<string, PromiseFacts[]> {
+  const out = new Map<string, PromiseFacts[]>();
+  for (const p of promises) {
+    const list = out.get(p.invoiceId) ?? [];
+    list.push({ status: p.status, instalments: JSON.parse(p.instalments) as PromiseFacts["instalments"] });
+    out.set(p.invoiceId, list);
+  }
+  return out;
+}
+
+let generations = 0;
+
 /** The rows a fresh seed handed back, or else a read of the visitor's world. */
 async function loadWorld(started: DemoStarted): Promise<World> {
   const rows = started.seeded ? started.world : await readWorld(started.workspaceId);
   const { workspaces, customers, invoices, promises } = rows;
   const [workspace] = workspaces;
   if (!workspace) throw new Error("This Demo world is still being set up.");
-  const promisesByInvoice = new Map<string, PromiseFacts[]>();
-  for (const p of promises) {
-    const list = promisesByInvoice.get(p.invoiceId) ?? [];
-    list.push({ status: p.status, instalments: JSON.parse(p.instalments) as PromiseFacts["instalments"] });
-    promisesByInvoice.set(p.invoiceId, list);
+  return {
+    workspace,
+    customers: new Map(customers.map((c) => [c.$id, c])),
+    invoices,
+    promises,
+    promisesByInvoice: byInvoice(promises),
+    generation: ++generations,
+  };
+}
+
+/** Puts a live row in place of the one with its ID, or adds it; removes it when deleted. */
+function upsert<T extends { $id: string }>(rows: readonly T[], row: T, deleted: boolean): T[] {
+  const rest = rows.filter((r) => r.$id !== row.$id);
+  if (deleted) return rest;
+  return rows.length === rest.length ? [...rows, row] : rows.map((r) => (r.$id === row.$id ? row : r));
+}
+
+/** Rows read once, with any that arrived live while the read was on its way. */
+function merge<T extends { $id: string }>(read: readonly T[], live: readonly T[]): T[] {
+  return live.reduce((rows, row) => upsert(rows, row, false), [...read]);
+}
+
+/** The Owner's world with one live change applied: the Invoices and Promises the screens keep in memory. */
+function applyLive(world: World, row: LiveRow, deleted: boolean): World {
+  if (row.$tableId === "invoices") {
+    return { ...world, invoices: upsert(world.invoices, row as unknown as InvoiceRow, deleted) };
   }
-  return { workspace, customers: new Map(customers.map((c) => [c.$id, c])), invoices, promisesByInvoice };
+  if (row.$tableId === "promises") {
+    const promises = upsert(world.promises, row as unknown as PromiseRow, deleted);
+    return { ...world, promises, promisesByInvoice: byInvoice(promises) };
+  }
+  return world;
 }
 
 /** Starts (or reuses) the visitor's anonymous session and Demo world, then loads it. */
 export function WorldProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WorldState>({ status: "loading" });
+  const [events, setEvents] = useState<PaymentHistory>("loading");
+  const [inbox, setInbox] = useState<InboxState>("loading");
+  // Rows that arrived live, laid over the rows read once (and kept apart while that read is on its way).
+  const [liveEvents, setLiveEvents] = useState<EventRow[]>([]);
+  const [liveInbox, setLiveInbox] = useState<InboxRow[]>([]);
   const [attempt, setAttempt] = useState(0);
+  const world = state.status === "ready" ? state.world : null;
+  const workspaceId = world?.workspace.$id;
+  const generation = world?.generation;
 
   useEffect(() => {
     let live = true;
@@ -64,7 +126,65 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
 
+  useEffect(() => {
+    if (!workspaceId) return;
+    let live = true;
+    setEvents("loading");
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<EventRow>("events", workspaceId);
+        if (found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
+      (found) => live && setEvents(found),
+      (e: unknown) => {
+        console.error("events failed to load", e);
+        if (live) setEvents("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [workspaceId, generation]);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+    let live = true;
+    setInbox("loading");
+    rowsOf<InboxRow>("inbox", workspaceId).then(
+      (found) => live && setInbox(found),
+      (e: unknown) => {
+        console.error("inbox failed to load", e);
+        if (live) setInbox("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [workspaceId, generation]);
+
+  // Pay-link actions reach the Owner's screens here, in well under a second.
+  useEffect(() => {
+    if (!workspaceId) return;
+    setLiveEvents([]);
+    setLiveInbox([]);
+    return watchRows(workspaceId, ["inbox", "events", "invoices", "promises"], (row, deleted) => {
+      if (row.$tableId === "inbox") {
+        setLiveInbox((now) => upsert(now, row as unknown as InboxRow, deleted));
+      } else if (row.$tableId === "events") {
+        setLiveEvents((now) => upsert(now, row as unknown as EventRow, deleted));
+      } else {
+        setState((now) => (now.status === "ready" ? { ...now, world: applyLive(now.world, row, deleted) } : now));
+      }
+    });
+  }, [workspaceId, generation]);
+
   const reset = useCallback(async () => {
+    setEvents("loading");
+    setInbox("loading");
     setState({ status: "loading" });
     try {
       setState({ status: "ready", world: await loadWorld(await resetDemo()) });
@@ -74,11 +194,28 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const retry = useCallback(() => {
+    setEvents("loading");
     setState({ status: "loading" });
     setAttempt((n) => n + 1);
   }, []);
 
-  const value = useMemo(() => ({ ...state, reset, retry }), [state, reset, retry]);
+  const reload = useCallback(async () => {
+    setEvents("loading");
+    const started = await startDemo();
+    setState({ status: "ready", world: await loadWorld({ workspaceId: started.workspaceId, seeded: false }) });
+  }, []);
+
+  const value = useMemo(
+    () => ({
+      ...state,
+      reset,
+      retry,
+      reload,
+      events: Array.isArray(events) ? merge(events, liveEvents) : events,
+      inbox: Array.isArray(inbox) ? merge(inbox, liveInbox) : inbox,
+    }),
+    [state, reset, retry, reload, events, inbox, liveEvents, liveInbox],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -86,6 +223,19 @@ export function useWorldState(): WorldContext {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useWorldState needs a WorldProvider");
   return ctx;
+}
+
+/** Events for every Customer screen. Loading until the world, and its history, are in. */
+export function usePaymentHistory(): PaymentHistory {
+  const ctx = useWorldState();
+  if (ctx.status !== "ready") return "loading";
+  return ctx.events;
+}
+
+/** The Inbox, live. "loading" until read. */
+export function useInbox(): InboxState {
+  const ctx = useWorldState();
+  return ctx.status === "ready" ? ctx.inbox : "loading";
 }
 
 /** The loaded world. Only call under <WorldGate>. */
@@ -106,22 +256,23 @@ export function viewOf(world: World, invoice: InvoiceRow): InvoiceView {
 }
 
 /**
- * Rows that hang off one Invoice (its lines, its events), loaded on demand:
- * null while loading. Every Invoice has both, so an empty answer means a
- * fresh world is still being written; it is asked again a few times.
+ * Rows that hang off one Invoice (its lines), loaded on demand: null while
+ * loading. Every Invoice has lines, so an empty answer means a fresh world is
+ * still being written; it is asked again a few times.
  */
 export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined) {
   const state = useWorldState();
-  // A new world object (first load, or after Reset demo) loads the rows again.
-  const world = state.status === "ready" ? state.world : null;
+  // A new load (first load, or after Reset demo) reads the rows again; a live update does not.
+  const workspaceId = state.status === "ready" ? state.world.workspace.$id : null;
+  const generation = state.status === "ready" ? state.world.generation : null;
   const [rows, setRows] = useState<T[] | "failed" | null>(null);
   useEffect(() => {
-    if (!world || !invoiceId) return;
+    if (!workspaceId || !invoiceId) return;
     let live = true;
     setRows(null);
     const load = async () => {
       for (let attempt = 1; ; attempt++) {
-        const found = await rowsOf<T>(tableId, world.workspace.$id, { invoiceId });
+        const found = await rowsOf<T>(tableId, workspaceId, { invoiceId });
         if (found.length > 0 || attempt >= 6) return found;
         await new Promise((resolve) => setTimeout(resolve, 500));
         if (!live) return found;
@@ -137,6 +288,42 @@ export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined
     return () => {
       live = false;
     };
-  }, [tableId, world, invoiceId]);
+  }, [tableId, workspaceId, generation, invoiceId]);
+  return rows;
+}
+
+/**
+ * Every row of one workspace table. Null while loading. An empty table is a
+ * real answer, unless `seeded`: then it is asked again a few times, since a
+ * fresh world writes the table a moment after the first screens.
+ */
+export function useWorkspaceRows<T>(tableId: string, seeded = false): T[] | "failed" | null {
+  const state = useWorldState();
+  const workspaceId = state.status === "ready" ? state.world.workspace.$id : null;
+  const generation = state.status === "ready" ? state.world.generation : null;
+  const [rows, setRows] = useState<T[] | "failed" | null>(null);
+  useEffect(() => {
+    if (!workspaceId) return;
+    let live = true;
+    setRows(null);
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<T>(tableId, workspaceId);
+        if (!seeded || found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
+      (found) => live && setRows(found),
+      (e: unknown) => {
+        console.error(`${tableId} failed to load`, e);
+        if (live) setRows("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [tableId, workspaceId, generation, seeded]);
   return rows;
 }

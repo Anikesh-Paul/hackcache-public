@@ -3,6 +3,7 @@
 // Promises and cash items. Pure and deterministic: the same IDs give the same
 // rows, byte for byte. Totals come from `money`, never typed in.
 import type {
+  BankAllocation,
   BankTxnRow,
   CashItemRow,
   CustomerRow,
@@ -21,6 +22,7 @@ import {
   gstinCheckDigit,
   invoiceNumber,
   invoiceTotals,
+  lineMeasures,
   percentOfPaise,
   sumPaise,
   type GstRate,
@@ -232,7 +234,7 @@ const CUSTOMERS: CustomerSeed[] = [
 /** How an Invoice ends up on the Demo date. */
 type Outcome =
   | { paidLate: number } // paid this many days after the due date
-  | { open: true }
+  | { open: true; partInBank?: number; promise?: { on: string; payBy: string } } // the rest promised
   | { disputedOn: string; reason: string }
   | { promisedOn: string; payBy: string }; // a Promise, kept on its date
 
@@ -363,6 +365,17 @@ const INVOICES: InvoiceSeed[] = [
       [P.blind, 40],
       [P.mats, 20],
     ],
+    // Part-paid on 30 Oct (bank statement 1); the rest promised for before salary day.
+    outcome: { open: true, partInBank: 1_800_000, promise: { on: "2026-10-31", payBy: "2026-11-06" } },
+  },
+  // Due on 1 Nov; Kalita Traders usually pays 6 days late, so it is expected on Sat 7 Nov.
+  {
+    issued: "2026-10-02",
+    customer: "kalita",
+    lines: [
+      [P.bowls, 27],
+      [P.blind, 27],
+    ],
     outcome: { open: true },
   },
   {
@@ -383,8 +396,10 @@ const INVOICES: InvoiceSeed[] = [
     ],
     outcome: { open: true },
   },
+  // Due on 8 Nov; Saha Furniture Mart usually pays a day late, so it is expected on Mon 9 Nov.
+  { issued: "2026-10-09", customer: "saha", lines: [[P.chair, 8]], outcome: { open: true } },
   {
-    issued: "2026-10-12",
+    issued: "2026-10-19",
     customer: "paul",
     lines: [
       [P.tray, 20],
@@ -392,8 +407,6 @@ const INVOICES: InvoiceSeed[] = [
     ],
     outcome: { open: true },
   },
-  { issued: "2026-10-15", customer: "saha", lines: [[P.chair, 3]], outcome: { open: true } },
-  { issued: "2026-10-20", customer: "kalita", lines: [[P.basket, 50]], outcome: { open: true } },
   { issued: "2026-10-27", customer: "chakma", lines: [[P.bowls, 20]], outcome: { open: true } },
 ];
 
@@ -482,6 +495,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
   const events: EventRow[] = [];
   const promises: PromiseRow[] = [];
   const pricedLines = new Map<string, InvoiceLine[]>();
+  const partsInBank = new Map<string, number>();
 
   INVOICES.forEach((seed, n) => {
     const local = `i${pad(n + 1)}`;
@@ -510,14 +524,13 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
         invoiceId,
         description: product.description,
         hsn: product.hsn || null,
-        qtyMilli: quantity * 1000,
         ratePaise: product.ratePaise,
-        discountBp: discountPercent * 100,
-        gstRateBp: product.gst * 100,
+        ...lineMeasures({ quantity, discountPercent, gstRatePercent: product.gst }),
       });
     });
 
     const outcome = seed.outcome;
+    if ("partInBank" in outcome && outcome.partInBank !== undefined) partsInBank.set(invoiceId, outcome.partInBank);
     const paidOn =
       "paidLate" in outcome ? addDays(dueDate, outcome.paidLate) : "payBy" in outcome ? outcome.payBy : null;
     // The Ladder runs until the Invoice is paid, disputed or the Demo date.
@@ -560,6 +573,25 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
         source: "link",
         instalments: JSON.stringify([{ amountPaise: priced.totalPaise, date: outcome.payBy }]),
         status: "kept",
+        transcriptRef: null,
+      });
+    }
+    if ("promise" in outcome && outcome.promise) {
+      const rest = differencePaise(priced.totalPaise, outcome.partInBank ?? 0);
+      timeline.push({
+        at: at(outcome.promise.on, "18:40"),
+        type: "promise",
+        actor: "customer",
+        summary: `Promised the remaining ${formatInr(rest)} by ${formatDate(outcome.promise.payBy)} on the pay link`,
+        payload: null,
+      });
+      promises.push({
+        ...base,
+        $id: id(`p${pad(n + 1)}`),
+        invoiceId,
+        source: "link",
+        instalments: JSON.stringify([{ amountPaise: rest, date: outcome.promise.payBy }]),
+        status: "approved",
         transcriptRef: null,
       });
     }
@@ -622,8 +654,8 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
       paidPaise: paidOn ? priced.totalPaise : 0,
       status: paidOn ? "paid" : "disputedOn" in outcome ? "disputed" : "sent",
       ladderStage,
-      pausedUntil: null,
-      pauseReason: "disputedOn" in outcome ? "dispute" : null,
+      pausedUntil: "promise" in outcome && outcome.promise ? outcome.promise.payBy : null,
+      pauseReason: "disputedOn" in outcome ? "dispute" : "promise" in outcome && outcome.promise ? "promise" : null,
       payToken: null,
     });
   });
@@ -646,60 +678,92 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     );
   const [barua1, barua2] = open("barua");
   if (!barua1 || !barua2) throw new Error("Barua Stores needs two open invoices");
+  const roy = first("roy");
+  const sen = first("sen");
+  const das = first("das");
   const hotel = first("hotel");
   const brahmaputra = first("brahmaputra");
+  const dasPart = partsInBank.get(das.$id);
+  if (dasPart === undefined) throw new Error("Das & Sons needs a part payment");
+  const hotelTds = percentOfPaise(taxableOf(hotel, 18), 200);
+  const brahmaputraTds = percentOfPaise(taxableOf(brahmaputra), 10);
 
-  const statement: Omit<BankTxnRow, "$id" | "workspaceId" | "matchStatus" | "matchKind" | "allocations">[] = [
+  // Each credit already carries the match the Bank page will suggest, so the
+  // forecast does not count money that is in the bank twice. Nothing is
+  // confirmed: the Owner does that on the Bank page.
+  const suggest = (kind: NonNullable<BankTxnRow["matchKind"]>, allocations: BankAllocation[]) => ({
+    matchStatus: "suggested" as const,
+    matchKind: kind,
+    allocations: JSON.stringify(allocations),
+  });
+  const statement: Omit<BankTxnRow, "$id" | "workspaceId">[] = [
     {
       date: "2026-10-14",
       narration: "NEFT CR-UTIB0001234-ROY FURNISHINGS-KOLKATA",
       utr: "UTIBN52628734120",
-      amountPaise: sumPaise([first("roy").totalPaise, 50_000]),
+      amountPaise: sumPaise([roy.totalPaise, 50_000]),
+      ...suggest("overpay", [{ invoiceId: roy.$id, amountPaise: roy.totalPaise }]),
     },
     {
       date: "2026-10-23",
-      narration: `NEFT CR-SBIN0004321-SEN HANDICRAFTS-${first("sen").number}`,
+      narration: `NEFT CR-SBIN0004321-SEN HANDICRAFTS-${sen.number}`,
       utr: "SBINN52629610447",
-      amountPaise: first("sen").totalPaise,
+      amountPaise: sen.totalPaise,
+      ...suggest("exact", [{ invoiceId: sen.$id, amountPaise: sen.totalPaise }]),
     },
     {
       date: "2026-10-26",
       narration: "NEFT CR-PUNB0123400-HOTEL GOMATI VIEW-AGARTALA",
       utr: "PUNBN52629933815",
-      amountPaise: differencePaise(hotel.totalPaise, percentOfPaise(taxableOf(hotel, 18), 200)),
+      amountPaise: differencePaise(hotel.totalPaise, hotelTds),
+      ...suggest("tds", [
+        { invoiceId: hotel.$id, amountPaise: differencePaise(hotel.totalPaise, hotelTds), tdsPaise: hotelTds },
+      ]),
     },
     {
       date: "2026-10-27",
       narration: "NEFT CR-HDFC0000456-M/S BARUA STORES PVT LTD",
       utr: "HDFCN52630012988",
       amountPaise: sumPaise([barua1.totalPaise, barua2.totalPaise]),
+      ...suggest("multi", [
+        { invoiceId: barua1.$id, amountPaise: barua1.totalPaise },
+        { invoiceId: barua2.$id, amountPaise: barua2.totalPaise },
+      ]),
     },
     {
       date: "2026-10-29",
       narration: "UPI/CR/430219876543/PHONEPE TRANSFER",
       utr: "430219876543",
       amountPaise: 1_500_000,
+      matchStatus: "unmatched",
+      matchKind: "unknown",
+      allocations: null,
     },
     {
       date: "2026-10-30",
-      narration: `IMPS/P2A/430315550921/DAS AND SONS/${first("das").number.replace(/\/0*/g, " ")}`,
+      narration: `IMPS/P2A/430315550921/DAS AND SONS/${das.number.replace(/\/0*/g, " ")}`,
       utr: "430315550921",
-      amountPaise: 2_000_000,
+      amountPaise: dasPart,
+      ...suggest("part", [{ invoiceId: das.$id, amountPaise: dasPart }]),
     },
     {
       date: "2026-10-31",
       narration: "NEFT CR-ICIC0000789-BRAHMAPUTRA HOME STORES PVT LTD-TDS",
       utr: "ICICN52630477160",
-      amountPaise: differencePaise(brahmaputra.totalPaise, percentOfPaise(taxableOf(brahmaputra), 10)),
+      amountPaise: differencePaise(brahmaputra.totalPaise, brahmaputraTds),
+      ...suggest("tds", [
+        {
+          invoiceId: brahmaputra.$id,
+          amountPaise: differencePaise(brahmaputra.totalPaise, brahmaputraTds),
+          tdsPaise: brahmaputraTds,
+        },
+      ]),
     },
   ];
   const bank_txns: BankTxnRow[] = statement.map((line) => ({
     ...base,
     $id: `bt_${fnv(`${workspaceId}|${line.date}|${line.amountPaise}|${line.utr}`)}${fnv(`${line.narration}|${workspaceId}`)}`,
     ...line,
-    matchStatus: "unmatched",
-    matchKind: null,
-    allocations: null,
   }));
 
   const cashItems: Omit<CashItemRow, "$id" | "workspaceId">[] = [

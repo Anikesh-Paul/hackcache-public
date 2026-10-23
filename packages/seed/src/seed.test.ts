@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { checkGstin, invoiceTotals, type GstRate } from "@tagada/money";
-import { invoiceStanding } from "@tagada/domain";
+import { checkGstin, invoiceTotals, sumPaise, type GstRate } from "@tagada/money";
+import { gradeCustomer, invoiceStanding } from "@tagada/domain";
 import { DEMO_TODAY, seedWorld, type World } from "./index.ts";
 
 const ids = { workspaceId: "w64f0c2a91be7d3e85f10", ownerUserId: "64f0c2a91be7d3e85f10" };
@@ -13,6 +13,26 @@ const customer = (name: string) => {
 };
 const invoicesOf = (name: string) => world.invoices.filter((i) => i.customerId === customer(name).$id);
 const openOf = (name: string) => invoicesOf(name).filter((i) => i.status !== "paid");
+/** Grade from the seeded history. Payment dates are the IST day on the payment event. */
+const gradeOf = (name: string) => {
+  const invoices = invoicesOf(name);
+  const ids = new Set(invoices.map((invoice) => invoice.$id));
+  return gradeCustomer(
+    DEMO_TODAY,
+    invoices.map((invoice) => ({ id: invoice.$id, dueDate: invoice.dueDate, status: invoice.status })),
+    world.events
+      .filter((event) => ids.has(event.invoiceId))
+      .map((event) => ({ invoiceId: event.invoiceId, type: event.type, date: event.at.slice(0, 10) })),
+    world.promises
+      .filter((promise) => ids.has(promise.invoiceId))
+      .map((promise) => ({
+        invoiceId: promise.invoiceId,
+        status: promise.status,
+        dates: (JSON.parse(promise.instalments) as { date: string }[]).map((instalment) => instalment.date),
+      })),
+  );
+};
+
 const standing = (invoiceId: string) => {
   const invoice = world.invoices.find((i) => i.$id === invoiceId)!;
   const promises = world.promises
@@ -136,6 +156,19 @@ describe("seedWorld", () => {
     expect(lines.every((l) => l.gstRateBp === 500 && l.discountBp === 0)).toBe(true);
   });
 
+  it("grades Gupta Traders B, usually pays 12 days late", () => {
+    const gupta = gradeOf("Gupta Traders");
+    expect(gupta.grade).toBe("B");
+    expect(gupta.avgDelayDays).toBe(12);
+    expect(gupta.reason).toBe("usually pays 12 days late; this one is 38 days late");
+  });
+
+  it("grades Sen Handicrafts A, Paul Gift House C, and names Debnath Crafts' Dispute", () => {
+    expect(gradeOf("Sen Handicrafts").grade).toBe("A");
+    expect(gradeOf("Paul Gift House").grade).toBe("C");
+    expect(gradeOf("Debnath Crafts").reason).toContain("Dispute");
+  });
+
   it("has open Invoices in every Ageing bucket, with Paul Gift House's ₹8,400 at 112 days", () => {
     const late = world.invoices.filter((i) => i.status !== "paid").map((i) => standing(i.$id).daysLate);
     expect(late.some((d) => d >= 1 && d <= 30)).toBe(true);
@@ -169,14 +202,41 @@ describe("seedWorld", () => {
     const amounts = world.bank_txns.map((t) => t.amountPaise);
     const total = (name: string, n = 0) => openOf(name)[n]!.totalPaise;
     expect(amounts).toContain(total("Sen Handicrafts")); // exact
-    expect(amounts).toContain(2_000_000); // Das & Sons, part
+    expect(amounts).toContain(1_800_000); // Das & Sons, part
     expect(amounts).toContain(total("Barua Stores", 0) + total("Barua Stores", 1)); // two Invoices
     expect(amounts).toContain(total("Roy Furnishings") + 50_000); // ₹500 over
     expect(amounts).toContain(1_500_000); // unknown UPI deposit
     expect(amounts).toContain(total("Hotel Gomati View") - 9_000); // 2% TDS on ₹4,500 installation
     expect(amounts).toContain(total("Brahmaputra Home Stores Pvt Ltd") - 3_000); // 0.1% TDS on ₹30,000
     expect(world.bank_txns.some((t) => /gupta/i.test(t.narration))).toBe(false);
-    expect(world.bank_txns.every((t) => t.matchStatus === "unmatched" && t.date < DEMO_TODAY)).toBe(true);
+    expect(world.bank_txns.every((t) => t.matchStatus !== "confirmed" && t.date < DEMO_TODAY)).toBe(true);
+  });
+
+  it("suggests each credit's match without confirming it, keeping TDS apart, and leaves the unknown deposit alone", () => {
+    for (const t of world.bank_txns) {
+      if (t.matchKind === "unknown") {
+        expect(t).toMatchObject({ matchStatus: "unmatched", allocations: null });
+        continue;
+      }
+      expect(t.matchStatus).toBe("suggested");
+      const allocations = JSON.parse(t.allocations!) as { invoiceId: string; amountPaise: number }[];
+      const allocated = sumPaise(allocations.map((a) => a.amountPaise));
+      expect(t.matchKind === "overpay" ? allocated < t.amountPaise : allocated === t.amountPaise).toBe(true);
+      for (const a of allocations) expect(world.invoices.find((i) => i.$id === a.invoiceId)?.status).toBe("sent");
+    }
+    const hotel = world.bank_txns.find((t) => t.matchKind === "tds" && /HOTEL/.test(t.narration))!;
+    expect(JSON.parse(hotel.allocations!)).toEqual([
+      { invoiceId: openOf("Hotel Gomati View")[0]!.$id, amountPaise: hotel.amountPaise, tdsPaise: 9_000 },
+    ]);
+  });
+
+  it("has Das & Sons' remaining ₹14,340 promised for Fri 6 Nov, pausing the Ladder", () => {
+    const [das] = openOf("Das & Sons");
+    expect(das).toMatchObject({ totalPaise: 3_234_000, pausedUntil: "2026-11-06", pauseReason: "promise" });
+    const promise = world.promises.find((p) => p.invoiceId === das!.$id);
+    expect(promise?.status).toBe("approved");
+    expect(JSON.parse(promise!.instalments)).toEqual([{ amountPaise: 1_434_000, date: "2026-11-06" }]);
+    expect(standing(das!.$id).state).toBe("promised");
   });
 
   it("has rent, power and raw bamboo, and salaries due before the next salary day", () => {

@@ -1,6 +1,8 @@
-import { Account, AppwriteException, Client, Query, TablesDB } from "node-appwrite";
+import { Account, AppwriteException, Client, Permission, Query, Role, Storage, TablesDB } from "node-appwrite";
+import { InputFile } from "node-appwrite/file";
 import { DATABASE_ID, tables } from "@tagada/appwrite";
-import type { WorldStore } from "./demo.ts";
+import type { StoredRow, WorldStore } from "./demo.ts";
+import type { FileStore } from "./pay.ts";
 import { requireEnv } from "./env.ts";
 
 export function adminClient(): Client {
@@ -86,6 +88,82 @@ export function appwriteWorlds(client: Client): WorldStore {
           ),
         ),
       );
+    },
+
+    async create(tableId, row) {
+      const { $id: rowId, $permissions: permissions, ...data } = row;
+      try {
+        await withRetry(() => db.createRow({ databaseId: DATABASE_ID, tableId, rowId, data, permissions }));
+        return "created";
+      } catch (e) {
+        // The row ID is the key: a second create for the same one is refused by Appwrite itself.
+        if (e instanceof AppwriteException && e.code === 409) return "exists";
+        throw e;
+      }
+    },
+
+    async get(tableId, rowId) {
+      return db.getRow({ databaseId: DATABASE_ID, tableId, rowId }).then(
+        (row) => row as unknown as StoredRow,
+        (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
+      );
+    },
+
+    async update(tableId, rowId, patch) {
+      await withRetry(() => db.updateRow({ databaseId: DATABASE_ID, tableId, rowId, data: patch }));
+    },
+
+    async list(tableId, workspaceId, where = {}) {
+      const { rows } = await withRetry(() =>
+        db.listRows({
+          databaseId: DATABASE_ID,
+          tableId,
+          queries: [
+            Query.equal("workspaceId", workspaceId),
+            ...Object.entries(where).map(([key, value]) => Query.equal(key, value)),
+            Query.limit(500),
+          ],
+          total: false,
+        }),
+      );
+      // The SDK types a row as an open record. These columns are the schema's.
+      return rows as unknown as StoredRow[];
+    },
+  };
+}
+
+/** The `screenshots` and `audio` buckets, written with the server key. */
+export function appwriteFiles(client: Client): FileStore {
+  const storage = new Storage(client);
+  // Clips heard since this process started, so a missing or slow bucket never means paying ElevenLabs twice.
+  const heard = new Map<string, Uint8Array>();
+  return {
+    async saveScreenshot({ fileId, ownerUserId, name, bytes }) {
+      await storage.createFile({
+        bucketId: "screenshots",
+        fileId,
+        file: InputFile.fromBuffer(bytes, name),
+        permissions: [Permission.read(Role.user(ownerUserId))],
+      });
+    },
+    async audio(fileId) {
+      const recent = heard.get(fileId);
+      if (recent) return recent;
+      return storage.getFileDownload({ bucketId: "audio", fileId }).then(
+        (buffer) => new Uint8Array(buffer),
+        (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
+      );
+    },
+    async saveAudio(fileId, bytes) {
+      if (heard.size >= 500) heard.delete(heard.keys().next().value ?? "");
+      heard.set(fileId, bytes);
+      try {
+        // No permissions: only the server reads it, and plays it to the pay link.
+        await storage.createFile({ bucketId: "audio", fileId, file: InputFile.fromBuffer(bytes, `${fileId}.mp3`) });
+      } catch (e) {
+        // Two first listens at once: the other one stored the same words.
+        if (!(e instanceof AppwriteException && e.code === 409)) throw e;
+      }
     },
   };
 }

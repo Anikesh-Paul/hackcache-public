@@ -18,26 +18,30 @@ export type TaxInvoiceProps = {
 /** The A4 document (Rule 46 fields), shared by the print page and the duplicate preview. */
 export function TaxInvoice({ workspace, customer, lines, priced, number, issueDate, dueDate }: TaxInvoiceProps) {
   const intra = priced.intraState;
+  const chargesGst = priced.docType === "tax_invoice";
+  const showGstin = priced.docType !== "invoice";
   const place = `${stateName(customer.stateCode ?? "")} (${customer.stateCode})`;
   const upi =
-    workspace.upiVpa && number
+    workspace.upiVpa && priced.totalPaise > 0
       ? upiPayUri({
           vpa: workspace.upiVpa,
           payeeName: workspace.businessName,
           amountPaise: priced.totalPaise,
-          note: number,
+          note: number ?? "Invoice",
         })
       : null;
 
   return (
-    <article className="mx-auto max-w-[210mm] bg-paper p-5 text-[13px] text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:p-0 print:shadow-none">
+    <article className="mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-5 text-[13px] text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:p-0 print:shadow-none">
       <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-ink pb-3">
         <div className="min-w-0">
           <p className="text-lg font-semibold">{workspace.businessName}</p>
           <p className="max-w-[48ch]">{workspace.address}</p>
-          <p>
-            GSTIN <span className="mono">{workspace.gstin}</span>
-          </p>
+          {showGstin && (
+            <p>
+              GSTIN <span className="mono">{workspace.gstin}</span>
+            </p>
+          )}
           <p>
             State {stateName(workspace.stateCode ?? "")}, code {workspace.stateCode}
           </p>
@@ -54,9 +58,11 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
           <p className="text-xs text-ink-2">Billed to</p>
           <p className="font-semibold">{customer.name}</p>
           <p>{customer.address}</p>
-          <p>
-            GSTIN <span className="mono">{customer.gstin}</span>
-          </p>
+          {showGstin && customer.gstin && (
+            <p>
+              GSTIN <span className="mono">{customer.gstin}</span>
+            </p>
+          )}
           <p>
             State {stateName(customer.stateCode ?? "")}, code {customer.stateCode}
           </p>
@@ -70,8 +76,12 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
           <dd>{formatDate(dueDate, { weekday: false, year: true })}</dd>
           <dt className="text-ink-2">Place of supply</dt>
           <dd>{place}</dd>
-          <dt className="text-ink-2">Reverse charge</dt>
-          <dd>No</dd>
+          {chargesGst && (
+            <>
+              <dt className="text-ink-2">Reverse charge</dt>
+              <dd>No</dd>
+            </>
+          )}
         </dl>
       </section>
 
@@ -85,15 +95,16 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
               <th className="py-1 pr-2 text-right font-medium">Qty</th>
               <th className="py-1 pr-2 text-right font-medium">Rate</th>
               <th className="py-1 pr-2 text-right font-medium">Discount</th>
-              <th className="py-1 pr-2 text-right font-medium">Taxable value</th>
-              {intra ? (
-                <>
-                  <th className="py-1 pr-2 text-right font-medium">CGST</th>
-                  <th className="py-1 text-right font-medium">SGST</th>
-                </>
-              ) : (
-                <th className="py-1 text-right font-medium">IGST</th>
-              )}
+              <th className="py-1 pr-2 text-right font-medium">{chargesGst ? "Taxable value" : "Amount"}</th>
+              {chargesGst &&
+                (intra ? (
+                  <>
+                    <th className="py-1 pr-2 text-right font-medium">CGST</th>
+                    <th className="py-1 text-right font-medium">SGST</th>
+                  </>
+                ) : (
+                  <th className="py-1 text-right font-medium">IGST</th>
+                ))}
             </tr>
           </thead>
           <tbody>
@@ -110,20 +121,21 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
                     {line.discountBp > 0 ? `${line.discountBp / 100}%, ${formatInr(p?.discountPaise ?? 0)}` : "–"}
                   </td>
                   <td className="py-1.5 pr-2 text-right">{formatInr(p?.taxablePaise ?? 0)}</td>
-                  {intra ? (
-                    <>
-                      <td className="py-1.5 pr-2 text-right whitespace-nowrap">
-                        {formatRateBps(line.gstRateBp / 2)}, {formatInr(p?.cgstPaise ?? 0)}
-                      </td>
+                  {chargesGst &&
+                    (intra ? (
+                      <>
+                        <td className="py-1.5 pr-2 text-right whitespace-nowrap">
+                          {formatRateBps(line.gstRateBp / 2)}, {formatInr(p?.cgstPaise ?? 0)}
+                        </td>
+                        <td className="py-1.5 text-right whitespace-nowrap">
+                          {formatRateBps(line.gstRateBp / 2)}, {formatInr(p?.sgstPaise ?? 0)}
+                        </td>
+                      </>
+                    ) : (
                       <td className="py-1.5 text-right whitespace-nowrap">
-                        {formatRateBps(line.gstRateBp / 2)}, {formatInr(p?.sgstPaise ?? 0)}
+                        {formatRateBps(line.gstRateBp)}, {formatInr(p?.igstPaise ?? 0)}
                       </td>
-                    </>
-                  ) : (
-                    <td className="py-1.5 text-right whitespace-nowrap">
-                      {formatRateBps(line.gstRateBp)}, {formatInr(p?.igstPaise ?? 0)}
-                    </td>
-                  )}
+                    ))}
                 </tr>
               );
             })}
@@ -151,15 +163,16 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
         </div>
         <table className="w-full max-w-[300px] text-[13px]">
           <tbody>
-            <Row label="Taxable value" paise={priced.taxablePaise} />
-            {intra ? (
-              <>
-                <Row label="CGST" paise={priced.cgstPaise} />
-                <Row label="SGST" paise={priced.sgstPaise} />
-              </>
-            ) : (
-              <Row label="IGST" paise={priced.igstPaise} />
-            )}
+            <Row label={chargesGst ? "Taxable value" : "Amount"} paise={priced.taxablePaise} />
+            {chargesGst &&
+              (intra ? (
+                <>
+                  <Row label="CGST" paise={priced.cgstPaise} />
+                  <Row label="SGST" paise={priced.sgstPaise} />
+                </>
+              ) : (
+                <Row label="IGST" paise={priced.igstPaise} />
+              ))}
             <tr>
               <td className="py-0.5">Round-off</td>
               <td className="py-0.5 text-right">{formatInr(priced.roundOffPaise, { signed: true })}</td>
@@ -193,7 +206,7 @@ function Row({ label, paise }: { label: string; paise: number }) {
   );
 }
 
-function UpiQr({ uri, label }: { uri: string; label: string }) {
+export function UpiQr({ uri, label, className = "size-28" }: { uri: string; label: string; className?: string }) {
   const [svg, setSvg] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
@@ -206,7 +219,7 @@ function UpiQr({ uri, label }: { uri: string; label: string }) {
     <div
       role="img"
       aria-label={label}
-      className="size-28 flex-none bg-white p-1 [&>svg]:size-full"
+      className={`${className} flex-none bg-white p-1 [&>svg]:size-full`}
       // The SVG is generated locally from the UPI link, never from user HTML.
       dangerouslySetInnerHTML={svg ? { __html: svg } : undefined}
     />

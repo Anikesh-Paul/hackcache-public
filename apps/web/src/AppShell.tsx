@@ -3,20 +3,20 @@ import { Link, NavLink, Outlet } from "react-router";
 import { Bell, ChevronLeft, ChevronRight, Moon, RotateCcw, Sun } from "lucide-react";
 import { formatDate } from "@tagada/money";
 import { useLang, useTheme, type Lang } from "./lib/prefs.ts";
-import { useWorldState } from "./lib/world.tsx";
+import { useInbox, useWorldState } from "./lib/world.tsx";
 import { Badge } from "./ui.tsx";
 
 const WORDS = {
   en: {
     demoDate: "Demo date",
     reset: "Reset demo",
-    inbox: "Inbox, nothing new",
+    inbox: (n: number) => (n === 0 ? "Inbox, nothing new" : `Inbox, ${n} new`),
     confirmReset: "Reset the demo? Anything you changed is deleted and the starting story comes back.",
   },
   hi: {
     demoDate: "डेमो तारीख",
     reset: "डेमो फिर से",
-    inbox: "इनबॉक्स, कुछ नया नहीं",
+    inbox: (n: number) => (n === 0 ? "इनबॉक्स, कुछ नया नहीं" : `इनबॉक्स, ${n} नए`),
     confirmReset: "डेमो फिर से शुरू करें? आपके बदलाव हट जाएंगे और शुरुआती कहानी लौट आएगी।",
   },
 } satisfies Record<Lang, unknown>;
@@ -38,6 +38,8 @@ export function AppShell() {
   const { lang, choose } = useLang();
   const [resetting, setResetting] = useState(false);
   const t = WORDS[lang];
+  const inbox = useInbox();
+  const unread = Array.isArray(inbox) ? inbox.filter((row) => !row.read).length : 0;
   const workspace = state.status === "ready" ? state.world.workspace : null;
 
   const reset = async () => {
@@ -111,10 +113,18 @@ export function AppShell() {
           </button>
           <Link
             to="/app/inbox"
-            aria-label={t.inbox}
-            className="grid size-11 place-items-center rounded-md border border-cover-line text-on-cover"
+            aria-label={t.inbox(unread)}
+            className="relative grid size-11 place-items-center rounded-md border border-cover-line text-on-cover"
           >
             <Bell size={17} aria-hidden />
+            {unread > 0 && (
+              <span
+                aria-hidden
+                className="absolute -top-1.5 -right-1.5 grid h-5 min-w-5 place-items-center rounded-full bg-on-cover px-1 text-xs font-semibold text-cover"
+              >
+                {unread}
+              </span>
+            )}
           </Link>
           <button
             type="button"

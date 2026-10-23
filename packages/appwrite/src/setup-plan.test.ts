@@ -75,17 +75,17 @@ describe("schema", () => {
     }
   });
 
-  it("declares the screenshots and documents buckets", () => {
-    expect(schema.buckets.map((b) => b.id).sort()).toEqual(["documents", "screenshots"]);
+  it("declares the screenshots, read-aloud audio and documents buckets", () => {
+    expect(schema.buckets.map((b) => b.id).sort()).toEqual(["audio", "documents", "screenshots"]);
   });
 });
 
 describe("planSetup", () => {
-  it("creates the database, every table and both buckets in an empty project", () => {
+  it("creates the database, every table and every bucket in an empty project", () => {
     const ops = planSetup(schema, empty);
     expect(ops[0]).toEqual({ kind: "createDatabase", databaseId: "main" });
     expect(ops.filter((o) => o.kind === "createTable")).toHaveLength(13);
-    expect(ops.filter((o) => o.kind === "createBucket")).toHaveLength(2);
+    expect(ops.filter((o) => o.kind === "createBucket")).toHaveLength(3);
     expect(ops.filter((o) => o.kind === "createColumn" || o.kind === "createIndex")).toHaveLength(0);
   });
 
@@ -99,7 +99,7 @@ describe("planSetup", () => {
     inv.columns = inv.columns.filter((c) => c !== "payToken");
     inv.indexes = inv.indexes.filter((i) => i !== "payToken_unique");
     delete existing.tables["inbox"];
-    existing.buckets = ["screenshots"];
+    existing.buckets = ["screenshots", "audio"];
 
     const ops = planSetup(schema, existing);
     expect(ops.map((o) => [o.kind, "tableId" in o ? o.tableId : "", keyOf(o)])).toEqual([

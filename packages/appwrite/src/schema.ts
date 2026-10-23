@@ -81,6 +81,8 @@ export const tables = {
     str("ownerEmail", 254),
     str("demoInboxEmail", 254),
     day("today", true),
+    // The Demo date clock's time of day, "HH:MM" IST, for calling hours. Unset means 11:20.
+    str("clock", 5),
     day("salaryDay"),
     paise("openingCashPaise"),
     json("planRule"),
@@ -239,6 +241,14 @@ export const schema: Schema = {
       allowedFileExtensions: ["jpg", "jpeg", "png", "webp"],
       encryption: true,
       antivirus: true,
+    },
+    {
+      id: "audio",
+      name: "Pay link read-aloud clips",
+      maximumFileSize: 2 * 1024 * 1024,
+      allowedFileExtensions: ["mp3"],
+      encryption: false,
+      antivirus: false,
     },
     {
       id: "documents",
