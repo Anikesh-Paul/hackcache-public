@@ -6,6 +6,18 @@ import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
+  CALL_LIMITS,
+  dailyCounter,
+  decide,
+  glossLines,
+  receiveTranscript,
+  recordOutcome,
+  startCall,
+  type Agent,
+  type CallLimits,
+  type Gloss,
+} from "./call.ts";
+import {
   MAX_SCREENSHOT_BYTES,
   choosePlan,
   claimPaid,
@@ -19,6 +31,16 @@ import {
 } from "./pay.ts";
 import type { PayLink } from "./pay-token.ts";
 
+export type CallDeps = {
+  /** The private ElevenLabs agent; null when it is not set up. */
+  agent: Agent | null;
+  /** Signs the post-call webhook; null when it is not set up. */
+  webhookSecret: string | null;
+  gloss: Gloss | null;
+  limits?: CallLimits;
+  now?: () => number;
+};
+
 export type AppDeps = {
   /** Resolves when Appwrite answers a read made with the server's API key. */
   probeAppwrite: () => Promise<void>;
@@ -26,11 +48,12 @@ export type AppDeps = {
   /** Storage buckets: UPI screenshots and read-aloud clips. */
   files: FileStore;
   voice: Voice;
+  call?: CallDeps;
   /** Browser origin allowed to call /api (the static site). */
   webOrigin?: string;
 };
 
-export function createApp({ probeAppwrite, demo, files, voice, webOrigin }: AppDeps) {
+export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }: AppDeps) {
   const app = new Hono();
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
@@ -155,6 +178,69 @@ export function createApp({ probeAppwrite, demo, files, voice, webOrigin }: AppD
       return c.body(new Uint8Array(clip), 200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=3600" });
     }),
   );
+
+  // Call with AI. The Owner's session names the workspace; the browser's word is never taken for it.
+  const now = call?.now ?? Date.now;
+  const daily = dailyCounter(now);
+  const owned = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
+    const jwt = bearer(c);
+    if (!jwt) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const userId = await demo.userFromJwt(jwt);
+      if (!userId) return c.json({ error: "unauthorized" }, 401);
+      return await run(workspaceIdFor(userId), c);
+    } catch (e) {
+      console.error(`${path} failed`, e);
+      return c.json({ error: "call_unavailable" }, 500);
+    }
+  };
+
+  app.get(
+    "/api/call/signed-url",
+    owned("/api/call/signed-url", async (workspaceId, c) => {
+      const deps = { worlds: demo.worlds, agent: call?.agent ?? null, limits: call?.limits ?? CALL_LIMITS, daily };
+      const result = await startCall(deps, workspaceId, c.req.query("invoiceId") ?? "");
+      return result.ok ? c.json(result.session) : c.json({ error: result.error, message: result.message }, result.status);
+    }),
+  );
+  app.post(
+    "/api/call/outcome",
+    owned("/api/call/outcome", async (workspaceId, c) => {
+      const result = await recordOutcome(demo.worlds, workspaceId, await json(c));
+      return result.ok
+        ? c.json({ say: "recorded", outcome: result.outcome, promiseId: result.promiseId })
+        : c.json({ error: result.error, say: result.say }, result.status);
+    }),
+  );
+  app.post(
+    "/api/promises/:id/decide",
+    owned("/api/promises/:id/decide", async (workspaceId, c) => {
+      const result = await decide(demo.worlds, workspaceId, c.req.param("id") ?? "", await json(c));
+      return result.ok
+        ? c.json({ status: result.status, counter: result.counter })
+        : c.json({ error: result.error }, result.status);
+    }),
+  );
+  app.post(
+    "/api/call/gloss",
+    owned("/api/call/gloss", async (_workspaceId, c) => {
+      const lines = glossLines(await json(c));
+      if (!lines) return c.json({ error: "invalid_lines" }, 400);
+      if (!call?.gloss) return c.json({ error: "gloss_unavailable" }, 503);
+      return c.json({ gloss: await call.gloss.english(lines) });
+    }),
+  );
+  app.post("/webhooks/elevenlabs", async (c) => {
+    if (!call?.webhookSecret) return c.json({ error: "webhook_unavailable" }, 503);
+    const raw = await c.req.text();
+    try {
+      const result = await receiveTranscript(demo.worlds, call.webhookSecret, c.req.header("elevenlabs-signature") ?? "", raw, now());
+      return c.json(result.body, result.status);
+    } catch (e) {
+      console.error("/webhooks/elevenlabs failed", e);
+      return c.json({ error: "webhook_failed" }, 500);
+    }
+  });
 
   app.post("/api/demo/reset", async (c) => {
     const jwt = bearer(c);

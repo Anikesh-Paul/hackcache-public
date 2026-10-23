@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@elevenlabs/client": "1.30.0",
     "@tagada/appwrite": "workspace:*",
     "@tagada/domain": "workspace:*",
     "@tagada/money": "workspace:*",

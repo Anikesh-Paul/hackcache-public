@@ -31,3 +31,15 @@ export const SECTION16_RATE_BEFORE_BPS = 1650;
 
 /** 17.25% — three times the 5.75% Bank Rate notified on 7 Oct 2026. */
 export const SECTION16_RATE_FROM_BPS = 1725;
+
+/**
+ * What a minute of Call with AI uses on the ElevenLabs agent, in credits
+ * (#13: read off the ElevenLabs usage page for the test calls).
+ */
+export const CALL_CREDITS_PER_MINUTE = 450;
+
+/**
+ * The price of 1,000 credits in paise: the Creator plan's $22 for 100,000
+ * credits at ₹88 to the dollar is ₹19.36.
+ */
+export const CALL_CREDIT_PAISE_PER_THOUSAND = 1936;

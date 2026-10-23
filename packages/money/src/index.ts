@@ -1,4 +1,6 @@
 export {
+  CALL_CREDITS_PER_MINUTE,
+  CALL_CREDIT_PAISE_PER_THOUSAND,
   COMPOSITION_HEADING,
   E_INVOICE_NOTE,
   E_INVOICE_TURNOVER_PAISE,
@@ -9,6 +11,8 @@ export {
   isGstRate,
 } from "./config.ts";
 export type { GstRate } from "./config.ts";
+
+export { callCostPaise, callCredits, paiseFromRupees, rupeesFromPaise } from "./call-cost.ts";
 
 export { addDays, addMonths, daysBetween, formatDate, isCivilDate, weekday } from "./date.ts";
 

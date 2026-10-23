@@ -170,3 +170,13 @@ export async function markDisputed(invoiceId: string, reason: string): Promise<v
   const data = (await res.json().catch(() => null)) as { error?: string } | null;
   if (!res.ok) throw new SaveError(data?.error ?? "save_failed");
 }
+
+/** A call to the server as the Owner. Resolves to the JSON answer, whatever the status. */
+export async function ownerApi<T>(path: string, init: RequestInit = {}): Promise<{ status: number; data: T | null }> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    ...init,
+    headers: { authorization: `Bearer ${jwt}`, ...(init.body ? { "content-type": "application/json" } : {}) },
+  });
+  return { status: res.status, data: (await res.json().catch(() => null)) as T | null };
+}

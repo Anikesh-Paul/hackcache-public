@@ -17,6 +17,8 @@ export type WorkspaceRow = Row<{
   ownerEmail: string | null;
   demoInboxEmail: string | null;
   today: string;
+  /** "HH:MM" IST on the Demo date; null reads as 11:20. */
+  clock?: string | null;
   salaryDay: string | null;
   openingCashPaise: number | null;
   /** JSON: { minFirstPct, firstWithinDays, restWithinDays } */
@@ -166,6 +168,19 @@ export type InboxRow = Row<{
 }>;
 
 export type PayInstalment = { amountPaise: number; date: string };
+
+/** What `GET /api/call/signed-url` answers: a private session for one call about one Invoice. */
+export type CallSession = {
+  conversationToken: string;
+  callId: string;
+  /** Every fact the agent is told, as strings, from the database. */
+  dynamicVariables: Record<string, string>;
+  context: {
+    owedPaise: number;
+    today: string;
+    rule: { minFirstPct: number; firstWithinDays: number; restWithinDays: number };
+  };
+};
 
 /**
  * What `GET /api/pay/:token` answers: one Invoice as its Customer sees it,

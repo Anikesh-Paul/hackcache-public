@@ -1072,6 +1072,107 @@ h3 {
   .ladder li.next .lbl {
     color: var(--ink-2);
   }
+
+  /* ---------- Call with AI: the call beside the books, below them on phones ---------- */
+  .call-grid {
+    display: grid;
+    gap: 22px;
+    align-items: start;
+  }
+  @media (min-width: 1024px) {
+    .call-grid {
+      grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    }
+    .call-grid > .books {
+      position: sticky;
+      top: 16px;
+    }
+  }
+  .guard li {
+    display: flex;
+    gap: 8px;
+    align-items: start;
+    padding: 4px 0;
+  }
+  .guard li svg {
+    flex: none;
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    color: var(--bamboo-ink);
+  }
+  .guard li.no svg {
+    color: var(--sindoor);
+  }
+  .personas {
+    display: grid;
+    gap: 10px;
+  }
+  @media (min-width: 640px) {
+    .personas {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+  .persona {
+    display: block;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .persona:has(input:checked) {
+    border-color: var(--bamboo);
+    box-shadow: inset 0 0 0 1px var(--bamboo);
+    background: var(--bamboo-soft);
+  }
+  .persona:has(input:focus-visible) {
+    outline: 2px solid var(--bamboo);
+    outline-offset: 2px;
+  }
+  .persona input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+  }
+  .persona q {
+    display: block;
+    margin-top: 6px;
+    quotes: none;
+  }
+  .transcript .ln > .m {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .transcript .ln.check > .p {
+    border: 1px dashed var(--rule-strong);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 14px;
+  }
+  .transcript .gloss {
+    display: block;
+    color: var(--ink-2);
+    font-size: 13px;
+  }
+  .statusbar {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    background: var(--paper);
+    border-top: 1px solid var(--rule-strong);
+  }
+  @media (min-width: 1024px) {
+    .statusbar {
+      display: none;
+    }
+  }
 }
 
 /* A4 print pages: no app chrome, black on white. */

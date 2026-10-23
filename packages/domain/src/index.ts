@@ -38,3 +38,20 @@ export type {
   Totals,
   TodayBook,
 } from "./today.ts";
+
+export {
+  CALLING_HOURS,
+  CALL_OUTCOMES,
+  DEMO_CLOCK,
+  callCalendar,
+  callConfirmation,
+  callDay,
+  callGuard,
+  checkOutcome,
+  planInWords,
+  proposePlan,
+  spokenName,
+  stripTags,
+  whatsappLink,
+} from "./call.ts";
+export type { CallBlock, CallContext, CallGuard, CallGuardInput, CallOutcome, OutcomeCheck, RuleCheck, Said } from "./call.ts";

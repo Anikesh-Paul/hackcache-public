@@ -41,6 +41,13 @@ export function Placeholder({ name, notFound = false }: { name: string; notFound
 /** Stand-in landing until the three doors are built; it already opens the visitor's books. */
 export function Landing() {
   const state = useWorldState();
+  // The hero Customer's open Invoice: the call the judge plays.
+  const hero =
+    state.status === "ready"
+      ? state.world.invoices.find(
+          (i) => i.status !== "paid" && state.world.customers.get(i.customerId)?.name === "Gupta Traders",
+        )?.$id
+      : undefined;
   return (
     <section className="leaf shadow-[var(--sheet-shadow)]">
       <div className="ln wide">
@@ -53,9 +60,16 @@ export function Landing() {
           </p>
           <p className="mt-5" aria-live="polite">
             {state.status === "ready" ? (
-              <Link to="/app/invoices" className="btn primary">
-                Open the books
-              </Link>
+              <span className="flex flex-wrap gap-2">
+                <Link to="/app/invoices" className="btn primary">
+                  Open the books
+                </Link>
+                {hero && (
+                  <Link to={`/call/${hero}`} className="btn secondary">
+                    Be Gupta ji: take the call
+                  </Link>
+                )}
+              </span>
             ) : state.status === "loading" ? (
               <span className="text-ink-2">Setting up your copy of the books…</span>
             ) : (

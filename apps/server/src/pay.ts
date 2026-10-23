@@ -4,8 +4,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Permission, Role } from "node-appwrite";
 import type { EventActor, InboxKind, PayInstalment, PaySlip } from "@tagada/appwrite";
-import { formatDate, formatInr, hindiDate, hindiRupees } from "@tagada/money";
-import { invoiceStanding, planRule, type InvoiceFacts, type PromiseFacts } from "@tagada/domain";
+import { hindiDate, hindiRupees } from "@tagada/money";
+import { invoiceStanding, planInWords, planRule, type InvoiceFacts, type PromiseFacts } from "@tagada/domain";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import type { PayRef } from "./pay-token.ts";
 
@@ -35,7 +35,7 @@ const fail = (status: PayFailure["status"], error: string, reason?: string): Pay
   ...(reason ? { reason } : {}),
 });
 
-type Book = {
+export type Book = {
   workspace: StoredRow;
   invoice: StoredRow;
   customer: StoredRow | undefined;
@@ -51,7 +51,7 @@ const whole = (value: unknown): number => (typeof value === "number" && Number.i
  * the one the Invoice carries: a link from before Reset demo opens nothing.
  * The Owner's own requests come with no token.
  */
-async function open(worlds: WorldStore, { workspaceId, invoiceId, token }: Ref): Promise<Book | null> {
+export async function open(worlds: WorldStore, { workspaceId, invoiceId, token }: Ref): Promise<Book | null> {
   // One round trip: every Customer of the world (a dozen rows) rather than waiting for the Invoice's customerId.
   const [workspaces, invoices, promises, events, customers] = await Promise.all([
     worlds.list("workspaces", workspaceId),
@@ -135,15 +135,15 @@ export async function paySlip(worlds: WorldStore, ref: Ref): Promise<PayResult> 
   return book ? { ok: true, slip: slipOf(book) } : fail(404, "invalid_link");
 }
 
-const newId = (prefix: string) => `${prefix}${randomBytes(12).toString("hex")}`;
+export const newId = (prefix: string) => `${prefix}${randomBytes(12).toString("hex")}`;
 
 /** The Demo date with the IST time of day now, so new events sort after the seeded ones. */
-function stamp(today: string): string {
+export function stamp(today: string): string {
   const ist = new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().slice(11, 23);
   return `${today}T${ist}+05:30`;
 }
 
-function owner(book: Book) {
+export function owner(book: Book) {
   const userId = text(book.workspace.ownerUserId) ?? book.workspace.$id.slice(1);
   return { userId, permissions: [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))] };
 }
@@ -153,7 +153,7 @@ function owner(book: Book) {
  * other rows, in one round trip: the Owner hears in well under a second. The
  * Owner's screen shows an item whose event has not arrived yet as loading.
  */
-async function record(
+export async function record(
   worlds: WorldStore,
   book: Book,
   event: { type: string; actor: EventActor; summary: string; payload?: unknown },
@@ -240,8 +240,7 @@ export function uploadScreenshot(deps: PayDeps, ref: Ref, file: unknown): Promis
   });
 }
 
-const words = (plan: readonly PayInstalment[]) =>
-  plan.map((i) => `${formatInr(i.amountPaise)} by ${formatDate(i.date)}`).join(", then ");
+const words = planInWords;
 
 function parseInstalments(value: unknown): { amountPaise: number; date: string | null }[] | null {
   if (!Array.isArray(value) || value.length > 12) return null;

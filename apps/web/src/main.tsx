@@ -13,6 +13,7 @@ import { Today } from "./screens/Today.tsx";
 import { Inbox } from "./screens/Inbox.tsx";
 import { PayLink } from "./screens/PayLink.tsx";
 import { CustomerDetail } from "./screens/CustomerDetail.tsx";
+import { CallScreen } from "./screens/Call.tsx";
 import { DuplicatePreview, PrintInvoice } from "./screens/PrintInvoice.tsx";
 import "./index.css";
 
@@ -25,7 +26,6 @@ const ownerScreens: [path: string, name: string][] = [
 ];
 
 const otherScreens: [path: string, name: string][] = [
-  ["/call/:invoiceId", "Call with AI"],
   ["/print/letter/:id", "Payment Demand Letter"],
   ["/print/case/:id", "ODR case file"],
 ];
@@ -70,6 +70,8 @@ const router = createBrowserRouter([
         children: [
           // The landing page opens the Demo world silently, so the books are ready on the first click.
           { path: "/", element: <Landing /> },
+          // Not under the Owner's tabs: the call screen highlights none of them.
+          { path: "/call/:invoiceId", element: <CallScreen /> },
           ...otherScreens.map(([path, name]) => ({ path, element: <Placeholder name={name} /> })),
         ],
       },

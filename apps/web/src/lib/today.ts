@@ -8,9 +8,10 @@ export type TodayState = { status: "loading" } | { status: "failed" } | { status
 
 /**
  * Today's book from the loaded world plus its events, bank credits and cash
- * items. A new Promise in the world (an approved Plan) gives a new book.
+ * items. A new Promise in the world (an approved Plan) gives a new book;
+ * so does `extra`, an approval the server has not echoed back yet.
  */
-export function useTodayBook(): TodayState {
+export function useTodayBook(extra: BookPromise | null = null): TodayState {
   const world = useWorld();
   const events = usePaymentHistory();
   const credits = useWorkspaceRows<BankTxnRow>("bank_txns", true);
@@ -22,6 +23,7 @@ export function useTodayBook(): TodayState {
     const promises: BookPromise[] = [...world.promisesByInvoice.entries()].flatMap(([invoiceId, list]) =>
       list.map((p) => ({ invoiceId, ...p })),
     );
+    if (extra && !promises.some((p) => p.invoiceId === extra.invoiceId && p.status === "approved")) promises.push(extra);
     return {
       status: "ready",
       book: todayBook({
@@ -38,5 +40,5 @@ export function useTodayBook(): TodayState {
         cashItems: cash,
       }),
     };
-  }, [world, events, credits, cash]);
+  }, [world, events, credits, cash, extra]);
 }
