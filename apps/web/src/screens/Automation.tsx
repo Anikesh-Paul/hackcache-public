@@ -37,18 +37,18 @@ function ReminderLine({ r, world }: { r: ReminderRow; world: World }) {
   return (
     <Ln m={r.sentDate ? formatDate(r.sentDate, { weekday: false }) : ""} className="ruler">
       <span className="block">
-        {world.customers.get(r.customerId)?.name ?? "A Customer"}
+        {stageName(r.stage)} for {world.customers.get(r.customerId)?.name ?? "a Customer"}
         {invoice && (
           <>
             , <Link to={`/app/invoices/${invoice.$id}`} className="mono">{invoice.number}</Link>
           </>
-        )}{" "}
-        · {stageName(r.stage)} · <span className={r.status === "failed" ? "text-sindoor" : ""}>{story(r)}</span>
+        )}
+        : <span className={r.status === "failed" ? "text-sindoor" : ""}>{story(r)}</span>
       </span>
       <small>
         Key <span className="mono">{r.$id}</span>
-        {r.error && <> · last error: {r.error}</>}
       </small>
+      {r.error && <small>Last error: {r.error}</small>}
     </Ln>
   );
 }
@@ -62,8 +62,8 @@ function RunCard({ run, reminders, world }: { run: WorkflowRunRow; reminders: Re
         <summary className="cursor-pointer list-none">
           <span className="font-semibold">{formatDate(run.demoDate)}</span> <span className="text-ink-2">at {time}</span>
           <span className="block text-sm text-ink-2">
-            {run.invoicesScanned} Invoices scanned · {run.sent} sent · {run.skippedDuplicate} skipped as duplicate ·{" "}
-            {run.retried} retried · {run.failed} failed
+            {run.invoicesScanned} Invoices scanned, {run.sent} sent, {run.skippedDuplicate} skipped as duplicate,{" "}
+            {run.retried} retried, {run.failed} failed
           </span>
         </summary>
         <div className="entries mt-2">
@@ -200,10 +200,10 @@ export function Automation() {
                 <Ln key={m.event.$id} className="ruler">
                   <details>
                     <summary className="cursor-pointer list-none">
-                      <span className="text-sm text-ink-2">{formatDate(istDay(m.event.at), { weekday: false })} · to {m.to}</span>
+                      <span className="text-sm text-ink-2">{formatDate(istDay(m.event.at), { weekday: false })}, to {m.to}</span>
                       <span className="block font-semibold">{m.subject}</span>
                       <span className="block text-sm text-ink-2">
-                        From {m.fromName} · {m.customer}, <span className="mono">{m.number}</span>
+                        From {m.fromName}, about {m.customer}'s Invoice <span className="mono">{m.number}</span>
                       </span>
                     </summary>
                     <p className="mt-2 text-sm whitespace-pre-line">{m.text}</p>

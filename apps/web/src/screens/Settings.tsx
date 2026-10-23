@@ -2,10 +2,10 @@
 // details and registration drive the document type and the e-invoicing note;
 // the Plan rule bounds what the agent and the pay link may offer; the switches
 // choose which Ladder messages the daily run sends without asking.
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AUTO_SEND_SWITCHES, LADDER_STAGES, planRule } from "@tagada/domain";
 import { E_INVOICE_TURNOVER_PAISE, formatInr, parseAmountPaise } from "@tagada/money";
-import { saveSettings } from "../lib/appwrite.ts";
+import { emailSetup, saveSettings } from "../lib/appwrite.ts";
 import { LANGUAGES } from "../lib/languages.ts";
 import { useLang } from "../lib/prefs.ts";
 import { useWorld, useWorldState } from "../lib/world.tsx";
@@ -42,6 +42,45 @@ function Field({ label, hint, children }: { label: string; hint?: string | null;
         </span>
       )}
     </label>
+  );
+}
+
+/** The one Demo inbox every reminder email is delivered to: fixed to the Resend account's own email. */
+function DemoInbox({ businessName }: { businessName: string }) {
+  const [setup, setSetup] = useState<Awaited<ReturnType<typeof emailSetup>> | "loading" | "failed">("loading");
+  useEffect(() => {
+    let live = true;
+    emailSetup().then(
+      (found) => live && setSetup(found),
+      (e: unknown) => {
+        console.error("email setup could not be read", e);
+        if (live) setSetup("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <div className="grid gap-1 text-sm">
+      <span className="font-medium">Demo inbox</span>
+      {setup === "loading" ? (
+        <span className="text-ink-2">Reading…</span>
+      ) : setup === "failed" ? (
+        <span className="text-ink-2">Could not be read. Reload to try again.</span>
+      ) : setup.emailReady ? (
+        <span className="mono break-all">{setup.demoInbox}</span>
+      ) : (
+        <span role="alert" className="text-sindoor">
+          Email is not set up on this server yet, so reminder emails show as failed. They need RESEND_API_KEY and
+          DEMO_INBOX_EMAIL.
+        </span>
+      )}
+      <small className="text-ink-2">
+        Reminder emails go from “{businessName} via Tagada”. In this demo every one is delivered to this one inbox, never
+        to a Customer.
+      </small>
+    </div>
   );
 }
 
@@ -192,7 +231,7 @@ export function Settings() {
         </div>
 
         <div className="sect">
-          <Head title="Sent on their own" />
+          <Head title="Auto-send stages" />
           <Ln>
             <fieldset className="grid max-w-[560px] gap-2">
               <legend className="sr-only">Ladder messages the daily run sends without asking</legend>
@@ -240,10 +279,7 @@ export function Settings() {
               <Field label="Your email (Customers' replies come here)" hint={hint("ownerEmail")}>
                 <input className={control} type="email" value={form.ownerEmail} onChange={(e) => set({ ownerEmail: e.target.value })} />
               </Field>
-              <small className="text-ink-2">
-                Reminder emails go from “{form.businessName} via Tagada”. In this demo every one is delivered to the one
-                Demo inbox, never to a Customer.
-              </small>
+              <DemoInbox businessName={form.businessName} />
             </div>
           </Ln>
         </div>

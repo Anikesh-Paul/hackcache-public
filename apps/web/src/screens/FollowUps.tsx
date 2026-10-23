@@ -104,7 +104,7 @@ function FollowUpLine({ f }: { f: FollowUp }) {
         <state.icon aria-hidden /> {state.word(f)}
       </span>
       <span className="mt-1 block">
-        {f.stageName} · <Link to={`/app/invoices/${f.invoiceId}`}>{f.customerName}</Link>,{" "}
+        {f.stageName} for <Link to={`/app/invoices/${f.invoiceId}`}>{f.customerName}</Link>,{" "}
         <span className="mono">{f.number}</span>
       </span>
       <small>{explain(f)}</small>

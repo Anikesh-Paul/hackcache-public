@@ -95,4 +95,21 @@ describe("POST /api/settings", () => {
     expect(workspace().ownerEmail).toBeNull();
     expect((await save({ lang: "hi" }, { authorization: "Bearer nope" })).status).toBe(401);
   });
+
+  it("says Settings, not the Ladder, could not be saved", async () => {
+    db.store.update = async () => {
+      throw new Error("Appwrite is down");
+    };
+    const res = await save({ lang: "hi" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ error: "settings_unavailable" });
+  });
+});
+
+describe("GET /api/settings/email", () => {
+  it("says when email is not set up on this server", async () => {
+    const res = await app.request("/api/settings/email", { headers: jwt });
+    expect(await res.json()).toEqual({ demoInbox: null, emailReady: false });
+    expect((await app.request("/api/settings/email", { headers: { authorization: "Bearer nope" } })).status).toBe(401);
+  });
 });

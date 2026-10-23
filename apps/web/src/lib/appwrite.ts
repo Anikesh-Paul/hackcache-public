@@ -236,6 +236,13 @@ export async function markReminderSent(body: { invoiceId: string; stage: number;
   await authed("/api/ladder/sent", body);
 }
 
+/** Where reminder emails go, and whether this server can send them at all. */
+export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean }> {
+  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean }>("/api/settings/email");
+  if (status !== 200 || !data) throw new SaveError("email_setup_failed");
+  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true };
+}
+
 /** Saves some Settings. A refusal names the field it could not use. */
 export async function saveSettings(patch: Record<string, unknown>): Promise<{ ok: true } | { ok: false; field: string }> {
   const { status, data } = await ownerApi<{ field?: string }>("/api/settings", { method: "POST", body: JSON.stringify(patch) });

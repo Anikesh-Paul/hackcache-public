@@ -9,6 +9,11 @@ export type Mail = {
   replyTo: string | null;
   subject: string;
   text: string;
+  /**
+   * Resend keeps it 24 hours and drops a second request under it, so an
+   * email whose send was not noted (the process died) is not sent again.
+   */
+  idempotencyKey: string;
 };
 
 export type Mailer = {
@@ -28,7 +33,11 @@ export function resendMailer(apiKey: string | undefined, fromDomain: string | un
       try {
         const res = await fetch("https://api.resend.com/emails", {
           method: "POST",
-          headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+          headers: {
+            authorization: `Bearer ${apiKey}`,
+            "content-type": "application/json",
+            "idempotency-key": mail.idempotencyKey,
+          },
           body: JSON.stringify({
             from: `${displayName(mail.fromName)} <${from}>`,
             to: [mail.to],

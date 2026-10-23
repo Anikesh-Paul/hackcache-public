@@ -302,26 +302,28 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     webOrigin: ladder?.webOrigin ?? webOrigin ?? "",
   };
   const runner = ladder?.runner ?? inProcessRunner(ladderDeps, ladder?.runId);
-  const ownerRoute = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
-    const workspaceId = await workspaceOf(c).catch(() => null);
-    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
-    try {
-      return await run(workspaceId, c);
-    } catch (e) {
-      console.error(`${path} failed`, e);
-      return c.json({ error: "ladder_unavailable" }, 500);
-    }
-  };
+  const ownerRoute =
+    (path: string, unavailable: string, run: (workspaceId: string, c: Context) => Promise<Response>) =>
+    async (c: Context) => {
+      const workspaceId = await workspaceOf(c).catch(() => null);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      try {
+        return await run(workspaceId, c);
+      } catch (e) {
+        console.error(`${path} failed`, e);
+        return c.json({ error: unavailable }, 500);
+      }
+    };
   app.post(
     "/api/ladder/run",
-    ownerRoute("/api/ladder/run", async (workspaceId, c) => {
+    ownerRoute("/api/ladder/run", "ladder_unavailable", async (workspaceId, c) => {
       const result = await stepDemoDate(demo.worlds, runner, workspaceId, await json(c));
       return result.ok ? c.json(result.summary) : c.json({ error: result.error }, result.status);
     }),
   );
   app.post(
     "/api/ladder/sent",
-    ownerRoute("/api/ladder/sent", async (workspaceId, c) => {
+    ownerRoute("/api/ladder/sent", "ladder_unavailable", async (workspaceId, c) => {
       const result = await ownerSent(demo.worlds, workspaceId, await json(c));
       return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
     }),
@@ -329,10 +331,18 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
 
   app.post(
     "/api/settings",
-    ownerRoute("/api/settings", async (workspaceId, c) => {
+    ownerRoute("/api/settings", "settings_unavailable", async (workspaceId, c) => {
       const result = await saveSettings(demo.worlds, workspaceId, await json(c));
       return result.ok ? c.json({ ok: true }) : c.json({ error: result.error, field: result.field }, result.status);
     }),
+  );
+
+  // Settings shows where reminder emails go. Without a Resend key and an inbox, every email fails and says why.
+  app.get(
+    "/api/settings/email",
+    ownerRoute("/api/settings/email", "settings_unavailable", async (_workspaceId, c) =>
+      c.json({ demoInbox: ladderDeps.demoInbox, emailReady: ladderDeps.mailer !== null && ladderDeps.demoInbox !== null }),
+    ),
   );
 
   app.post("/api/demo/reset", async (c) => {

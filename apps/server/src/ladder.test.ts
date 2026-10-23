@@ -68,6 +68,8 @@ describe("POST /api/ladder/run", () => {
     expect(summary.scanned).toBeGreaterThan(0);
     const logged = db.table("workflow_runs").find((r) => r.runId === summary.runId);
     expect(logged).toMatchObject({ demoDate: "2026-11-05", sent: 1, invoicesScanned: summary.scanned });
+    // Each run stands for that Demo date's 10:00 IST run, whatever the clock says.
+    expect(logged?.startedAt).toBe("2026-11-05T10:00:00.000+05:30");
   });
 
   it("emails Saha Furniture Mart's friendly heads-up to the Demo inbox, from the business via Tagada, and keeps a copy", async () => {
@@ -78,10 +80,13 @@ describe("POST /api/ladder/run", () => {
     expect(mail).toMatchObject({ fromName: "Tripura Bamboo Works via Tagada", to: INBOX, replyTo: "accounts@tripurabamboo.example" });
     expect(mail?.subject).toContain(saha!.number as string);
     expect(mail?.text).toContain(`https://tagada.example/pay/${saha!.payToken as string}`);
+    // Resend drops a second request under the same key, so a send that died before it was noted never goes twice.
+    expect(mail?.idempotencyKey).toBe(`${WS}/rem_${saha!.$id}_s1`);
     expect(reminder(saha!.$id, 1)).toMatchObject({ status: "sent", channel: "email", attempts: 1, providerMessageId: "msg_1", sentDate: "2026-11-05" });
     expect(saha!.ladderStage).toBe(1);
     const copy = db.table("events").find((e) => e.invoiceId === saha!.$id && e.type === "reminder" && e.actor === "workflow" && String(e.at).startsWith("2026-11-05"));
     expect(copy?.summary).toBe("Friendly heads-up sent by email");
+    expect(copy?.at).toBe("2026-11-05T10:00:00.000+05:30");
     expect(JSON.parse(copy?.payload as string)).toMatchObject({ stage: 1, email: { to: INBOX, subject: mail?.subject, text: mail?.text } });
   });
 
@@ -161,6 +166,13 @@ describe("POST /api/ladder/run", () => {
   it("refuses a date it cannot read, and a stranger", async () => {
     expect((await post("/api/ladder/run", { date: "5 Nov" })).status).toBe(400);
     expect((await post("/api/ladder/run", { date: "2026-11-05" }, { authorization: "Bearer nope" })).status).toBe(401);
+  });
+});
+
+describe("GET /api/settings/email", () => {
+  it("names the Demo inbox every reminder email goes to", async () => {
+    const res = await app.request("/api/settings/email", { headers: jwt });
+    expect(await res.json()).toEqual({ demoInbox: INBOX, emailReady: true });
   });
 });
 

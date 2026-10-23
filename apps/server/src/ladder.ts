@@ -67,6 +67,9 @@ const whole = (value: unknown): number => (typeof value === "number" && Number.i
 
 export const reminderKey = (invoiceId: string, stage: number) => `rem_${invoiceId}_s${stage}`;
 
+/** A run stands for its Demo date's 10:00 IST run, whenever the stepper starts it. */
+const runTime = (demoDate: string) => `${demoDate}T10:00:00.000+05:30`;
+
 function permissionsOf(workspace: StoredRow): string[] {
   const userId = text(workspace.ownerUserId) ?? workspace.$id.slice(1);
   return [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
@@ -265,6 +268,7 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     replyTo: ownerEmail,
     subject: message.subject,
     text: message.text,
+    idempotencyKey: `${job.workspaceId}/${key}`,
   };
   const outcome =
     !deps.mailer || !deps.demoInbox
@@ -282,7 +286,7 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
   if (whole(invoice.ladderStage) < job.stage) await worlds.update("invoices", job.invoiceId, { ladderStage: job.stage });
   await event(worlds, workspace, job.invoiceId, {
     $id: `${key}e`,
-    at: stamp(job.demoDate),
+    at: runTime(job.demoDate),
     type: "reminder",
     actor: "workflow",
     summary: `${REMINDER_NAMES[job.stage - 1] ?? "Reminder"} sent by email`,
@@ -353,7 +357,7 @@ export async function runLadder(
   runId: string,
   send: (job: ReminderJob) => Promise<SendResult> = (job) => sendWithRetry(deps, job),
 ): Promise<RunSummary> {
-  const startedAt = stamp(demoDate);
+  const startedAt = runTime(demoDate);
   const { scanned, jobs } = await planRun(deps, workspaceId, demoDate, runId);
   const results = await Promise.all(jobs.map(send));
   return recordRun(deps, { workspaceId, runId, demoDate, startedAt, scanned, results });
