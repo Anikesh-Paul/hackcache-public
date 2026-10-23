@@ -9,6 +9,9 @@ export type { DemoStarted };
 
 export type OwnedRow = { $id: string; workspaceId: string; $permissions: string[] } & Record<string, unknown>;
 
+/** A row as listed back. `$permissions` is only present when this process wrote it. */
+export type StoredRow = { $id: string; workspaceId: string } & Record<string, unknown>;
+
 /** Rows to write, by table ID. */
 export type WorldRows = Record<string, OwnedRow[]>;
 
@@ -19,6 +22,8 @@ export type WorldStore = {
   remove(workspaceId: string): Promise<void>;
   /** Creates or overwrites the rows, all tables at once. */
   write(world: WorldRows): Promise<void>;
+  /** Every row of one table in one workspace. A demo world fits in one page. */
+  list(tableId: string, workspaceId: string): Promise<StoredRow[]>;
 };
 
 export type DemoDeps = {

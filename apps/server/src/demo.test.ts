@@ -23,6 +23,9 @@ function memoryStore() {
         tables.set(tableId, table);
       }
     },
+    async list(tableId, workspaceId) {
+      return [...(tables.get(tableId)?.values() ?? [])].filter((row) => row.workspaceId === workspaceId);
+    },
   };
   return {
     store,

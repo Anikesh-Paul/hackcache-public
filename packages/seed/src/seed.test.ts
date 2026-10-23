@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkGstin, invoiceTotals, type GstRate } from "@tagada/money";
-import { invoiceStanding } from "@tagada/domain";
+import { gradeCustomer, invoiceStanding } from "@tagada/domain";
 import { DEMO_TODAY, seedWorld, type World } from "./index.ts";
 
 const ids = { workspaceId: "w64f0c2a91be7d3e85f10", ownerUserId: "64f0c2a91be7d3e85f10" };
@@ -13,6 +13,26 @@ const customer = (name: string) => {
 };
 const invoicesOf = (name: string) => world.invoices.filter((i) => i.customerId === customer(name).$id);
 const openOf = (name: string) => invoicesOf(name).filter((i) => i.status !== "paid");
+/** Grade from the seeded history. Payment dates are the IST day on the payment event. */
+const gradeOf = (name: string) => {
+  const invoices = invoicesOf(name);
+  const ids = new Set(invoices.map((invoice) => invoice.$id));
+  return gradeCustomer(
+    DEMO_TODAY,
+    invoices.map((invoice) => ({ id: invoice.$id, dueDate: invoice.dueDate, status: invoice.status })),
+    world.events
+      .filter((event) => ids.has(event.invoiceId))
+      .map((event) => ({ invoiceId: event.invoiceId, type: event.type, date: event.at.slice(0, 10) })),
+    world.promises
+      .filter((promise) => ids.has(promise.invoiceId))
+      .map((promise) => ({
+        invoiceId: promise.invoiceId,
+        status: promise.status,
+        dates: (JSON.parse(promise.instalments) as { date: string }[]).map((instalment) => instalment.date),
+      })),
+  );
+};
+
 const standing = (invoiceId: string) => {
   const invoice = world.invoices.find((i) => i.$id === invoiceId)!;
   const promises = world.promises
@@ -134,6 +154,19 @@ describe("seedWorld", () => {
     expect(standing(hero!.$id)).toMatchObject({ state: "overdue", daysLate: 38 });
     const lines = world.invoice_lines.filter((l) => l.invoiceId === hero!.$id);
     expect(lines.every((l) => l.gstRateBp === 500 && l.discountBp === 0)).toBe(true);
+  });
+
+  it("grades Gupta Traders B, usually pays 12 days late", () => {
+    const gupta = gradeOf("Gupta Traders");
+    expect(gupta.grade).toBe("B");
+    expect(gupta.avgDelayDays).toBe(12);
+    expect(gupta.reason).toContain("usually pays 12 days late");
+  });
+
+  it("grades Sen Handicrafts A, Paul Gift House C, and names Debnath Crafts' Dispute", () => {
+    expect(gradeOf("Sen Handicrafts").grade).toBe("A");
+    expect(gradeOf("Paul Gift House").grade).toBe("C");
+    expect(gradeOf("Debnath Crafts").reason).toContain("Dispute");
   });
 
   it("has open Invoices in every Ageing bucket, with Paul Gift House's ₹8,400 at 112 days", () => {

@@ -35,7 +35,12 @@ export function Invoices() {
   return (
     <Paper label="Invoices">
       <Ln>
-        <h1 className="text-[28px] leading-tight">Invoices</h1>
+        <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-[28px] leading-tight">Invoices</h1>
+          <Link to="/app/invoices/new" className="btn primary">
+            New invoice
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-ink-2">
           {world.invoices.length} Invoices this financial year. Amounts are what is still owed.
         </p>

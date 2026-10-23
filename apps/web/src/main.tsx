@@ -7,6 +7,9 @@ import { WorldProvider } from "./lib/world.tsx";
 import { Proof } from "./Proof.tsx";
 import { Invoices } from "./screens/Invoices.tsx";
 import { InvoiceDetail } from "./screens/InvoiceDetail.tsx";
+import { NewInvoice } from "./screens/NewInvoice.tsx";
+import { Customers } from "./screens/Customers.tsx";
+import { CustomerDetail } from "./screens/CustomerDetail.tsx";
 import { DuplicatePreview, PrintInvoice } from "./screens/PrintInvoice.tsx";
 import "./index.css";
 
@@ -14,9 +17,6 @@ import "./index.css";
 // static site's SPA rewrite) work before each screen is built.
 const ownerScreens: [path: string, name: string][] = [
   ["/app", "Today"],
-  ["/app/invoices/new", "New invoice"],
-  ["/app/customers", "Customers"],
-  ["/app/customers/:id", "Customer"],
   ["/app/bank", "Bank"],
   ["/app/inbox", "Inbox"],
   ["/app/automation", "Automation"],
@@ -46,9 +46,12 @@ const router = createBrowserRouter([
         element: <AppShell />,
         children: [
           ...ownerScreens.map(([path, name]) => ({ path, element: <Placeholder name={name} /> })),
+          { path: "/app/invoices/new", element: <NewInvoice /> },
           { path: "/app/invoices", element: <Invoices /> },
-          { path: "/app/invoices/:id", element: <InvoiceDetail /> },
           { path: "/app/invoices/:id/duplicate", element: <DuplicatePreview /> },
+          { path: "/app/invoices/:id", element: <InvoiceDetail /> },
+          { path: "/app/customers", element: <Customers /> },
+          { path: "/app/customers/:id", element: <CustomerDetail /> },
         ],
       },
       {

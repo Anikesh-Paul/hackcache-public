@@ -4,7 +4,7 @@ import { createApp } from "./app.ts";
 const ok = async () => {};
 const demo = {
   userFromJwt: async () => null,
-  worlds: { exists: async () => false, remove: ok, write: ok },
+  worlds: { exists: async () => false, remove: ok, write: ok, list: async () => [] },
   later: () => {},
 };
 

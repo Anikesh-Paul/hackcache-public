@@ -12,7 +12,12 @@ export type World = {
 
 type WorldState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; world: World };
 
-type WorldContext = WorldState & { reset: () => Promise<void>; retry: () => void };
+type WorldContext = WorldState & {
+  reset: () => Promise<void>;
+  retry: () => void;
+  /** Reads the world again, including rows saved after the page opened. */
+  reload: () => Promise<void>;
+};
 
 const Ctx = createContext<WorldContext | null>(null);
 
@@ -78,7 +83,12 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     setAttempt((n) => n + 1);
   }, []);
 
-  const value = useMemo(() => ({ ...state, reset, retry }), [state, reset, retry]);
+  const reload = useCallback(async () => {
+    const started = await startDemo();
+    setState({ status: "ready", world: await loadWorld({ workspaceId: started.workspaceId, seeded: false }) });
+  }, []);
+
+  const value = useMemo(() => ({ ...state, reset, retry, reload }), [state, reset, retry, reload]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -138,5 +148,39 @@ export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined
       live = false;
     };
   }, [tableId, world, invoiceId]);
+  return rows;
+}
+
+/**
+ * Every row of one workspace table. Null while loading.
+ * `nonempty` asks again for a few seconds, for tables the seed writes after the first answer.
+ */
+export function useWorkspaceRows<T>(tableId: string, nonempty = false): T[] | "failed" | null {
+  const state = useWorldState();
+  const world = state.status === "ready" ? state.world : null;
+  const [rows, setRows] = useState<T[] | "failed" | null>(null);
+  useEffect(() => {
+    if (!world) return;
+    let live = true;
+    setRows(null);
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<T>(tableId, world.workspace.$id);
+        if (!nonempty || found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
+      (found) => live && setRows(found),
+      (e: unknown) => {
+        console.error(`${tableId} failed to load`, e);
+        if (live) setRows("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [tableId, nonempty, world]);
   return rows;
 }

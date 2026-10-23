@@ -1,6 +1,6 @@
 import { Account, AppwriteException, Client, Query, TablesDB } from "node-appwrite";
 import { DATABASE_ID, tables } from "@tagada/appwrite";
-import type { WorldStore } from "./demo.ts";
+import type { StoredRow, WorldStore } from "./demo.ts";
 import { requireEnv } from "./env.ts";
 
 export function adminClient(): Client {
@@ -86,6 +86,19 @@ export function appwriteWorlds(client: Client): WorldStore {
           ),
         ),
       );
+    },
+
+    async list(tableId, workspaceId) {
+      const { rows } = await withRetry(() =>
+        db.listRows({
+          databaseId: DATABASE_ID,
+          tableId,
+          queries: [Query.equal("workspaceId", workspaceId), Query.limit(500)],
+          total: false,
+        }),
+      );
+      // The SDK types a row as an open record. These columns are the schema's.
+      return rows as unknown as StoredRow[];
     },
   };
 }

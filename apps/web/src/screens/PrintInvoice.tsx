@@ -69,9 +69,12 @@ export function DuplicatePreview() {
           </p>
           <h1 className="mt-1 text-[28px] leading-tight">Duplicate this invoice</h1>
           <p className="mt-2 max-w-[60ch]">
-            A preview of the same lines for {customer.name}, dated today with {credit} days' credit. Nothing is saved:
-            the new-invoice form will let you change it and give it the next number.
+            A preview of the same lines for {customer.name}, dated today with {credit} days' credit. Nothing is saved
+            until you open it in the new-invoice form.
           </p>
+          <Link to={`/app/invoices/new?from=${invoice.$id}`} className="btn primary mt-4">
+            Open in the new invoice form
+          </Link>
         </Ln>
       </Paper>
       {lines === "failed" ? (

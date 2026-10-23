@@ -100,3 +100,22 @@ export function resetDemo(): Promise<DemoStarted> {
   started = demoCall("reset");
   return started;
 }
+
+export class SaveError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+/** Saves an Invoice. The server recomputes every total, so the body carries lines, not figures. */
+export async function createInvoice(body: unknown): Promise<{ invoiceId: string }> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}/api/invoices`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; invoice?: { $id?: string } } | null;
+  if (!res.ok || !data?.invoice?.$id) throw new SaveError(data?.error ?? "save_failed");
+  return { invoiceId: data.invoice.$id };
+}

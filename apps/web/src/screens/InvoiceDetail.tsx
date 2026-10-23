@@ -69,7 +69,15 @@ export function InvoiceDetail() {
             <p className="text-[13px] text-ink-2">
               <Link to="/app/invoices">Invoices</Link> / <span className="mono">{invoice.number}</span>
             </p>
-            <h1 className="mt-1 text-[30px] leading-tight sm:text-[34px]">{customer?.name}</h1>
+            <h1 className="mt-1 text-[30px] leading-tight sm:text-[34px]">
+              {customer ? (
+                <Link to={`/app/customers/${customer.$id}`} className="no-underline">
+                  {customer.name}
+                </Link>
+              ) : (
+                "Customer"
+              )}
+            </h1>
             <p className="mt-1 text-sm text-ink-2">
               {customer?.place}, {stateName(customer?.stateCode ?? "")}.{" "}
               {intra ? "Same state, so CGST and SGST." : "Another state, so IGST."}

@@ -112,6 +112,30 @@ export type BankTxnRow = Row<{
   allocations: string | null;
 }>;
 
+export type CallRow = Row<{
+  invoiceId: string;
+  conversationId: string | null;
+  startedAt: string | null;
+  durationS: number | null;
+  outcome: string | null;
+  /** JSON transcript. */
+  transcript: string | null;
+  consentShown: boolean;
+}>;
+
+export type ReminderRow = Row<{
+  invoiceId: string;
+  customerId: string;
+  sentDate: string | null;
+  stage: number;
+  channel: "email" | "whatsapp_link" | "call";
+  status: "queued" | "sent" | "failed" | "retried" | "skipped_cap" | "skipped_stage_off";
+  attempts: number | null;
+  providerMessageId: string | null;
+  error: string | null;
+  runId: string | null;
+}>;
+
 export type CashItemRow = Row<{
   kind: "salary" | "rent" | "supplier" | "other";
   amountPaise: number;
