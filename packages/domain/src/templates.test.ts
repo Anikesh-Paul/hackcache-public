@@ -48,6 +48,25 @@ describe("reminderMessage", () => {
     expect(reminderMessage({ ...gupta, stage: 2, lang: "bn" }).text).toMatch(/[ঀ-৿]/);
   });
 
+  it("says a due-date reminder sent late was due on its date, not today", () => {
+    const late = { ...gupta, dueDate: "2026-11-08", today: "2026-11-09" };
+    const en = reminderMessage({ ...late, stage: 2, lang: "en" });
+    expect(en.subject).not.toMatch(/today/i);
+    expect(en.text).not.toMatch(/today/i);
+    expect(en.text).toContain("was due on 8 Nov");
+    const hi = reminderMessage({ ...late, stage: 2, lang: "hi" });
+    expect(`${hi.subject} ${hi.text}`).not.toContain("आज देय");
+    expect(hi.text).toContain("देय थे");
+    const bn = reminderMessage({ ...late, stage: 2, lang: "bn" });
+    expect(`${bn.subject} ${bn.text}`).not.toContain("আজ দেয়");
+    expect(bn.text).toContain("দেয় ছিল");
+  });
+
+  it("still says today on the due date itself", () => {
+    const onTime = { ...gupta, dueDate: "2026-11-08", today: "2026-11-08" };
+    expect(reminderMessage({ ...onTime, stage: 2, lang: "en" }).text).toContain("is due today");
+  });
+
   it("has no message for the ODR case file", () => {
     expect(() => reminderMessage({ ...gupta, stage: 6, lang: "en" })).toThrow();
   });

@@ -203,7 +203,7 @@ export function Automation() {
                       <span className="text-sm text-ink-2">{formatDate(istDay(m.event.at), { weekday: false })}, to {m.to}</span>
                       <span className="block font-semibold">{m.subject}</span>
                       <span className="block text-sm text-ink-2">
-                        From {m.fromName}, about {m.customer}'s Invoice <span className="mono">{m.number}</span>
+                        From {m.fromName}, about Invoice <span className="mono">{m.number}</span> for {m.customer}
                       </span>
                     </summary>
                     <p className="mt-2 text-sm whitespace-pre-line">{m.text}</p>

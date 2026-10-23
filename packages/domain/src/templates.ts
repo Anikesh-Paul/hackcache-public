@@ -40,10 +40,17 @@ const EN: ((w: Words) => [subject: string, body: string])[] = [
     `Coming up: Invoice ${f.number}, ${amount} due ${date}`,
     `Hello ${f.customerName}, a friendly reminder from ${f.businessName}: Invoice ${f.number} for ${amount} is due on ${date}. You can pay here: ${f.payUrl}`,
   ],
-  ({ amount, f }) => [
-    `Due today: Invoice ${f.number}, ${amount}`,
-    `Hello ${f.customerName}, Invoice ${f.number} for ${amount} from ${f.businessName} is due today. You can pay here: ${f.payUrl}`,
-  ],
+  // Sent late (an earlier try failed), it says when it was due, never "today".
+  ({ amount, date, late, f }) =>
+    late > 0
+      ? [
+          `Was due ${date}: Invoice ${f.number}, ${amount}`,
+          `Hello ${f.customerName}, Invoice ${f.number} for ${amount} from ${f.businessName} was due on ${date}. You can pay here: ${f.payUrl}`,
+        ]
+      : [
+          `Due today: Invoice ${f.number}, ${amount}`,
+          `Hello ${f.customerName}, Invoice ${f.number} for ${amount} from ${f.businessName} is due today. You can pay here: ${f.payUrl}`,
+        ],
   ({ amount, date, late, f }) => [
     `Overdue: Invoice ${f.number}, ${amount}`,
     `Hello ${f.customerName}, Invoice ${f.number} for ${amount} was due on ${date}, ${late} days ago. Please pay here, or tell us a date that works: ${f.payUrl}`,
@@ -63,10 +70,16 @@ const HI: ((w: Words) => [subject: string, body: string])[] = [
     `याद दिलाना: बिल ${f.number}, ${amount}`,
     `नमस्ते ${spokenName(f.customerName)} जी, ${f.businessName} की ओर से याद दिला रहे हैं: बिल ${f.number} के ${amount} ${hindiDate(f.dueDate)} को देय हैं। यहाँ से भुगतान करें: ${f.payUrl}`,
   ],
-  ({ amount, f }) => [
-    `आज देय: बिल ${f.number}, ${amount}`,
-    `नमस्ते ${spokenName(f.customerName)} जी, ${f.businessName} का बिल ${f.number} के ${amount} आज देय हैं। यहाँ से भुगतान करें: ${f.payUrl}`,
-  ],
+  ({ amount, late, f }) =>
+    late > 0
+      ? [
+          `देय तारीख बीती: बिल ${f.number}, ${amount}`,
+          `नमस्ते ${spokenName(f.customerName)} जी, ${f.businessName} का बिल ${f.number} के ${amount} ${hindiDate(f.dueDate)} को देय थे। यहाँ से भुगतान करें: ${f.payUrl}`,
+        ]
+      : [
+          `आज देय: बिल ${f.number}, ${amount}`,
+          `नमस्ते ${spokenName(f.customerName)} जी, ${f.businessName} का बिल ${f.number} के ${amount} आज देय हैं। यहाँ से भुगतान करें: ${f.payUrl}`,
+        ],
   ({ amount, late, f }) => [
     `बकाया: बिल ${f.number}, ${amount}`,
     `नमस्ते ${spokenName(f.customerName)} जी, बिल ${f.number} के ${amount} ${hindiDate(f.dueDate)} को देय थे, आज ${late} दिन हो गए। कृपया यहाँ से भुगतान करें, या कोई तारीख बता दें: ${f.payUrl}`,
@@ -86,10 +99,16 @@ const BN: ((w: Words) => [subject: string, body: string])[] = [
     `মনে করিয়ে দেওয়া: বিল ${f.number}, ${amount}`,
     `নমস্কার ${f.customerName}, ${f.businessName}-এর পক্ষ থেকে মনে করিয়ে দিচ্ছি: বিল ${f.number}-এর ${amount} ${date} তারিখে দেয়। এখানে পেমেন্ট করুন: ${f.payUrl}`,
   ],
-  ({ amount, f }) => [
-    `আজ দেয়: বিল ${f.number}, ${amount}`,
-    `নমস্কার ${f.customerName}, ${f.businessName}-এর বিল ${f.number}-এর ${amount} আজ দেয়। এখানে পেমেন্ট করুন: ${f.payUrl}`,
-  ],
+  ({ amount, date, late, f }) =>
+    late > 0
+      ? [
+          `দেয় তারিখ পেরিয়েছে: বিল ${f.number}, ${amount}`,
+          `নমস্কার ${f.customerName}, ${f.businessName}-এর বিল ${f.number}-এর ${amount} ${date} তারিখে দেয় ছিল। এখানে পেমেন্ট করুন: ${f.payUrl}`,
+        ]
+      : [
+          `আজ দেয়: বিল ${f.number}, ${amount}`,
+          `নমস্কার ${f.customerName}, ${f.businessName}-এর বিল ${f.number}-এর ${amount} আজ দেয়। এখানে পেমেন্ট করুন: ${f.payUrl}`,
+        ],
   ({ amount, date, late, f }) => [
     `বাকি: বিল ${f.number}, ${amount}`,
     `নমস্কার ${f.customerName}, বিল ${f.number}-এর ${amount} ${date} তারিখে দেয় ছিল, আজ ${late} দিন হয়ে গেল। এখানে পেমেন্ট করুন, বা একটা তারিখ জানান: ${f.payUrl}`,
