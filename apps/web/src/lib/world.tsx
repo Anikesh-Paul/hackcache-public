@@ -192,8 +192,12 @@ export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined
   return rows;
 }
 
-/** Every row of one workspace table. Null while loading. An empty table is a real answer. */
-export function useWorkspaceRows<T>(tableId: string): T[] | "failed" | null {
+/**
+ * Every row of one workspace table. Null while loading. An empty table is a
+ * real answer, unless `seeded`: then it is asked again a few times, since a
+ * fresh world writes the table a moment after the first screens.
+ */
+export function useWorkspaceRows<T>(tableId: string, seeded = false): T[] | "failed" | null {
   const state = useWorldState();
   const world = state.status === "ready" ? state.world : null;
   const [rows, setRows] = useState<T[] | "failed" | null>(null);
@@ -201,7 +205,15 @@ export function useWorkspaceRows<T>(tableId: string): T[] | "failed" | null {
     if (!world) return;
     let live = true;
     setRows(null);
-    rowsOf<T>(tableId, world.workspace.$id).then(
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<T>(tableId, world.workspace.$id);
+        if (!seeded || found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
       (found) => live && setRows(found),
       (e: unknown) => {
         console.error(`${tableId} failed to load`, e);
@@ -211,6 +223,6 @@ export function useWorkspaceRows<T>(tableId: string): T[] | "failed" | null {
     return () => {
       live = false;
     };
-  }, [tableId, world]);
+  }, [tableId, world, seeded]);
   return rows;
 }

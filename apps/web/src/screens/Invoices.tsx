@@ -1,6 +1,13 @@
 import { Link, useSearchParams } from "react-router";
 import { formatDate, formatInr, sumPaise } from "@tagada/money";
-import { INVOICE_FILTERS, isInvoiceFilter, matchesFilter, type InvoiceFilter } from "@tagada/domain";
+import {
+  AGEING_BUCKETS,
+  INVOICE_FILTERS,
+  ageingBucket,
+  isInvoiceFilter,
+  matchesFilter,
+  type InvoiceFilter,
+} from "@tagada/domain";
 import { useWorld, viewOf, type InvoiceView } from "../lib/world.tsx";
 import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 
@@ -26,10 +33,14 @@ export function Invoices() {
   const [params, setParams] = useSearchParams();
   const asked = params.get("filter") ?? "all";
   const filter: InvoiceFilter = isInvoiceFilter(asked) ? asked : "all";
+  // From Today's Ageing bar: the unpaid Invoices this many days past due.
+  const age = AGEING_BUCKETS.find((b) => b.key === params.get("age"));
 
   const views = world.invoices.map((invoice) => viewOf(world, invoice)).sort(byUrgency);
-  const shown = views.filter((v) => matchesFilter(v.standing, filter));
-  const paidOnly = filter === "paid";
+  const shown = age
+    ? views.filter((v) => v.standing.state !== "paid" && ageingBucket(v.standing.daysLate) === age.key)
+    : views.filter((v) => matchesFilter(v.standing, filter));
+  const paidOnly = !age && filter === "paid";
   const total = sumPaise(shown.map((v) => (paidOnly ? v.invoice.totalPaise : v.standing.balancePaise)));
 
   return (
@@ -51,13 +62,13 @@ export function Invoices() {
               <button
                 key={f}
                 type="button"
-                aria-pressed={filter === f}
+                aria-pressed={!age && filter === f}
                 onClick={() => setParams(f === "all" ? {} : { filter: f }, { replace: true })}
                 className={`min-h-11 rounded-md border px-3 text-sm ${
-                  filter === f ? "border-ink bg-ink font-semibold text-paper" : "border-rule-strong text-ink"
+                  !age && filter === f ? "border-ink bg-ink font-semibold text-paper" : "border-rule-strong text-ink"
                 }`}
               >
-                {LABELS[f]} <span className={filter === f ? "" : "text-ink-2"}>{count}</span>
+                {LABELS[f]} <span className={!age && filter === f ? "" : "text-ink-2"}>{count}</span>
               </button>
             );
           })}
@@ -65,12 +76,16 @@ export function Invoices() {
       </Ln>
 
       <div className="sect mt-6">
-        <Head title={filter === "all" ? "Every Invoice" : LABELS[filter]} m="due" a="owed" />
+        <Head
+          title={age ? `${age.label} days past due` : filter === "all" ? "Every Invoice" : LABELS[filter]}
+          m="due"
+          a="owed"
+        />
         {shown.length === 0 ? (
           <div className="entries">
             <Ln>
               <p className="text-ink-2">
-                No {LABELS[filter].toLowerCase()} Invoices on {formatDate(world.workspace.today)}.
+                No {age ? "" : `${LABELS[filter].toLowerCase()} `}Invoices on {formatDate(world.workspace.today)}.
               </p>
             </Ln>
           </div>

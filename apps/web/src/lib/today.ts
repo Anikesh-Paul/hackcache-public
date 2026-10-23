@@ -1,0 +1,42 @@
+import { useMemo } from "react";
+import type { BankAllocation, BankTxnRow, CashItemRow } from "@tagada/appwrite";
+import { todayBook, type BookPromise, type TodayBook } from "@tagada/domain";
+import { istDay } from "./pricing.ts";
+import { usePaymentHistory, useWorkspaceRows, useWorld } from "./world.tsx";
+
+export type TodayState = { status: "loading" } | { status: "failed" } | { status: "ready"; book: TodayBook };
+
+/**
+ * Today's book from the loaded world plus its events, bank credits and cash
+ * items. A new Promise in the world (an approved Plan) gives a new book.
+ */
+export function useTodayBook(): TodayState {
+  const world = useWorld();
+  const events = usePaymentHistory();
+  const credits = useWorkspaceRows<BankTxnRow>("bank_txns", true);
+  const cash = useWorkspaceRows<CashItemRow>("cash_items", true);
+
+  return useMemo((): TodayState => {
+    if (events === "failed" || credits === "failed" || cash === "failed") return { status: "failed" };
+    if (events === "loading" || credits === null || cash === null) return { status: "loading" };
+    const promises: BookPromise[] = [...world.promisesByInvoice.entries()].flatMap(([invoiceId, list]) =>
+      list.map((p) => ({ invoiceId, ...p })),
+    );
+    return {
+      status: "ready",
+      book: todayBook({
+        today: world.workspace.today,
+        openingCashPaise: world.workspace.openingCashPaise ?? 0,
+        customers: [...world.customers.values()],
+        invoices: world.invoices,
+        promises,
+        events: events.map((e) => ({ invoiceId: e.invoiceId, type: e.type, date: istDay(e.at) })),
+        bankCredits: credits.map((t) => ({
+          matchStatus: t.matchStatus,
+          allocations: t.allocations ? (JSON.parse(t.allocations) as BankAllocation[]) : [],
+        })),
+        cashItems: cash,
+      }),
+    };
+  }, [world, events, credits, cash]);
+}

@@ -4,7 +4,9 @@ import {
   daysBetween,
   differencePaise,
   formatDate,
+  nearestPaise,
   percentOfPaise,
+  sharePaise,
   stateName,
   sumPaise,
   upiPayUri,
@@ -30,6 +32,19 @@ describe("paise sums", () => {
     expect(percentOfPaise(450_000, 200)).toBe(9_000); // 2% TDS on ₹4,500 installation
     expect(percentOfPaise(3_000_000, 10)).toBe(3_000); // 0.1% TDS on ₹30,000
     expect(percentOfPaise(333, 50)).toBe(2); // ₹3.33 × 0.5% = 1.665 paise → 2
+  });
+
+  it("splits an amount into equal shares, rounded half up to the paisa", () => {
+    expect(sharePaise(15_800_000, 9)).toBe(1_755_556); // ₹1,58,000 over 9 pay packets
+    expect(sharePaise(300, 2)).toBe(150);
+    expect(() => sharePaise(300, 0)).toThrow(/parts/);
+  });
+
+  it("rounds to the nearest step for an 'about' figure, half up", () => {
+    expect(nearestPaise(1_755_556, 50_000)).toBe(1_750_000); // about ₹17,500
+    expect(nearestPaise(1_775_000, 50_000)).toBe(1_800_000);
+    expect(nearestPaise(-1_755_556, 50_000)).toBe(-1_750_000);
+    expect(() => nearestPaise(100, 0)).toThrow(/step/);
   });
 });
 

@@ -94,7 +94,8 @@ function averageDays(days: readonly number[]): number | null {
   return sign * Math.round(Math.abs(sum) / days.length);
 }
 
-function habit(avg: number | null): string {
+/** "usually pays 12 days late", from a Customer's mean days late. */
+export function paymentHabit(avg: number | null): string {
   if (avg === null) return "no Invoice paid yet";
   if (avg === 0) return "pays on time";
   if (avg < 0) {
@@ -135,7 +136,7 @@ export function grade(input: GradeInput): CustomerGrade {
   const letter: GradeLetter =
     open90 || (avg !== null && avg > 30) || broken ? "C" : avg !== null && avg <= 7 && !disputed ? "A" : "B";
 
-  const parts = [habit(avg)];
+  const parts = [paymentHabit(avg)];
   if (open90) parts.push(`an Invoice is ${worst} days past due`);
   else if (worst > 0) {
     const unit = worst === 1 ? "day" : "days";

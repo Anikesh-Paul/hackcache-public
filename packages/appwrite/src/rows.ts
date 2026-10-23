@@ -108,9 +108,12 @@ export type BankTxnRow = Row<{
   amountPaise: number;
   matchStatus: "unmatched" | "suggested" | "confirmed";
   matchKind: "exact" | "part" | "multi" | "overpay" | "unknown" | "tds" | null;
-  /** JSON: [{ invoiceId, amountPaise }] */
+  /** JSON: BankAllocation[] */
   allocations: string | null;
 }>;
+
+/** One Invoice's share of a Bank credit. `tdsPaise` is what the Customer kept back as TDS. */
+export type BankAllocation = { invoiceId: string; amountPaise: number; tdsPaise?: number };
 
 export type CallRow = Row<{
   invoiceId: string;

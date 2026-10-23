@@ -346,6 +346,15 @@ h3 {
     text-decoration-color: color-mix(in srgb, var(--bamboo) 40%, transparent);
     text-underline-offset: 3px;
   }
+  /* a 44 px target around a link-sized button (§6.7 fix 17) */
+  .linkbtn {
+    position: relative;
+  }
+  .linkbtn::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
   .linkbtn:hover {
     text-decoration-color: currentColor;
   }
@@ -409,6 +418,281 @@ h3 {
   }
   .stamp.ok {
     color: var(--bamboo-ink);
+  }
+
+  /* ---------- Today: a two-page spread, one page under 1120 px ---------- */
+  .spread {
+    display: grid;
+    gap: 22px;
+    align-items: start;
+  }
+  @media (min-width: 1120px) {
+    .spread {
+      grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    }
+  }
+  .hl-row {
+    align-items: start;
+  }
+  .hl-row > .a {
+    border-left: 0;
+  }
+  .glyph {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    margin-top: 2px;
+  }
+  .glyph svg {
+    width: 18px;
+    height: 18px;
+  }
+  .glyph.short {
+    background: var(--sindoor-soft);
+    color: var(--sindoor);
+  }
+  .glyph.ok {
+    background: var(--bamboo-soft);
+    color: var(--bamboo-ink);
+  }
+  @media (max-width: 639px) {
+    .hl-row {
+      grid-template-columns: var(--margin) minmax(0, 1fr);
+    }
+    .hl-row > .a {
+      grid-column: 2;
+      text-align: left;
+      padding: 10px 14px 0;
+    }
+  }
+  .working > .ln {
+    padding: 7px 0;
+  }
+  .working > .ln > .a {
+    margin: -7px 0;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+  .rank {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  /* pay packets: 9 envelopes that fill */
+  .packets {
+    display: grid;
+    grid-template-columns: repeat(9, minmax(0, 42px));
+    gap: 7px;
+  }
+  .pk {
+    position: relative;
+    aspect-ratio: 46 / 32;
+    border: 1.5px solid var(--rule-strong);
+    border-radius: 3px;
+    overflow: hidden;
+    color: var(--rule-strong);
+    background: var(--paper);
+  }
+  .pk .fill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: var(--bamboo);
+    transition: height 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .pk svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .pk.full {
+    border-color: var(--bamboo);
+    color: var(--paper);
+  }
+  .pk.empty {
+    border-style: dashed;
+  }
+  @media (max-width: 639px) {
+    .packets {
+      gap: 4px;
+    }
+  }
+
+  /* totals row */
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1px;
+    margin-left: var(--margin);
+    background: var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  @media (min-width: 1200px) {
+    .tiles {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  .tile {
+    background: var(--paper);
+    padding: 12px 14px;
+    min-width: 0;
+  }
+  .tile .linkbtn {
+    min-height: 44px;
+  }
+
+  /* Ageing: decorative bar, the list below carries words and links */
+  .ageing-bar {
+    display: flex;
+    height: 12px;
+    gap: 2px;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .ageing-bar > span {
+    min-width: 4px;
+  }
+  .swatch {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    vertical-align: middle;
+  }
+  .age-0 {
+    background: var(--bamboo-soft);
+    box-shadow: inset 0 0 0 1px var(--bamboo);
+  }
+  .age-1 {
+    background: var(--turmeric-soft);
+    box-shadow: inset 0 0 0 1px var(--turmeric);
+  }
+  .age-2 {
+    background: var(--turmeric);
+  }
+  .age-3 {
+    background: var(--sindoor);
+  }
+
+  /* ledger-bar forecast */
+  .chartwrap {
+    width: 100%;
+    overflow: hidden;
+  }
+  .chart text {
+    font-family: var(--font-sans);
+  }
+  .chart .bar-ok {
+    fill: var(--bamboo);
+  }
+  .chart .bar-ok.dim {
+    opacity: 0.5;
+  }
+  .chart .bar-short {
+    fill: var(--sindoor);
+  }
+  .bar-ok-swatch {
+    background: var(--bamboo);
+  }
+  .bar-short-swatch {
+    background: var(--sindoor);
+  }
+  .chart .ground {
+    stroke: var(--ink);
+  }
+  .chart .salary-mark {
+    stroke: var(--ink-2);
+    stroke-dasharray: 2 4;
+    opacity: 0.6;
+  }
+  .chart .chart-note,
+  .chart .chart-axis {
+    fill: var(--ink-2);
+    font-size: 12px;
+  }
+  .chart .chart-short {
+    fill: var(--sindoor);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .chart .chart-ok {
+    fill: var(--bamboo-ink);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* the forecast as a khata table; stacked rows on phones */
+  .khata {
+    width: 100%;
+    margin-top: 14px;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .khata th,
+  .khata td {
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--rule);
+    text-align: right;
+    font-weight: 400;
+  }
+  .khata thead th {
+    font-size: 13px;
+    color: var(--ink-2);
+    border-bottom: 1px solid var(--ink);
+  }
+  .khata th:first-child {
+    text-align: left;
+  }
+  .khata tbody th small {
+    color: var(--ink-2);
+    font-size: 12px;
+  }
+  .khata .close {
+    font-weight: 600;
+  }
+  .khata tr.neg .close {
+    color: var(--sindoor);
+  }
+  @media (max-width: 559px) {
+    .khata thead {
+      display: none;
+    }
+    .khata tr {
+      display: block;
+      border-bottom: 1px solid var(--rule);
+      padding: 6px 0;
+    }
+    .khata th,
+    .khata td {
+      border: 0;
+      padding: 2px 0;
+    }
+    .khata tbody th {
+      display: block;
+      font-weight: 600;
+    }
+    .khata td {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .khata td::before {
+      content: attr(data-label);
+      color: var(--ink-2);
+      font-size: 13px;
+      font-weight: 400;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .pk .fill {
+      transition: none;
+    }
   }
 
   /* ---------- bamboo ladder: stage 1 at the foot ---------- */

@@ -8,6 +8,7 @@ import {
   documentFor,
   financialYear,
   formatInr,
+  formatInrShort,
   gstinCheckDigit,
   hindiDate,
   hindiNumber,
@@ -403,6 +404,15 @@ describe("format", () => {
     expect(formatInr(561_905)).toBe("₹5,619.05");
     expect(formatInr(-5)).toBe("−₹0.05");
     expect(formatInr(4, { signed: true })).toBe("+₹0.04");
+  });
+
+  it("shortens to thousands or lakhs for a chart label", () => {
+    expect(formatInrShort(-4_800_000)).toBe("−₹48k");
+    expect(formatInrShort(1_200_000)).toBe("₹12k");
+    expect(formatInrShort(8_984_000)).toBe("₹90k");
+    expect(formatInrShort(39_060_000)).toBe("₹3.9L");
+    expect(formatInrShort(-21_000_000)).toBe("−₹2.1L");
+    expect(formatInrShort(30_000)).toBe("₹300");
   });
 });
 
