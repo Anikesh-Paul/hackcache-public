@@ -55,3 +55,18 @@ export {
   whatsappLink,
 } from "./call.ts";
 export type { CallBlock, CallContext, CallGuard, CallGuardInput, CallOutcome, OutcomeCheck, RuleCheck, Said } from "./call.ts";
+
+export { MATCH_LABEL, bankTxnId, importCount, importSummary, matchCredit, matcherBrief, parseStatement } from "./matcher.ts";
+export type {
+  Match,
+  MatchAllocation,
+  MatchCredit,
+  MatchInvoice,
+  MatchKind,
+  MatchLine,
+  BriefRow,
+  ParsedStatement,
+} from "./matcher.ts";
+
+export { PROOF_LABEL, checkProof, proofFromModel } from "./proof-check.ts";
+export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";

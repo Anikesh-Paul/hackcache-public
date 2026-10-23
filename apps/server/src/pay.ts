@@ -4,10 +4,21 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Permission, Role } from "node-appwrite";
 import type { EventActor, InboxKind, PayInstalment, PaySlip } from "@tagada/appwrite";
-import { hindiDate, hindiRupees } from "@tagada/money";
-import { invoiceStanding, planInWords, planRule, type InvoiceFacts, type PromiseFacts } from "@tagada/domain";
+import { differencePaise, hindiDate, hindiRupees } from "@tagada/money";
+import {
+  PROOF_LABEL,
+  checkProof,
+  invoiceStanding,
+  planInWords,
+  planRule,
+  proofFromModel,
+  type InvoiceFacts,
+  type PromiseFacts,
+  type ProofResultKind,
+} from "@tagada/domain";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import type { PayRef } from "./pay-token.ts";
+import type { ProofReader } from "./proof-read.ts";
 
 /** An Invoice to act on; `token` is set when the request came through its pay link. */
 type Ref = PayRef & { token?: string };
@@ -23,7 +34,7 @@ export type FileStore = {
 /** Text to speech: MP3 bytes. */
 export type Voice = { speak(text: string): Promise<Uint8Array> };
 
-export type PayDeps = { worlds: WorldStore; files: FileStore; voice: Voice };
+export type PayDeps = { worlds: WorldStore; files: FileStore; voice: Voice; proof?: ProofReader | null };
 
 export type PayFailure = { ok: false; status: 400 | 404 | 409; error: string; reason?: string };
 export type PayResult = { ok: true; slip: PaySlip } | PayFailure;
@@ -220,24 +231,67 @@ export function uploadScreenshot(deps: PayDeps, ref: Ref, file: unknown): Promis
     const ext = IMAGE_TYPES.get(file.type);
     if (!ext || file.size === 0 || file.size > MAX_SCREENSHOT_BYTES) return fail(400, "invalid_file");
     const fileId = newId("s");
+    const bytes = new Uint8Array(await file.arrayBuffer());
     await deps.files.saveScreenshot({
       fileId,
       ownerUserId: owner(book).userId,
       name: `${fileId}.${ext}`,
-      bytes: new Uint8Array(await file.arrayBuffer()),
+      bytes,
     });
+    const checked = await readProof(deps, book, bytes, file.type);
+    const { permissions } = owner(book);
     await record(
       deps.worlds,
       book,
       {
         type: "proof_uploaded",
         actor: "customer",
-        summary: "Sent a UPI screenshot on the pay link, to be checked against the bank statement",
+        summary: `Sent a UPI screenshot on the pay link. ${checked.label}.`,
         payload: { fileId },
       },
       "proof_uploaded",
+      {
+        proof_checks: [
+          {
+            $id: newId("f"),
+            workspaceId: book.workspace.$id,
+            $permissions: permissions,
+            invoiceId: book.invoice.$id,
+            fileId,
+            extracted: checked.extracted ? JSON.stringify(checked.extracted) : null,
+            result: checked.result,
+            checkedAt: stamp(text(book.workspace.today) ?? ""),
+          },
+        ],
+      },
     );
   });
+}
+
+/** Read the screenshot, if a reader is configured, and check it. A missing reader is "not found yet". */
+async function readProof(
+  deps: PayDeps,
+  book: Book,
+  bytes: Uint8Array,
+  mime: string,
+): Promise<{ result: ProofResultKind; label: string; extracted: ReturnType<typeof proofFromModel> }> {
+  let extracted = null;
+  if (deps.proof) {
+    try {
+      extracted = proofFromModel(await deps.proof.read({ bytes, mime }));
+    } catch (e) {
+      console.error("proof read failed", e);
+    }
+  }
+  if (!extracted) return { result: "not_found_yet", label: PROOF_LABEL.not_found_yet, extracted: null };
+  const credits = await deps.worlds.list("bank_txns", book.workspace.$id);
+  const view = checkProof({
+    extracted,
+    today: text(book.workspace.today) ?? "",
+    balancePaise: differencePaise(whole(book.invoice.totalPaise), whole(book.invoice.paidPaise)),
+    credits: credits.map((row) => ({ utr: text(row.utr), amountPaise: whole(row.amountPaise) })),
+  });
+  return { result: view.result, label: view.label, extracted };
 }
 
 const words = planInWords;

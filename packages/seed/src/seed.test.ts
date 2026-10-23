@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { checkGstin, invoiceTotals, sumPaise, type GstRate } from "@tagada/money";
-import { gradeCustomer, invoiceStanding } from "@tagada/domain";
-import { DEMO_TODAY, seedWorld, type World } from "./index.ts";
+import { gradeCustomer, invoiceStanding, matchCredit, parseStatement } from "@tagada/domain";
+import { DEMO_TODAY, GUPTA_PROOF_UTR, STATEMENT_2_CSV, invoicesForMatch, seedWorld, type World } from "./index.ts";
 
 const ids = { workspaceId: "w64f0c2a91be7d3e85f10", ownerUserId: "64f0c2a91be7d3e85f10" };
 const world = seedWorld(ids);
@@ -259,5 +259,38 @@ describe("seedWorld", () => {
 
   it("never writes stage numbers or reminder keys into an event the Owner reads", () => {
     for (const e of world.events) expect(e.summary).not.toMatch(/rem_|stage \d/i);
+  });
+
+  it("gives every seeded Bank credit the kind the matcher suggests", () => {
+    const invoices = invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines });
+    expect(world.bank_txns.length).toBeGreaterThan(0);
+    for (const txn of world.bank_txns) {
+      const match = matchCredit(
+        { date: txn.date, narration: txn.narration, reference: txn.utr ?? "", amountPaise: txn.amountPaise },
+        invoices,
+      );
+      expect(match.kind, txn.narration).toBe(txn.matchKind);
+      if (txn.matchKind === "unknown") expect(match.allocations).toEqual([]);
+      else expect(match.allocations).toEqual(JSON.parse(txn.allocations ?? "null"));
+    }
+  });
+
+  it("reads statement 2 as Gupta Traders' ₹60,000, which the seed does not already contain", () => {
+    const parsed = parseStatement(STATEMENT_2_CSV);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.credits).toEqual([
+      expect.objectContaining({ reference: GUPTA_PROOF_UTR, amountPaise: 6_000_000 }),
+    ]);
+    expect(world.bank_txns.some((txn) => txn.utr === GUPTA_PROOF_UTR)).toBe(false);
+    const [credit] = parsed.credits;
+    if (!credit) throw new Error("statement 2 is empty");
+    const match = matchCredit(
+      credit,
+      invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines }),
+    );
+    const [gupta] = openOf("Gupta Traders");
+    expect(match.kind).toBe("part");
+    expect(match.allocations).toEqual([{ invoiceId: gupta!.$id, amountPaise: 6_000_000 }]);
   });
 });

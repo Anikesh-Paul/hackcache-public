@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { matcherBrief } from "@tagada/domain";
 import { runProofCases } from "@tagada/money";
 
 function measure() {
   const start = performance.now();
-  const results = runProofCases();
+  const results = [...runProofCases(), ...matcherBrief()];
   return { results, ms: performance.now() - start };
 }
 
@@ -21,7 +22,7 @@ export function Proof() {
     <section className="border-x-4 border-double border-rule-strong bg-paper px-5 py-6 shadow-sm">
       <h1 className="border-b border-ink pb-2 text-xl font-semibold">Every rupee, checked</h1>
       <p className="mt-4 max-w-2xl text-sm text-ink-2">
-        The brief's money cases, computed in this browser from the same package the app uses.
+        The brief's money and matching cases, computed in this browser from the same packages the app uses.
       </p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <p aria-live="polite" className={all ? "text-bamboo-ink" : "text-[var(--sindoor)]"}>

@@ -121,6 +121,36 @@ export async function createInvoice(body: unknown): Promise<{ invoiceId: string 
   return { invoiceId: data.invoice.$id };
 }
 
+export type ImportReport = { already: number; added: number; summary: string };
+
+async function authed(path: string, body: unknown): Promise<unknown> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; message?: string } | null;
+  if (!res.ok) throw new SaveError(data?.message ?? data?.error ?? "save_failed");
+  return data;
+}
+
+/** Import statement 2, or a CSV. The summary is "N already imported, N new". */
+export async function importBank(body: { sample?: true; csv?: string }): Promise<ImportReport> {
+  const data = (await authed("/api/bank/import", body)) as Partial<ImportReport> | null;
+  if (!data || typeof data.summary !== "string" || typeof data.already !== "number" || typeof data.added !== "number") {
+    throw new SaveError("import_failed");
+  }
+  return { already: data.already, added: data.added, summary: data.summary };
+}
+
+/** Confirm suggestions. `allExact` confirms every Exact credit and nothing else. */
+export async function confirmBank(body: { ids?: string[]; allExact?: boolean }): Promise<number> {
+  const data = (await authed("/api/bank/confirm", body)) as { confirmed?: number } | null;
+  if (!data || typeof data.confirmed !== "number") throw new SaveError("confirm_failed");
+  return data.confirmed;
+}
+
 export type LiveRow = { $id: string; $tableId: string; workspaceId: string } & Record<string, unknown>;
 
 /**

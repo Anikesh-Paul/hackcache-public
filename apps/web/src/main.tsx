@@ -14,13 +14,13 @@ import { Inbox } from "./screens/Inbox.tsx";
 import { PayLink } from "./screens/PayLink.tsx";
 import { CustomerDetail } from "./screens/CustomerDetail.tsx";
 import { CallScreen } from "./screens/Call.tsx";
+import { Bank } from "./screens/Bank.tsx";
 import { DuplicatePreview, PrintInvoice } from "./screens/PrintInvoice.tsx";
 import "./index.css";
 
 // Every route from build plan §6.3 exists from day one, so deep links (and the
 // static site's SPA rewrite) work before each screen is built.
 const ownerScreens: [path: string, name: string][] = [
-  ["/app/bank", "Bank"],
   ["/app/automation", "Automation"],
   ["/app/settings", "Settings"],
 ];
@@ -55,6 +55,7 @@ const router = createBrowserRouter([
           { path: "/app/customers", element: <Customers /> },
           { path: "/app/customers/:id", element: <CustomerDetail /> },
           { path: "/app/inbox", element: <Inbox /> },
+          { path: "/app/bank", element: <Bank /> },
         ],
       },
       {

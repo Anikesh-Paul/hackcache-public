@@ -23,11 +23,12 @@ import {
   SECTION16_RATE_BEFORE_BPS,
   SECTION16_RATE_CHANGE,
   SECTION16_RATE_FROM_BPS,
+  parseAmountPaise,
   stateName,
 } from "@tagada/money";
-import { ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter } from "@tagada/domain";
+import { PROOF_LABEL, ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
 import { markDisputed } from "../lib/appwrite.ts";
-import { useInvoiceRows, usePaymentHistory, useWorld, viewOf } from "../lib/world.tsx";
+import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { istDay, priceLines, storedTotalsMatch } from "../lib/pricing.ts";
 import { Badge, Head, Ln, StatusWord } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
@@ -92,6 +93,7 @@ export function InvoiceDetail() {
             <p className="mt-3">
               <StatusWord standing={standing} dueDate={invoice.dueDate} />
             </p>
+            <ProofLine invoiceId={invoice.$id} />
           </div>
           <div className="a border-l-0 max-sm:col-span-full max-sm:mt-3 max-sm:pl-[calc(var(--margin)+14px)] max-sm:text-left">
             <span className="figure dbl">
@@ -455,6 +457,35 @@ function Actions({
         </div>
       </div>
     </div>
+  );
+}
+
+type ProofRow = { invoiceId: string; result: ProofResultKind | null; extracted: string | null; checkedAt: string | null };
+
+/** The latest screenshot check for this Invoice. Empty until a Customer sends one. */
+function ProofLine({ invoiceId }: { invoiceId: string }) {
+  const proofs = useWorkspaceRows<ProofRow>("proof_checks");
+  if (!Array.isArray(proofs)) return null;
+  const latest = proofs
+    .filter((proof) => proof.invoiceId === invoiceId && proof.result)
+    .sort((a, b) => (b.checkedAt ?? "").localeCompare(a.checkedAt ?? ""))[0];
+  if (!latest?.result) return null;
+  let amount = "";
+  try {
+    const parsed = JSON.parse(latest.extracted ?? "null") as { amountText?: unknown } | null;
+    if (parsed && typeof parsed.amountText === "string") {
+      const paise = parseAmountPaise(parsed.amountText);
+      if (paise !== null) amount = formatInr(paise);
+    }
+  } catch {
+    amount = "";
+  }
+  const tone = latest.result === "found" ? "ok" : latest.result === "amount_mismatch" ? "warn" : "plain";
+  return (
+    <p className="mt-2">
+      <span className={`word ${tone}`}>{PROOF_LABEL[latest.result]}</span>
+      {amount && <span className="ml-2 text-sm text-ink-2">{amount}</span>}
+    </p>
   );
 }
 

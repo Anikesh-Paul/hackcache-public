@@ -4,6 +4,7 @@ import { adminClient, appwriteFiles, appwriteWorlds, probeAppwrite, userFromJwt 
 import { requireEnv } from "./env.ts";
 import { payTokens } from "./pay-token.ts";
 import { geminiGloss } from "./gloss.ts";
+import { geminiProof } from "./proof-read.ts";
 import { elevenLabsAgent, elevenLabsVoice } from "./voice.ts";
 
 const admin = adminClient();
@@ -18,6 +19,7 @@ const app = createApp({
   },
   files: appwriteFiles(admin),
   voice: elevenLabsVoice(process.env.ELEVENLABS_API_KEY),
+  proof: geminiProof(process.env.GEMINI_API_KEY),
   call: {
     agent: elevenLabsAgent(process.env.ELEVENLABS_API_KEY, process.env.ELEVENLABS_AGENT_ID),
     webhookSecret: process.env.ELEVENLABS_WEBHOOK_SECRET || null,

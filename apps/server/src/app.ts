@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
+import { confirmMatches, importStatement } from "./bank.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
   CALL_LIMITS,
@@ -30,6 +31,7 @@ import {
   type Voice,
 } from "./pay.ts";
 import type { PayLink } from "./pay-token.ts";
+import type { ProofReader } from "./proof-read.ts";
 
 export type CallDeps = {
   /** The private ElevenLabs agent; null when it is not set up. */
@@ -51,9 +53,11 @@ export type AppDeps = {
   call?: CallDeps;
   /** Browser origin allowed to call /api (the static site). */
   webOrigin?: string;
+  /** Reads a UPI screenshot. Null when Gemini is not configured. */
+  proof?: ProofReader | null;
 };
 
-export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }: AppDeps) {
+export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, proof }: AppDeps) {
   const app = new Hono();
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
@@ -167,7 +171,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }
     pay("/api/pay/screenshot", async (ref, c) => {
       const form = await c.req.parseBody().catch(() => null);
       const file = form?.file;
-      return answer(c, await uploadScreenshot({ worlds: demo.worlds, files, voice }, ref, file));
+      return answer(c, await uploadScreenshot({ worlds: demo.worlds, files, voice, proof: proof ?? null }, ref, file));
     }),
   );
   app.get(
@@ -239,6 +243,42 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin }
     } catch (e) {
       console.error("/webhooks/elevenlabs failed", e);
       return c.json({ error: "webhook_failed" }, 500);
+    }
+  });
+
+  const session = async (c: Context) => {
+    const jwt = bearer(c);
+    if (!jwt) return null;
+    const userId = await demo.userFromJwt(jwt);
+    return userId ? workspaceIdFor(userId) : null;
+  };
+  app.post(
+    "/api/bank/import",
+    bodyLimit({
+      maxSize: 1024 * 1024,
+      onError: (c) => c.json({ error: "invalid_csv", message: "That file is too large." }, 400),
+    }),
+    async (c) => {
+      const workspaceId = await session(c);
+      if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+      try {
+        const result = await importStatement(demo.worlds, workspaceId, await json(c));
+        return result.ok ? c.json(result) : c.json({ error: result.error, message: result.message }, result.status);
+      } catch (e) {
+        console.error("/api/bank/import failed", e);
+        return c.json({ error: "bank_unavailable" }, 500);
+      }
+    },
+  );
+  app.post("/api/bank/confirm", async (c) => {
+    const workspaceId = await session(c);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const result = await confirmMatches(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json(result) : c.json({ error: result.error }, result.status);
+    } catch (e) {
+      console.error("/api/bank/confirm failed", e);
+      return c.json({ error: "bank_unavailable" }, 500);
     }
   });
 

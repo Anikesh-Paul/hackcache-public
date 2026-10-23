@@ -14,6 +14,7 @@ import type {
   PromiseRow,
   WorkspaceRow,
 } from "@tagada/appwrite";
+import { bankTxnId } from "@tagada/domain";
 import {
   addDays,
   differencePaise,
@@ -28,6 +29,9 @@ import {
   type GstRate,
   type InvoiceLine,
 } from "@tagada/money";
+
+export { GUPTA_PROOF_AMOUNT_TEXT, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR, STATEMENT_2_CSV } from "./statement.ts";
+export { invoicesForMatch } from "./for-match.ts";
 
 export const DEMO_TODAY = "2026-11-02";
 const SALARY_DAY = "2026-11-10";
@@ -423,15 +427,6 @@ const HISTORY_STAGES = [
 // ---------------------------------------------------------------- the world
 
 const at = (date: string, time: string) => `${date}T${time}:00.000+05:30`;
-/** FNV-1a, 32 bits, as 8 hex characters: a stable short key for a bank line. */
-function fnv(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
-}
 
 export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
   const id = (local: string) => `${local}_${workspaceId}`;
@@ -762,7 +757,13 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
   ];
   const bank_txns: BankTxnRow[] = statement.map((line) => ({
     ...base,
-    $id: `bt_${fnv(`${workspaceId}|${line.date}|${line.amountPaise}|${line.utr}`)}${fnv(`${line.narration}|${workspaceId}`)}`,
+    $id: bankTxnId({
+      workspaceId,
+      date: line.date,
+      amountPaise: line.amountPaise,
+      reference: line.utr ?? "",
+      narration: line.narration,
+    }),
     ...line,
   }));
 
