@@ -15,8 +15,8 @@ export type DraftLine = {
 export type PricedDraft = {
   /** Composition and unregistered previews are samples. They never save. */
   saves: boolean;
-  /** The document shows a sample Agartala buyer, because the picked Customer is in another state. */
-  sampleBuyer: boolean;
+  /** The document shows a sample Agartala Customer, because the picked one is in another state. */
+  sampleCustomer: boolean;
   workspace: WorkspaceRow;
   customer: CustomerRow;
   lines: InvoiceLineRow[];
@@ -28,11 +28,11 @@ const withCheck = (first14: string) => `${first14}${gstinCheckDigit(first14)}`;
 const SAMPLE_BUYER_GSTIN = withCheck("16AADFS1020C1Z");
 const COMPOSITION_GSTIN = withCheck("16AABCA2468B1Z");
 
-function sampleBuyer(workspaceId: string): CustomerRow {
+function sampleCustomerRow(workspaceId: string): CustomerRow {
   return {
-    $id: "sample-buyer",
+    $id: "sample-customer",
     workspaceId,
-    name: "Sample buyer, Agartala",
+    name: "Sample Customer, Agartala",
     address: "Battala Market, Agartala 799001",
     gstin: SAMPLE_BUYER_GSTIN,
     stateCode: "16",
@@ -94,8 +94,8 @@ export function priceDraft(input: {
   const saves = input.mode === "regular";
   if (saves && !input.customer?.stateCode) return null;
   const workspace = sellerFor(input.mode, input.workspace);
-  const sampleBuyerNeeded = !saves && input.customer?.stateCode !== "16";
-  const customer = saves ? input.customer : sampleBuyerNeeded ? sampleBuyer(input.workspace.$id) : input.customer;
+  const sampleCustomerNeeded = !saves && input.customer?.stateCode !== "16";
+  const customer = saves ? input.customer : sampleCustomerNeeded ? sampleCustomerRow(input.workspace.$id) : input.customer;
   if (!customer?.stateCode || !workspace.stateCode) return null;
 
   const totals = invoiceTotals({
@@ -123,7 +123,7 @@ export function priceDraft(input: {
     gstRateBp: line.gstRatePercent * 100,
   }));
 
-  return { saves, sampleBuyer: sampleBuyerNeeded, workspace, customer, lines, totals };
+  return { saves, sampleCustomer: sampleCustomerNeeded, workspace, customer, lines, totals };
 }
 
 /** Null when the field is empty or the GSTIN is valid. A wrong check digit says so. */

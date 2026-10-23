@@ -70,7 +70,7 @@ describe("priceDraft", () => {
       eInvoiceNote: null,
     });
     expect(priced?.saves).toBe(true);
-    expect(priced?.sampleBuyer).toBe(false);
+    expect(priced?.sampleCustomer).toBe(false);
     expect(priced?.workspace.businessName).toBe("Tripura Bamboo Works");
   });
 
@@ -94,7 +94,7 @@ describe("priceDraft", () => {
   it("previews a composition Bill of Supply for a sample intra-Tripura sale and does not save", () => {
     const priced = priceDraft({ mode: "composition", workspace, customer: kolkata, lines: [line] });
     expect(priced?.saves).toBe(false);
-    expect(priced?.sampleBuyer).toBe(true);
+    expect(priced?.sampleCustomer).toBe(true);
     expect(priced?.totals.title).toBe("Bill of Supply");
     expect(priced?.totals.compositionHeading).toBe(
       "composition taxable person, not eligible to collect tax on supplies",

@@ -184,18 +184,18 @@ describe("POST /api/invoices", () => {
     const stem = "19AABCU9603R1Z";
     const good = `${stem}${gstinCheckDigit(stem)}`;
     const bad = `${stem}${gstinCheckDigit(stem) === "0" ? "1" : "0"}`;
-    const customer = { name: "New Buyer", gstin: bad, stateCode: "19", creditDays: 15, lang: "hi", address: "1 Park Street, Kolkata" };
-    const before = db.rows().filter((row) => row.name === "New Buyer").length;
+    const customer = { name: "New Customer", gstin: bad, stateCode: "19", creditDays: 15, lang: "hi", address: "1 Park Street, Kolkata" };
+    const before = db.rows().filter((row) => row.name === "New Customer").length;
 
     const rejected = await postInvoice({ customer, lines: [chair] });
     expect(rejected.status).toBe(400);
     expect(await rejected.json()).toEqual({ error: "invalid_gstin" });
-    expect(db.rows().filter((row) => row.name === "New Buyer")).toHaveLength(before);
+    expect(db.rows().filter((row) => row.name === "New Customer")).toHaveLength(before);
 
     const saved = await postInvoice({ customer: { ...customer, gstin: good }, lines: [chair] });
     expect(saved.status).toBe(200);
     const body = (await saved.json()) as { invoice: { igstPaise: number; dueDate: string }; customer: Record<string, unknown> };
-    expect(body.customer).toMatchObject({ name: "New Buyer", gstin: good, stateCode: "19", creditDays: 15, lang: "hi" });
+    expect(body.customer).toMatchObject({ name: "New Customer", gstin: good, stateCode: "19", creditDays: 15, lang: "hi" });
     expect(body.invoice.igstPaise).toBe(162_000);
     expect(body.invoice.dueDate).toBe("2026-11-17");
   });

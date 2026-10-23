@@ -28,7 +28,7 @@ export type CustomerGrade = {
  * A 90-day window here is this Customer's own history, not an MSMED council deadline.
  */
 export const GRADE_WHY =
-  "A means they usually pay within 7 days and raised no Dispute in the last 6 months. C means they usually pay more than 30 days late, broke a Promise in the last 90 days, or still have an Invoice open 90 or more days past its due date. Everyone else is B. The average uses Invoices already paid, not one that is only overdue today.";
+  "A means they are 7 days late or less on average, and raised no Dispute in the last 6 months. C means they are more than 30 days late on average, broke a Promise in the last 90 days, or still have an Invoice open 90 or more days past its due date. Everyone else is B. The average uses Invoices already paid, not one that is only overdue today.";
 
 export type HistoryInvoice = {
   id: string;

@@ -411,15 +411,12 @@ export function NewInvoice() {
       </Paper>
 
       <div className="min-w-0">
-        {priced?.sampleBuyer && (
+        {priced?.sampleCustomer && (
           <p className="mb-3 text-sm">
             {mode === "composition"
               ? "A composition seller sells only inside their own state, so this preview bills a sample Customer in Agartala."
               : "This preview bills a sample Customer in Agartala."}
           </p>
-        )}
-        {mode === "regular" && priced && !priced.totals.eInvoiceNote && (
-          <p className="mb-3 text-sm text-ink-2">Turnover is under ₹5 crore, so this Invoice does not need an IRN.</p>
         )}
         {priced ? (
           <TaxInvoice
