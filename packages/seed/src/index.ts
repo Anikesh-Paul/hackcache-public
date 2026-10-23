@@ -21,6 +21,7 @@ import {
   gstinCheckDigit,
   invoiceNumber,
   invoiceTotals,
+  lineMeasures,
   percentOfPaise,
   sumPaise,
   type GstRate,
@@ -510,10 +511,8 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
         invoiceId,
         description: product.description,
         hsn: product.hsn || null,
-        qtyMilli: quantity * 1000,
         ratePaise: product.ratePaise,
-        discountBp: discountPercent * 100,
-        gstRateBp: product.gst * 100,
+        ...lineMeasures({ quantity, discountPercent, gstRatePercent: product.gst }),
       });
     });
 

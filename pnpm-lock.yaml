@@ -45,6 +45,9 @@ importers:
       '@tagada/appwrite':
         specifier: workspace:*
         version: link:../../packages/appwrite
+      '@tagada/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@tagada/money':
         specifier: workspace:*
         version: link:../../packages/money

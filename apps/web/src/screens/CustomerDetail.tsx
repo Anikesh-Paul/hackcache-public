@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import type { CallRow, EventRow, ReminderRow } from "@tagada/appwrite";
-import { GRADE_WHY, LADDER_STAGES, invoiceStanding } from "@tagada/domain";
-import { formatDate, formatInr, sumPaise } from "@tagada/money";
-import { gradeFor } from "../lib/customer-grade.ts";
+import type { CallRow, ReminderRow } from "@tagada/appwrite";
+import { GRADE_WHY, LADDER_STAGES } from "@tagada/domain";
+import { formatDate, formatInr } from "@tagada/money";
+import { amountOwed, daysLatePhrase, gradeFor, gradeSentence } from "../lib/customer-grade.ts";
 import { languageName } from "../lib/languages.ts";
 import { istDay } from "../lib/pricing.ts";
-import { useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
+import { usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
 
@@ -15,10 +15,6 @@ const CHANNEL: Record<ReminderRow["channel"], string> = {
   whatsapp_link: "WhatsApp",
   call: "Call",
 };
-
-function lead(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 function amountOf(payload: string | null): number | null {
   if (!payload) return null;
@@ -31,7 +27,7 @@ export function CustomerDetail() {
   const { id } = useParams();
   const world = useWorld();
   const customer = id ? world.customers.get(id) : undefined;
-  const events = useWorkspaceRows<EventRow>("events", true);
+  const events = usePaymentHistory();
   const calls = useWorkspaceRows<CallRow>("calls");
   const reminders = useWorkspaceRows<ReminderRow>("reminders");
   const [why, setWhy] = useState(false);
@@ -42,11 +38,10 @@ export function CustomerDetail() {
     .filter((invoice) => invoice.customerId === customer.$id)
     .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
   const ids = new Set(invoices.map((invoice) => invoice.$id));
-  const owed = sumPaise(
-    invoices.map((invoice) => invoiceStanding(invoice, world.promisesByInvoice.get(invoice.$id) ?? [], today).balancePaise),
-  );
-  const grade = events && events !== "failed" ? gradeFor(today, invoices, events, world.promisesByInvoice) : null;
-  const history = events && events !== "failed" ? events.filter((event) => ids.has(event.invoiceId)) : [];
+  const owed = amountOwed(invoices, world.promisesByInvoice, today);
+  const ready = events === "loading" || events === "failed" ? null : events;
+  const grade = ready ? gradeFor(today, invoices, ready, world.promisesByInvoice) : null;
+  const history = (ready ?? []).filter((event) => ids.has(event.invoiceId));
   const payments = history.filter((event) => event.type === "payment").sort((a, b) => b.at.localeCompare(a.at));
   const reminderEvents = history.filter((event) => event.type === "reminder").sort((a, b) => b.at.localeCompare(a.at));
   const reminderRows = (reminders && reminders !== "failed" ? reminders : []).filter((row) => row.customerId === customer.$id);
@@ -64,7 +59,7 @@ export function CustomerDetail() {
             </p>
             <h1 className="mt-1 text-[30px] leading-tight sm:text-[34px]">{customer.name}</h1>
             <p className="mt-2 max-w-[62ch] text-sm">
-              {grade ? `Grade ${grade.grade}. ${lead(grade.reason)}` : events === null ? "Reading payment history…" : "Grade unavailable."}{" "}
+              {grade ? gradeSentence(grade) : events === "loading" ? "Reading payment history…" : "Grade unavailable."}{" "}
               <button type="button" className="linkbtn" aria-expanded={why} onClick={() => setWhy((open) => !open)}>
                 Why?
               </button>
@@ -77,7 +72,7 @@ export function CustomerDetail() {
               {grade?.avgDelayDays != null && (
                 <>
                   <br />
-                  Average {grade.avgDelayDays} days late, on Invoices already paid.
+                  {daysLatePhrase(grade.avgDelayDays)}, on Invoices already paid.
                 </>
               )}
             </p>
@@ -122,7 +117,7 @@ export function CustomerDetail() {
 
       <Paper label="Payments">
         <Head title="Payments" />
-        {events === null ? (
+        {events === "loading" ? (
           <Ln>
             <p className="text-ink-2">Reading payments…</p>
           </Ln>
@@ -148,7 +143,7 @@ export function CustomerDetail() {
 
       <Paper label="Reminders">
         <Head title="Reminders" />
-        {events === null ? (
+        {events === "loading" ? (
           <Ln>
             <p className="text-ink-2">Reading reminders…</p>
           </Ln>

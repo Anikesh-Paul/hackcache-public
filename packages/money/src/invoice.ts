@@ -177,3 +177,16 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
     eInvoiceNote: needsEInvoice(input.aggregateTurnoverPaise) ? E_INVOICE_NOTE : null,
   };
 }
+
+/** Quantity and percents in the units an invoice line row stores. */
+export function lineMeasures(line: { quantity: number; discountPercent: number; gstRatePercent: number }): {
+  qtyMilli: number;
+  discountBp: number;
+  gstRateBp: number;
+} {
+  return {
+    qtyMilli: line.quantity * 1000,
+    discountBp: line.discountPercent * 100,
+    gstRateBp: line.gstRatePercent * 100,
+  };
+}

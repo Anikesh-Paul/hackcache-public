@@ -1,36 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { gstinCheckDigit } from "@tagada/money";
 import { createApp } from "./app.ts";
-import type { OwnedRow, WorldStore } from "./demo.ts";
-
-/** An in-memory stand-in for the Appwrite tables, keyed by table then row ID. */
-function memoryStore() {
-  const tables = new Map<string, Map<string, OwnedRow>>();
-  const store: WorldStore = {
-    async exists(workspaceId) {
-      return tables.get("workspaces")?.has(workspaceId) ?? false;
-    },
-    async remove(workspaceId) {
-      for (const rows of tables.values()) {
-        for (const [id, row] of rows) if (row.workspaceId === workspaceId) rows.delete(id);
-      }
-    },
-    async write(world) {
-      for (const [tableId, rows] of Object.entries(world)) {
-        const table = tables.get(tableId) ?? new Map<string, OwnedRow>();
-        for (const row of rows) table.set(row.$id, row);
-        tables.set(tableId, table);
-      }
-    },
-    async list(tableId, workspaceId) {
-      return [...(tables.get(tableId)?.values() ?? [])].filter((row) => row.workspaceId === workspaceId);
-    },
-  };
-  return {
-    store,
-    rows: () => [...tables.values()].flatMap((table) => [...table.values()]),
-  };
-}
+import { memoryStore } from "./memory-store.ts";
 
 const USERS: Record<string, string> = { "jwt-asha": "64f0c2a91be7d3e85f10" };
 const WORKSPACE = "w64f0c2a91be7d3e85f10";

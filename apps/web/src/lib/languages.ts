@@ -1,10 +1,14 @@
-export const LANGUAGES = [
-  { id: "en", name: "English" },
-  { id: "hi", name: "हिन्दी" },
-  { id: "bn", name: "বাংলা" },
-] as const;
+import { CUSTOMER_LANGS, type CustomerLang } from "@tagada/domain";
 
-export type LanguageId = (typeof LANGUAGES)[number]["id"];
+const NAMES: Record<CustomerLang, string> = {
+  en: "English",
+  hi: "हिन्दी",
+  bn: "বাংলা",
+};
+
+export const LANGUAGES = CUSTOMER_LANGS.map((id) => ({ id, name: NAMES[id] }));
+
+export type LanguageId = CustomerLang;
 
 export function languageName(id: string | null | undefined): string {
   return LANGUAGES.find((language) => language.id === id)?.name ?? "Not set";

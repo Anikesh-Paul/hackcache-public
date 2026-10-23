@@ -10,14 +10,15 @@ import {
   invoiceNumber,
   invoiceTotals,
   isGstRate,
+  lineMeasures,
   stateName,
   type GstRate,
   type Registration,
 } from "@tagada/money";
+import { isCustomerLang, type CustomerLang } from "@tagada/domain";
 import { workspaceIdFor, type OwnedRow, type WorldRows, type WorldStore } from "./demo.ts";
 
 const PREFIX = "TBW";
-const LANGS = ["en", "hi", "bn"] as const;
 
 export type IssuedInvoice = {
   invoice: Pick<
@@ -58,7 +59,7 @@ type NewCustomer = {
   gstin: string;
   stateCode: string;
   creditDays: number;
-  lang: (typeof LANGS)[number];
+  lang: CustomerLang;
   address: string | null;
 };
 
@@ -72,7 +73,7 @@ function text(value: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function whole(value: unknown): number | null {
+function wholeNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) ? value : null;
 }
 
@@ -92,10 +93,10 @@ function parseLine(value: unknown): LineInput | null {
   if (!isRecord(value)) return null;
   const description = text(value.description)?.trim() ?? "";
   const hsn = text(value.hsn)?.trim() ?? "";
-  const quantity = whole(value.quantity);
-  const ratePaise = whole(value.ratePaise);
-  const discountPercent = value.discountPercent === undefined ? 0 : whole(value.discountPercent);
-  const gstRatePercent = whole(value.gstRatePercent);
+  const quantity = wholeNumber(value.quantity);
+  const ratePaise = wholeNumber(value.ratePaise);
+  const discountPercent = value.discountPercent === undefined ? 0 : wholeNumber(value.discountPercent);
+  const gstRatePercent = wholeNumber(value.gstRatePercent);
   if (!description || description.length > 256) return null;
   if (!/^\d{4,8}$/.test(hsn)) return null;
   if (quantity === null || quantity < 1 || quantity > 1_000_000) return null;
@@ -121,7 +122,7 @@ function parseNewCustomer(value: unknown): NewCustomer | IssueFailure {
   const name = text(value.name)?.trim() ?? "";
   const gstin = text(value.gstin)?.trim().toUpperCase() ?? "";
   const stateCode = text(value.stateCode)?.trim() ?? "";
-  const creditDays = whole(value.creditDays);
+  const creditDays = wholeNumber(value.creditDays);
   const lang = text(value.lang);
   const address = value.address === undefined || value.address === null ? null : text(value.address)?.trim();
   if (!name || name.length > 128) return fail(400, "invalid_customer");
@@ -130,9 +131,9 @@ function parseNewCustomer(value: unknown): NewCustomer | IssueFailure {
     return fail(400, "invalid_customer");
   }
   if (creditDays === null || creditDays < 0 || creditDays > 365) return fail(400, "invalid_customer");
-  if (!lang || !(LANGS as readonly string[]).includes(lang)) return fail(400, "invalid_customer");
+  if (!lang || !isCustomerLang(lang)) return fail(400, "invalid_customer");
   if (address === undefined || (address !== null && address.length > 256)) return fail(400, "invalid_customer");
-  return { name, gstin, stateCode, creditDays, lang: lang as NewCustomer["lang"], address };
+  return { name, gstin, stateCode, creditDays, lang, address };
 }
 
 function registrationOf(value: unknown): Registration | null {
@@ -163,7 +164,7 @@ export async function issueInvoice(
   const registration = registrationOf(workspace.registrationType);
   const supplierState = text(workspace.stateCode);
   const today = text(workspace.today);
-  const turnover = whole(workspace.aggregateTurnoverPaise) ?? 0;
+  const turnover = wholeNumber(workspace.aggregateTurnoverPaise) ?? 0;
   if (!registration || !supplierState || !today) return fail(409, "world_not_ready");
 
   const permissions = [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
@@ -224,7 +225,7 @@ export async function issueInvoice(
     if (!stateCode || !name) return fail(400, "unknown_customer");
     customerId = found.$id;
     customerState = stateCode;
-    creditDays = whole(found.creditDays) ?? 30;
+    creditDays = wholeNumber(found.creditDays) ?? 30;
     customerOut = {
       $id: found.$id,
       name,
@@ -293,10 +294,8 @@ export async function issueInvoice(
     invoiceId,
     description: line.description,
     hsn: line.hsn,
-    qtyMilli: line.quantity * 1000,
     ratePaise: line.ratePaise,
-    discountBp: line.discountPercent * 100,
-    gstRateBp: line.gstRatePercent * 100,
+    ...lineMeasures(line),
   }));
 
   const event: EventRow = {

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CustomerRow, InvoiceRow, PromiseRow, WorkspaceRow } from "@tagada/appwrite";
+import type { CustomerRow, EventRow, InvoiceRow, PromiseRow, WorkspaceRow } from "@tagada/appwrite";
 import { invoiceStanding, type InvoiceStanding, type PromiseFacts } from "@tagada/domain";
 import { resetDemo, rowsOf, startDemo, type DemoStarted } from "./appwrite.ts";
 
@@ -12,11 +12,16 @@ export type World = {
 
 type WorldState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; world: World };
 
+/** Payment history for grades. "loading" until the seed's events have been read. */
+export type PaymentHistory = EventRow[] | "loading" | "failed";
+
 type WorldContext = WorldState & {
   reset: () => Promise<void>;
   retry: () => void;
   /** Reads the world again, including rows saved after the page opened. */
   reload: () => Promise<void>;
+  /** One load for every screen, retried while a fresh seed is still writing events. */
+  events: PaymentHistory;
 };
 
 const Ctx = createContext<WorldContext | null>(null);
@@ -51,7 +56,9 @@ async function loadWorld(started: DemoStarted): Promise<World> {
 /** Starts (or reuses) the visitor's anonymous session and Demo world, then loads it. */
 export function WorldProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WorldState>({ status: "loading" });
+  const [events, setEvents] = useState<PaymentHistory>("loading");
   const [attempt, setAttempt] = useState(0);
+  const world = state.status === "ready" ? state.world : null;
 
   useEffect(() => {
     let live = true;
@@ -69,7 +76,32 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     };
   }, [attempt]);
 
+  useEffect(() => {
+    if (!world) return;
+    let live = true;
+    setEvents("loading");
+    const load = async () => {
+      for (let attempt = 1; ; attempt++) {
+        const found = await rowsOf<EventRow>("events", world.workspace.$id);
+        if (found.length > 0 || attempt >= 6) return found;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        if (!live) return found;
+      }
+    };
+    load().then(
+      (found) => live && setEvents(found),
+      (e: unknown) => {
+        console.error("events failed to load", e);
+        if (live) setEvents("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [world]);
+
   const reset = useCallback(async () => {
+    setEvents("loading");
     setState({ status: "loading" });
     try {
       setState({ status: "ready", world: await loadWorld(await resetDemo()) });
@@ -79,16 +111,18 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     }
   }, []);
   const retry = useCallback(() => {
+    setEvents("loading");
     setState({ status: "loading" });
     setAttempt((n) => n + 1);
   }, []);
 
   const reload = useCallback(async () => {
+    setEvents("loading");
     const started = await startDemo();
     setState({ status: "ready", world: await loadWorld({ workspaceId: started.workspaceId, seeded: false }) });
   }, []);
 
-  const value = useMemo(() => ({ ...state, reset, retry, reload }), [state, reset, retry, reload]);
+  const value = useMemo(() => ({ ...state, reset, retry, reload, events }), [state, reset, retry, reload, events]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
@@ -96,6 +130,13 @@ export function useWorldState(): WorldContext {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useWorldState needs a WorldProvider");
   return ctx;
+}
+
+/** Events for every Customer screen. Loading until the world, and its history, are in. */
+export function usePaymentHistory(): PaymentHistory {
+  const ctx = useWorldState();
+  if (ctx.status !== "ready") return "loading";
+  return ctx.events;
 }
 
 /** The loaded world. Only call under <WorldGate>. */
@@ -151,11 +192,8 @@ export function useInvoiceRows<T>(tableId: string, invoiceId: string | undefined
   return rows;
 }
 
-/**
- * Every row of one workspace table. Null while loading.
- * `nonempty` asks again for a few seconds, for tables the seed writes after the first answer.
- */
-export function useWorkspaceRows<T>(tableId: string, nonempty = false): T[] | "failed" | null {
+/** Every row of one workspace table. Null while loading. An empty table is a real answer. */
+export function useWorkspaceRows<T>(tableId: string): T[] | "failed" | null {
   const state = useWorldState();
   const world = state.status === "ready" ? state.world : null;
   const [rows, setRows] = useState<T[] | "failed" | null>(null);
@@ -163,15 +201,7 @@ export function useWorkspaceRows<T>(tableId: string, nonempty = false): T[] | "f
     if (!world) return;
     let live = true;
     setRows(null);
-    const load = async () => {
-      for (let attempt = 1; ; attempt++) {
-        const found = await rowsOf<T>(tableId, world.workspace.$id);
-        if (!nonempty || found.length > 0 || attempt >= 6) return found;
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        if (!live) return found;
-      }
-    };
-    load().then(
+    rowsOf<T>(tableId, world.workspace.$id).then(
       (found) => live && setRows(found),
       (e: unknown) => {
         console.error(`${tableId} failed to load`, e);
@@ -181,6 +211,6 @@ export function useWorkspaceRows<T>(tableId: string, nonempty = false): T[] | "f
     return () => {
       live = false;
     };
-  }, [tableId, nonempty, world]);
+  }, [tableId, world]);
   return rows;
 }

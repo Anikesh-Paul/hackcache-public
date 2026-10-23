@@ -1,3 +1,6 @@
+export { CUSTOMER_LANGS, isCustomerLang } from "./language.ts";
+export type { CustomerLang } from "./language.ts";
+
 export { GRADE_WHY, grade, gradeCustomer } from "./grade.ts";
 export type { CustomerGrade, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
 
