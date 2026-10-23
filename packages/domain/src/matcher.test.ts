@@ -45,7 +45,16 @@ describe("matchCredit", () => {
       customerId: "c2",
       totalPaise: 500_000,
     });
-    for (const narration of ["NEFT INV/26-27/0012", "paid INV 26-27 12", "ref 0012", "inv  26-27   12"]) {
+    for (const narration of [
+      "NEFT INV/26-27/0012",
+      "paid INV 26-27 12",
+      "ref 0012",
+      "inv  26-27   12",
+      "INV_26/27_12",
+      "inv/2026-27/12",
+      "INV - 26 - 27 - 0012",
+      "inv.26.27.012",
+    ]) {
       const match = matchCredit(credit(narration, INV_12.totalPaise), [other, INV_12]);
       expect(match.kind, narration).toBe("exact");
       expect(match.allocations.map((a) => a.invoiceId)).toEqual(["i12"]);
@@ -56,6 +65,17 @@ describe("matchCredit", () => {
     const tbw = invoice({ id: "tbw", number: "TBW/26-27/0012", customerName: "Other Stores", customerId: "c2", totalPaise: 500_000 });
     const match = matchCredit(credit("NEFT INV/26-27/0012", 500_000), [tbw, INV_12]);
     expect(match.allocations.map((a) => a.invoiceId)).toEqual(["i12"]);
+  });
+
+  it("does not let a bare padded number outvote the prefix or the Customer named beside it", () => {
+    const tbw = invoice({ id: "tbw", number: "TBW/26-27/0012", customerName: "Other Stores", customerId: "c2", totalPaise: 500_000 });
+    expect(matchCredit(credit("NEFT INV/26-27/0012", 500_000), [tbw]).kind).toBe("unknown");
+
+    const das = invoice({ id: "das", number: "TBW/26-27/0018", customerName: "Das & Sons", customerId: "c3", totalPaise: 500_000 });
+    const cheque = matchCredit(credit("CLG CHQ 000012 DAS AND SONS", 500_000), [INV_12, das]);
+    expect(cheque.allocations.map((a) => a.invoiceId)).toEqual(["das"]);
+    const padded = matchCredit(credit("NEFT 0012 DAS AND SONS", 500_000), [INV_12, das]);
+    expect(padded.allocations.map((a) => a.invoiceId)).toEqual(["das"]);
   });
 
   it("does not take a serial that is buried in a longer number", () => {
@@ -195,6 +215,23 @@ describe("matchCredit", () => {
     expect(notInstallation.kind).not.toBe("tds");
   });
 
+  it("does not call an 18% furniture line an installation line", () => {
+    const shop = invoice({
+      id: "shop",
+      number: "TBW/26-27/0030",
+      customerName: "Roy Furnishings",
+      taxablePaise: 1_500_000,
+      totalPaise: 1_640_000,
+      lines: [
+        { taxablePaise: 1_000_000, gstRateBp: 500, hsn: "460211" },
+        { taxablePaise: 500_000, gstRateBp: 1800, hsn: "940360" },
+      ],
+    });
+    const short = percentOfPaise(500_000, 200);
+    const match = matchCredit(credit("ROY FURNISHINGS", differencePaise(shop.totalPaise, short)), [shop]);
+    expect(match.note).not.toContain("installation");
+  });
+
   it("flags 0.1% of taxable value for a large buyer", () => {
     const buyer = invoice({
       id: "big",
@@ -256,6 +293,14 @@ describe("bank credit ids", () => {
     expect(id).toMatch(/^bt_[0-9a-f]{16}$/);
     expect(bankTxnId(line)).toBe(id);
     expect(bankTxnId({ ...line, amountPaise: line.amountPaise + 1 })).not.toBe(id);
+  });
+
+  it("gives a re-exported line the same id when only the narration or the reference's case changed", () => {
+    const id = bankTxnId(line);
+    const reworded = { ...line, narration: "imps das and sons " };
+    expect(bankTxnId(reworded)).toBe(id);
+    const cash = { ...line, reference: "CASH DEP AGARTALA", narration: "CASH DEP AGARTALA" };
+    expect(bankTxnId({ ...cash, reference: "cash dep  agartala" })).toBe(bankTxnId(cash));
   });
 
   it("counts a second import of the same lines, even reordered, as already imported", () => {

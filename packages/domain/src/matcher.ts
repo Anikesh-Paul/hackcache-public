@@ -25,7 +25,7 @@ export const MATCH_LABEL: Record<MatchKind, string> = {
 
 export type MatchLine = {
   taxablePaise: number;
-  /** GST rate in basis points. 1800 is the 18% installation line. */
+  /** GST rate in basis points. */
   gstRateBp: number;
   hsn: string | null;
 };
@@ -79,40 +79,51 @@ function loose(text: string): string {
     .trim();
 }
 
-function identity(number: string): { fy: string; serial: number } | null {
+function identity(number: string): { fy: string; serial: number; printed: string } | null {
   const match = /^[A-Za-z0-9]{1,6}\/(\d{2})-(\d{2})\/(\d+)$/.exec(number.trim());
-  if (!match) return null;
+  if (!match?.[3]) return null;
   const serial = Number(match[3]);
   if (!Number.isSafeInteger(serial) || serial < 1) return null;
-  return { fy: `${match[1]}-${match[2]}`, serial };
+  return { fy: `${match[1]}-${match[2]}`, serial, printed: match[3] };
 }
 
-/** Invoices whose number is written in the narration, in any separator or padding. */
+/** Invoices whose full number is written in the narration, in any separator or padding. */
 function namedInvoices(narration: string, invoices: readonly MatchInvoice[]): MatchInvoice[] {
-  const found = new Map<string, MatchInvoice>();
-  const bySerial = new Map<number, MatchInvoice[]>();
+  const found: MatchInvoice[] = [];
   for (const invoice of invoices) {
     const id = identity(invoice.number);
     if (!id) continue;
-    const sameSerial = bySerial.get(id.serial) ?? [];
-    sameSerial.push(invoice);
-    bySerial.set(id.serial, sameSerial);
     const prefix = invoice.number.split("/")[0] ?? "";
     const pattern = new RegExp(
-      `(?:^|[^A-Z0-9])(?:([A-Z0-9]{1,6})\\s*[/\\-\\s]\\s*)?${id.fy.slice(0, 2)}\\s*[-/.]\\s*${id.fy.slice(3)}\\s*[-/.\\s]\\s*0*${id.serial}(?!\\d)`,
+      `(?:^|[^A-Z0-9])(?:([A-Z0-9]{1,6})\\s*[/\\-_\\s]\\s*)?(?:20)?${id.fy.slice(0, 2)}\\s*[-/._]\\s*${id.fy.slice(3)}\\s*[-/._\\s]\\s*0*${id.serial}(?!\\d)`,
       "i",
     );
     const mentioned = pattern.exec(narration);
     const saidPrefix = mentioned?.[1];
-    if (mentioned && (!saidPrefix || saidPrefix.toUpperCase() === prefix.toUpperCase())) found.set(invoice.id, invoice);
+    if (mentioned && (!saidPrefix || saidPrefix.toUpperCase() === prefix.toUpperCase())) found.push(invoice);
   }
-  // A zero-padded serial on its own ("0012"), and only when just one Invoice has it.
+  return found;
+}
+
+/**
+ * A serial on its own, printed with the Invoice's own padding ("0012"), and only
+ * when just one Invoice has it. A serial that ends a full number ("TBW/26-27/0012")
+ * was already judged, prefix and all, by `namedInvoices`.
+ */
+function paddedSerial(narration: string, invoices: readonly MatchInvoice[]): MatchInvoice[] {
+  const byPrinted = new Map<string, MatchInvoice[]>();
+  for (const invoice of invoices) {
+    const id = identity(invoice.number);
+    if (!id?.printed.startsWith("0")) continue;
+    byPrinted.set(id.printed, [...(byPrinted.get(id.printed) ?? []), invoice]);
+  }
   for (const token of narration.matchAll(/(?:^|[^0-9])(0\d{3,5})(?!\d)/g)) {
-    const serial = Number(token[1]);
-    const owners = bySerial.get(serial) ?? [];
-    if (owners.length === 1 && owners[0]) found.set(owners[0].id, owners[0]);
+    const before = narration.slice(0, (token.index ?? 0) + token[0].length - (token[1]?.length ?? 0));
+    if (/\d{2}\s*[-/._]\s*\d{2}\s*[-/._\s]\s*$/.test(before)) continue;
+    const owners = byPrinted.get(token[1] ?? "") ?? [];
+    if (owners.length === 1 && owners[0]) return [owners[0]];
   }
-  return [...found.values()];
+  return [];
 }
 
 function namedCustomer(narration: string, invoices: readonly MatchInvoice[]): MatchInvoice[] {
@@ -133,7 +144,8 @@ function namedCustomer(narration: string, invoices: readonly MatchInvoice[]): Ma
 function serviceBase(invoice: MatchInvoice): number {
   return sumPaise(
     invoice.lines
-      .filter((line) => line.gstRateBp === 1800 || (line.hsn ?? "").replace(/\s/g, "").startsWith("99"))
+      // A SAC (99…) is a service. An 18% rate alone is not: furniture is 18% too.
+      .filter((line) => (line.hsn ?? "").replace(/\s/g, "").startsWith("99"))
       .map((line) => line.taxablePaise),
   );
 }
@@ -199,8 +211,14 @@ function unknown(): Match {
 /** Suggest a match for one credit. Open Invoices only; paid ones are the caller's to leave out, and a zero balance is ignored here too. */
 export function matchCredit(credit: MatchCredit, invoices: readonly MatchInvoice[]): Match {
   const open = invoices.filter((invoice) => balanceOf(invoice) > 0);
-  const named = namedInvoices(credit.narration, open);
-  const pool = (named.length > 0 ? named : namedCustomer(credit.narration, open))
+  const byName = namedCustomer(credit.narration, open);
+  let named = namedInvoices(credit.narration, open);
+  if (named.length === 0) {
+    // A bare "0012" is a weak clue: a Customer named in the same narration wins over it.
+    const padded = paddedSerial(credit.narration, open);
+    named = byName.length === 0 ? padded : padded.filter((invoice) => byName.some((same) => same.customerId === invoice.customerId));
+  }
+  const pool = (named.length > 0 ? named : byName)
     .slice()
     .sort((a, b) => a.issueDate.localeCompare(b.issueDate) || a.id.localeCompare(b.id));
 
@@ -275,18 +293,14 @@ function fnv(text: string): string {
 
 /**
  * Row id `bt_<hash>`. The hash covers the workspace, the date, the amount and
- * the reference, then the narration, so importing the same line again collides
- * and a second Demo world does not.
+ * the reference, so importing the same line again collides and a second Demo
+ * world does not. Case and spacing in the reference do not count, so a
+ * re-export that prints the narration differently is still the same line.
  */
-export function bankTxnId(input: {
-  workspaceId: string;
-  date: string;
-  amountPaise: number;
-  reference: string;
-  narration: string;
-}): string {
-  const { workspaceId, date, amountPaise, reference, narration } = input;
-  return `bt_${fnv(`${workspaceId}|${date}|${amountPaise}|${reference}`)}${fnv(`${narration}|${workspaceId}`)}`;
+export function bankTxnId(input: { workspaceId: string; date: string; amountPaise: number; reference: string }): string {
+  const { workspaceId, date, amountPaise } = input;
+  const reference = input.reference.toUpperCase().replace(/\s+/g, " ").trim();
+  return `bt_${fnv(`${workspaceId}|${date}|${amountPaise}|${reference}`)}${fnv(`${reference}|${workspaceId}`)}`;
 }
 
 /** How many lines of a statement are new. A line repeated inside the file counts once. */

@@ -86,6 +86,15 @@ describe("bank import and proof check", () => {
     expect(JSON.stringify(db.rows())).not.toMatch(/fake/i);
   });
 
+  it("matches a screenshot sent after the Owner already confirmed its credit", async () => {
+    await post("/api/bank/import", { sample: true });
+    const credit = txns().find((row) => row.utr === GUPTA_PROOF_UTR);
+    await post("/api/bank/confirm", { ids: [credit?.$id] });
+    expect(gupta()).toMatchObject({ status: "part", paidPaise: 6_000_000 });
+    expect((await screenshot()).status).toBe(200);
+    expect(proofs()[0]?.result).toBe("found");
+  });
+
   it("says amount differs for a screenshot above what is owed, and never says fake", async () => {
     expect((await screenshot("₹1,50,000.00")).status).toBe(200);
     expect(proofs()[0]?.result).toBe("amount_mismatch");

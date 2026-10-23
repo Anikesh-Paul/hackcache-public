@@ -52,6 +52,19 @@ describe("checkProof", () => {
     expect(`${view.label} ${view.note}`).not.toMatch(/fake/i);
   });
 
+  it("still matches a screenshot sent after its credit was confirmed against this Invoice", () => {
+    const paidOff = { extracted: extracted(), today: TODAY, balancePaise: 0 };
+    expect(checkProof({ ...paidOff, credits: [{ utr: UTR, amountPaise: 6_000_000, confirmedHere: true }] }).result).toBe("found");
+    // The same credit confirmed against another Invoice does not lower this one's balance.
+    expect(checkProof({ ...paidOff, credits: [{ utr: UTR, amountPaise: 6_000_000 }] }).result).toBe("amount_mismatch");
+  });
+
+  it("does not call a zero amount more than what is owed", () => {
+    const view = checkProof({ extracted: extracted({ amountText: "₹0.00" }), today: TODAY, balancePaise: GUPTA_BALANCE, credits: noCredits });
+    expect(view.result).toBe("amount_mismatch");
+    expect(view.note).not.toContain("more than");
+  });
+
   it("parses the printed amount and ignores a number sitting beside it", () => {
     const model = {
       utr: UTR,

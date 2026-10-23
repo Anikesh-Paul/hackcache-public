@@ -803,7 +803,6 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
       date: line.date,
       amountPaise: line.amountPaise,
       reference: line.utr ?? "",
-      narration: line.narration,
     }),
     ...line,
   }));

@@ -17,7 +17,7 @@ import {
 import { differencePaise, formatInr, sumPaise } from "@tagada/money";
 import { STATEMENT_2_CSV, invoicesForMatch } from "@tagada/seed";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
-import { newId, stamp } from "./pay.ts";
+import { newId, proofCredits, stamp } from "./pay.ts";
 
 export type ImportResult =
   | { ok: true; already: number; added: number; summary: string }
@@ -173,7 +173,6 @@ async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<v
   const { workspace, invoices, bank, proofs } = await books(worlds, workspaceId);
   if (!workspace) return;
   const { permissions, today } = ownerAccess(workspace, workspaceId);
-  const credits = bank.map((row) => ({ utr: text(row.utr), amountPaise: whole(row.amountPaise) }));
   for (const proof of proofs) {
     if (proof.result !== "not_found_yet") continue;
     const extracted = proofFromModel(readJson(proof.extracted));
@@ -183,7 +182,7 @@ async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<v
       extracted,
       today,
       balancePaise: differencePaise(whole(invoice.totalPaise), whole(invoice.paidPaise)),
-      credits,
+      credits: proofCredits(bank, invoice.$id),
     });
     if (view.result === "not_found_yet") continue;
     await worlds.update("proof_checks", proof.$id, { result: view.result, checkedAt: stamp(today) });

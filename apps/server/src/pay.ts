@@ -14,6 +14,7 @@ import {
   proofFromModel,
   type InvoiceFacts,
   type PromiseFacts,
+  type ProofCredit,
   type ProofResultKind,
 } from "@tagada/domain";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
@@ -289,9 +290,25 @@ async function readProof(
     extracted,
     today: text(book.workspace.today) ?? "",
     balancePaise: differencePaise(whole(book.invoice.totalPaise), whole(book.invoice.paidPaise)),
-    credits: credits.map((row) => ({ utr: text(row.utr), amountPaise: whole(row.amountPaise) })),
+    credits: proofCredits(credits, book.invoice.$id),
   });
   return { result: view.result, label: view.label, extracted };
+}
+
+/** Bank credits as a proof check reads them, marking those already confirmed against this Invoice. */
+export function proofCredits(rows: readonly StoredRow[], invoiceId: string): ProofCredit[] {
+  return rows.map((row) => {
+    let confirmedHere = false;
+    if (row.matchStatus === "confirmed" && typeof row.allocations === "string") {
+      try {
+        const shares = JSON.parse(row.allocations) as unknown;
+        confirmedHere = Array.isArray(shares) && shares.some((share) => (share as { invoiceId?: unknown })?.invoiceId === invoiceId);
+      } catch {
+        confirmedHere = false;
+      }
+    }
+    return { utr: text(row.utr), amountPaise: whole(row.amountPaise), confirmedHere };
+  });
 }
 
 const words = planInWords;

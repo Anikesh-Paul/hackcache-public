@@ -28,8 +28,9 @@ const KIND_ICON: Record<MatchKind, { icon: typeof Check; tone: string }> = {
 };
 
 const TDS_WHY =
+  "TDS is tax deducted at source: some Customers must keep back a small part of a payment and pay it to the tax department in your name. " +
   "Possible TDS means the amount is short by exactly 0.1%, 1%, 2% or 10% of the taxable value. " +
-  "A large buyer of goods can deduct 0.1%. Work is 1% for an individual or HUF and 2% for a company, and a hotel's 2% is on the installation line only. " +
+  "A large buyer of goods can deduct 0.1%. Work is 1% for an individual or HUF and 2% for a company; on an Invoice with an installation line, that is a share of the installation line only. " +
   "10% is the rate for professional or technical fees. Confirming a possible TDS covers the Invoice; the shortfall was kept back, not left owed.";
 
 function allocations(row: BankTxnRow): BankAllocation[] {
@@ -65,6 +66,8 @@ export function Bank() {
       lines,
     });
     for (const row of credits) {
+      // A confirmed credit has paid its Invoices, so matching it again against what is open would say "Unknown deposit".
+      if (row.matchStatus === "confirmed") continue;
       const match = matchCredit(
         { date: row.date, narration: row.narration, reference: row.utr ?? "", amountPaise: row.amountPaise },
         open,
@@ -204,6 +207,7 @@ export function Bank() {
                   </span>{" "}
                   <span className="word plain">{row.matchStatus === "confirmed" ? "Confirmed" : row.matchStatus === "suggested" ? "Suggested" : "Unmatched"}</span>
                   {notes.get(row.$id) && <small className="mt-1 block">{notes.get(row.$id)}</small>}
+                  {row.matchStatus === "confirmed" && <small className="mt-1 block">Confirmed as a payment.</small>}
                   {shares.length === 0 && !notes.get(row.$id) && <small className="mt-1 block">No Invoice suggested.</small>}
                   {shares.map((share) => {
                     const invoice = invoiceOf(share.invoiceId);
@@ -220,8 +224,8 @@ export function Bank() {
                             <span className="mono">{invoice.number}</span>
                           </>
                         )}
-                        {` · ${formatInr(share.amountPaise)}`}
-                        {share.tdsPaise ? ` · ${formatInr(share.tdsPaise)} kept back as TDS` : ""}
+                        {`: ${formatInr(share.amountPaise)}`}
+                        {share.tdsPaise ? `, and ${formatInr(share.tdsPaise)} kept back as TDS` : ""}
                       </small>
                     );
                   })}
@@ -282,7 +286,7 @@ export function Bank() {
                           <span className="mono">{invoice.number}</span>
                         </>
                       )}
-                      {amount && ` · ${amount}`}
+                      {amount && `: ${amount}`}
                     </span>
                   </div>
                 </li>

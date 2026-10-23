@@ -28,7 +28,12 @@ export type ProofView = {
   note: string;
 };
 
-export type ProofCredit = { utr: string | null; amountPaise: number };
+export type ProofCredit = {
+  utr: string | null;
+  amountPaise: number;
+  /** Already confirmed against this Invoice, so its amount is no longer in the open balance. */
+  confirmedHere?: boolean;
+};
 
 const UTR_OK = /^(?:\d{12}|[A-Z]{4}[A-Z0-9][A-Z0-9]{5,18})$/;
 
@@ -75,7 +80,17 @@ export function checkProof(input: {
   if (amountPaise === null) {
     return view("amount_mismatch", null, "The amount on the screenshot could not be read as money.");
   }
-  if (amountPaise <= 0 || amountPaise > input.balancePaise) {
+  if (amountPaise <= 0) {
+    return view("amount_mismatch", amountPaise, "The amount on the screenshot is not a payment.");
+  }
+  // A screenshot sent after its credit was confirmed is not "more than owed": that credit is why less is owed.
+  const alreadyIn = input.credits.some(
+    (credit) =>
+      credit.confirmedHere === true &&
+      credit.amountPaise === amountPaise &&
+      normalUtr(credit.utr ?? "") === normalUtr(input.extracted.utr),
+  );
+  if (amountPaise > input.balancePaise && !alreadyIn) {
     return view("amount_mismatch", amountPaise, "The amount on the screenshot is more than what is still owed on this Invoice.");
   }
   const date = printedDate(input.extracted.dateText);
