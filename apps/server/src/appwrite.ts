@@ -90,6 +90,25 @@ export function appwriteWorlds(client: Client): WorldStore {
       );
     },
 
+    async create(tableId, row) {
+      const { $id: rowId, $permissions: permissions, ...data } = row;
+      try {
+        await withRetry(() => db.createRow({ databaseId: DATABASE_ID, tableId, rowId, data, permissions }));
+        return "created";
+      } catch (e) {
+        // The row ID is the key: a second create for the same one is refused by Appwrite itself.
+        if (e instanceof AppwriteException && e.code === 409) return "exists";
+        throw e;
+      }
+    },
+
+    async get(tableId, rowId) {
+      return db.getRow({ databaseId: DATABASE_ID, tableId, rowId }).then(
+        (row) => row as unknown as StoredRow,
+        (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
+      );
+    },
+
     async update(tableId, rowId, patch) {
       await withRetry(() => db.updateRow({ databaseId: DATABASE_ID, tableId, rowId, data: patch }));
     },
@@ -111,6 +130,28 @@ export function appwriteWorlds(client: Client): WorldStore {
       return rows as unknown as StoredRow[];
     },
   };
+}
+
+/** Every workspace and its Demo date, a page at a time. */
+export async function* everyWorkspace(client: Client): AsyncGenerator<{ workspaceId: string; today: string }> {
+  const db = new TablesDB(client);
+  let after: string | null = null;
+  for (;;) {
+    const cursor: string | null = after;
+    const { rows }: { rows: { $id: string; today?: unknown }[] } = await withRetry(() =>
+      db.listRows({
+        databaseId: DATABASE_ID,
+        tableId: "workspaces",
+        queries: [Query.select(["$id", "today"]), Query.limit(100), ...(cursor ? [Query.cursorAfter(cursor)] : [])],
+        total: false,
+      }),
+    );
+    for (const row of rows) {
+      if (typeof row.today === "string") yield { workspaceId: row.$id, today: row.today };
+    }
+    if (rows.length < 100) return;
+    after = rows[rows.length - 1]?.$id ?? null;
+  }
 }
 
 /** The `screenshots` and `audio` buckets, written with the server key. */

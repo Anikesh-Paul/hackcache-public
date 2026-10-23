@@ -33,6 +33,13 @@ export const SECTION16_RATE_BEFORE_BPS = 1650;
 export const SECTION16_RATE_FROM_BPS = 1725;
 
 /**
+ * The day each Ladder stage falls due, in whole IST days from the Invoice's
+ * due date, stage 1 first: a heads-up 3 days before, the due-date reminder on
+ * the day, then 7, 14, 21 and 30 days late.
+ */
+export const LADDER_STAGE_DAYS = [-3, 0, 7, 14, 21, 30] as const;
+
+/**
  * What a minute of Call with AI uses on the ElevenLabs agent, in credits
  * (#13: read off the ElevenLabs usage page for the test calls).
  */

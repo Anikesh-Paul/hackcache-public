@@ -23,6 +23,17 @@ export function memoryStore() {
         tables.set(tableId, table);
       }
     },
+    async create(tableId, row) {
+      const table = tables.get(tableId) ?? new Map<string, OwnedRow>();
+      tables.set(tableId, table);
+      if (table.has(row.$id)) return "exists";
+      writes++;
+      table.set(row.$id, { ...row });
+      return "created";
+    },
+    async get(tableId, rowId) {
+      return tables.get(tableId)?.get(rowId) ?? null;
+    },
     async update(tableId, rowId, patch) {
       writes++;
       const row = tables.get(tableId)?.get(rowId);

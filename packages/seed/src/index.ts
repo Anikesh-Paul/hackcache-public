@@ -12,6 +12,8 @@ import type {
   InvoiceLineRow,
   InvoiceRow,
   PromiseRow,
+  ReminderRow,
+  WorkflowRunRow,
   WorkspaceRow,
 } from "@tagada/appwrite";
 import { bankTxnId } from "@tagada/domain";
@@ -48,6 +50,8 @@ export type World = {
   promises: PromiseRow[];
   bank_txns: BankTxnRow[];
   cash_items: CashItemRow[];
+  reminders: ReminderRow[];
+  workflow_runs: WorkflowRunRow[];
 };
 
 // ---------------------------------------------------------------- catalogue
@@ -418,6 +422,20 @@ const INVOICES: InvoiceSeed[] = [
  * When the Ladder took each stage, in days from the due date. Only the first
  * three ran in the seeded history; the call and the letter wait for the Owner.
  */
+/**
+ * Paul Gift House's mail is refused on the first try, once, so the
+ * Automation log shows a real retry under the same key: in the seeded
+ * history, and again the first time the daily run emails them.
+ */
+const FAILS_FIRST_SEND = "paul";
+export const SEEDED_FAILURE = "The first try was refused (seeded failure, to show a retry)";
+
+/** True for the one Customer whose first live email is refused. */
+export function failsFirstSend(customerId: string, workspaceId: string): boolean {
+  const n = CUSTOMERS.findIndex((c) => c.key === FAILS_FIRST_SEND);
+  return customerId === `c${pad(n + 1)}_${workspaceId}`;
+}
+
 const HISTORY_STAGES = [
   { stage: 1, offset: -3, actor: "workflow", summary: "Friendly heads-up sent by email" },
   { stage: 2, offset: 0, actor: "workflow", summary: "Due-date reminder sent by email" },
@@ -447,7 +465,8 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     isTrader: false,
     // Not a real UPI handle, so a judge who scans the QR cannot pay anyone.
     upiVpa: "tripurabamboo@demo",
-    ownerEmail: null,
+    // A reserved .example address, so a reply goes nowhere real until the Owner sets theirs.
+    ownerEmail: "accounts@tripurabamboo.example",
     demoInboxEmail: null,
     today: DEMO_TODAY,
     salaryDay: SALARY_DAY,
@@ -489,6 +508,10 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
   const invoice_lines: InvoiceLineRow[] = [];
   const events: EventRow[] = [];
   const promises: PromiseRow[] = [];
+  const reminders: ReminderRow[] = [];
+  let seededRetry = false;
+  /** When each Invoice was open, for the runs' scanned count: from its issue date until paid. */
+  const openSpans: { from: string; until: string | null }[] = [];
   const pricedLines = new Map<string, InvoiceLine[]>();
   const partsInBank = new Map<string, number>();
 
@@ -545,6 +568,23 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
       const on = addDays(dueDate, step.offset);
       if (on >= stopsOn) break;
       ladderStage = step.stage;
+      // Paul Gift House's first due-date email was refused once, then sent.
+      const retried = seed.customer === FAILS_FIRST_SEND && step.stage === 2 && !seededRetry;
+      if (retried) seededRetry = true;
+      reminders.push({
+        ...base,
+        $id: `rem_${invoiceId}_s${step.stage}`,
+        invoiceId,
+        customerId: customer.$id,
+        sentDate: on,
+        stage: step.stage,
+        channel: step.actor === "workflow" ? "email" : "whatsapp_link",
+        status: "sent",
+        attempts: retried ? 2 : 1,
+        providerMessageId: null,
+        error: retried ? SEEDED_FAILURE : null,
+        runId: step.actor === "workflow" ? seededRunId(on) : null,
+      });
       timeline.push({
         at: at(on, step.actor === "workflow" ? "10:00" : "17:15"),
         type: "reminder",
@@ -553,6 +593,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
         payload: JSON.stringify({ stage: step.stage }),
       });
     }
+    openSpans.push({ from: seed.issued, until: paidOn });
     if ("promisedOn" in outcome) {
       timeline.push({
         at: at(outcome.promisedOn, "16:05"),
@@ -786,6 +827,24 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
   ];
   const cash_items: CashItemRow[] = cashItems.map((item, n) => ({ ...base, $id: id(`k${n + 1}`), ...item }));
 
+  // One run row for each day the workflow sent something, as the daily run writes it.
+  const runDays = [...new Set(reminders.filter((r) => r.runId).map((r) => r.sentDate ?? ""))].sort();
+  const workflow_runs: WorkflowRunRow[] = runDays.map((day) => {
+    const sent = reminders.filter((r) => r.runId === seededRunId(day));
+    return {
+      ...base,
+      $id: id(`r${day.replace(/-/g, "")}`),
+      runId: seededRunId(day),
+      startedAt: at(day, "10:00"),
+      demoDate: day,
+      invoicesScanned: openSpans.filter((s) => s.from <= day && (s.until === null || s.until > day)).length,
+      sent: sent.length,
+      skippedDuplicate: 0,
+      retried: sent.filter((r) => (r.attempts ?? 0) > 1).length,
+      failed: 0,
+    };
+  });
+
   return {
     workspaces: [workspace],
     customers,
@@ -795,8 +854,16 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     promises,
     bank_txns,
     cash_items,
+    reminders,
+    workflow_runs,
   };
 }
+
+/** The seeded runs' IDs: one per day. Live runs use the workflow's task run ID. */
+function seededRunId(day: string): string {
+  return `seed-${day}`;
+}
+
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");

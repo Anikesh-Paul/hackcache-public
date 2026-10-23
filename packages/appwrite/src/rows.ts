@@ -141,6 +141,18 @@ export type ReminderRow = Row<{
   runId: string | null;
 }>;
 
+/** One daily Ladder run for one workspace and Demo date. */
+export type WorkflowRunRow = Row<{
+  runId: string;
+  startedAt: string;
+  demoDate: string;
+  invoicesScanned: number;
+  sent: number;
+  skippedDuplicate: number;
+  retried: number;
+  failed: number;
+}>;
+
 export type CashItemRow = Row<{
   kind: "salary" | "rent" | "supplier" | "other";
   amountPaise: number;

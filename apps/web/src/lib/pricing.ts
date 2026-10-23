@@ -33,6 +33,11 @@ export function storedTotalsMatch(invoice: InvoiceRow, priced: InvoiceTotals): b
   );
 }
 
+/** The IST time of day an event happened, "HH:MM". */
+export function istTime(at: string): string {
+  return new Date(Date.parse(at) + 330 * 60_000).toISOString().slice(11, 16);
+}
+
 /** The calendar day an event happened, in IST, whatever zone Appwrite returns it in. */
 export function istDay(at: string): string {
   return new Date(Date.parse(at) + 330 * 60_000).toISOString().slice(0, 10);

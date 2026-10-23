@@ -31,6 +31,9 @@ import {
   type Voice,
 } from "./pay.ts";
 import type { PayLink } from "./pay-token.ts";
+import type { Mailer } from "./email.ts";
+import { inProcessRunner, ownerSent, stepDemoDate, type LadderRunner } from "./ladder.ts";
+import { saveSettings } from "./settings.ts";
 import type { ProofReader } from "./proof-read.ts";
 
 export type CallDeps = {
@@ -41,6 +44,16 @@ export type CallDeps = {
   gloss: Gloss | null;
   limits?: CallLimits;
   now?: () => number;
+};
+
+export type LadderAppDeps = {
+  mailer: Mailer | null;
+  demoInbox: string | null;
+  webOrigin: string;
+  /** Starts the run: on Render, the `dailyLadder` workflow; by default, in this process. */
+  runner?: LadderRunner;
+  /** Run IDs for the in-process runner. */
+  runId?: () => string;
 };
 
 export type AppDeps = {
@@ -55,9 +68,10 @@ export type AppDeps = {
   webOrigin?: string;
   /** Reads a UPI screenshot. Null when Gemini is not configured. */
   proof?: ProofReader | null;
+  ladder?: LadderAppDeps;
 };
 
-export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, proof }: AppDeps) {
+export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, proof, ladder }: AppDeps) {
   const app = new Hono();
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
@@ -279,6 +293,47 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       return c.json({ error: "bank_unavailable" }, 500);
     }
   });
+
+  // The Ladder. The header's ‹ › stepper moves the Demo date and runs the same workflow the cron does.
+  const ladderDeps = {
+    worlds: demo.worlds,
+    mailer: ladder?.mailer ?? null,
+    demoInbox: ladder?.demoInbox ?? null,
+    webOrigin: ladder?.webOrigin ?? webOrigin ?? "",
+  };
+  const runner = ladder?.runner ?? inProcessRunner(ladderDeps, ladder?.runId);
+  const ownerRoute = (path: string, run: (workspaceId: string, c: Context) => Promise<Response>) => async (c: Context) => {
+    const workspaceId = await workspaceOf(c).catch(() => null);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    try {
+      return await run(workspaceId, c);
+    } catch (e) {
+      console.error(`${path} failed`, e);
+      return c.json({ error: "ladder_unavailable" }, 500);
+    }
+  };
+  app.post(
+    "/api/ladder/run",
+    ownerRoute("/api/ladder/run", async (workspaceId, c) => {
+      const result = await stepDemoDate(demo.worlds, runner, workspaceId, await json(c));
+      return result.ok ? c.json(result.summary) : c.json({ error: result.error }, result.status);
+    }),
+  );
+  app.post(
+    "/api/ladder/sent",
+    ownerRoute("/api/ladder/sent", async (workspaceId, c) => {
+      const result = await ownerSent(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
+    }),
+  );
+
+  app.post(
+    "/api/settings",
+    ownerRoute("/api/settings", async (workspaceId, c) => {
+      const result = await saveSettings(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json({ ok: true }) : c.json({ error: result.error, field: result.field }, result.status);
+    }),
+  );
 
   app.post("/api/demo/reset", async (c) => {
     const jwt = bearer(c);

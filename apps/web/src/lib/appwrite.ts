@@ -210,3 +210,36 @@ export async function ownerApi<T>(path: string, init: RequestInit = {}): Promise
   });
   return { status: res.status, data: (await res.json().catch(() => null)) as T | null };
 }
+
+/** What a Ladder run did, as `/api/ladder/run` answers. */
+export type LadderRun = {
+  runId: string;
+  demoDate: string;
+  scanned: number;
+  sent: number;
+  skippedDuplicate: number;
+  retried: number;
+  failed: number;
+  ready: number;
+  capped: number;
+};
+
+/** The header's ‹ › stepper: moves the Demo date and runs the daily Ladder for it, as the 10:00 cron does. */
+export async function runLadder(date: string): Promise<LadderRun> {
+  const data = (await authed("/api/ladder/run", { date })) as Partial<LadderRun> | null;
+  if (!data || typeof data.runId !== "string" || typeof data.sent !== "number") throw new SaveError("run_failed");
+  return data as LadderRun;
+}
+
+/** The Owner sent a ready Reminder from their own phone or mail. */
+export async function markReminderSent(body: { invoiceId: string; stage: number; channel: "whatsapp_link" | "email" }) {
+  await authed("/api/ladder/sent", body);
+}
+
+/** Saves some Settings. A refusal names the field it could not use. */
+export async function saveSettings(patch: Record<string, unknown>): Promise<{ ok: true } | { ok: false; field: string }> {
+  const { status, data } = await ownerApi<{ field?: string }>("/api/settings", { method: "POST", body: JSON.stringify(patch) });
+  if (status === 200) return { ok: true };
+  if (status === 400 && typeof data?.field === "string") return { ok: false, field: data.field };
+  throw new SaveError("save_failed");
+}

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import type { CustomerRow, EventRow, InboxRow, InvoiceRow, PromiseRow, WorkspaceRow } from "@tagada/appwrite";
+import type { CustomerRow, EventRow, InboxRow, InvoiceRow, PromiseRow, ReminderRow, WorkspaceRow } from "@tagada/appwrite";
 import { invoiceStanding, type InvoiceStanding, type PromiseFacts } from "@tagada/domain";
 import { resetDemo, rowsOf, startDemo, watchRows, type DemoStarted, type LiveRow } from "./appwrite.ts";
 
@@ -21,6 +21,9 @@ export type PaymentHistory = EventRow[] | "loading" | "failed";
 /** What Customers did on the pay link, kept live. */
 export type InboxState = InboxRow[] | "loading" | "failed";
 
+/** The Ladder's Reminders, kept live. */
+export type RemindersState = ReminderRow[] | "loading" | "failed";
+
 type WorldContext = WorldState & {
   reset: () => Promise<void>;
   retry: () => void;
@@ -29,6 +32,7 @@ type WorldContext = WorldState & {
   /** One load for every screen, retried while a fresh seed is still writing events. Kept live. */
   events: PaymentHistory;
   inbox: InboxState;
+  reminders: RemindersState;
 };
 
 const Ctx = createContext<WorldContext | null>(null);
@@ -102,9 +106,11 @@ export function WorldProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<WorldState>({ status: "loading" });
   const [events, setEvents] = useState<PaymentHistory>("loading");
   const [inbox, setInbox] = useState<InboxState>("loading");
+  const [reminders, setReminders] = useState<RemindersState>("loading");
   // Rows that arrived live, laid over the rows read once (and kept apart while that read is on its way).
   const [liveEvents, setLiveEvents] = useState<EventRow[]>([]);
   const [liveInbox, setLiveInbox] = useState<InboxRow[]>([]);
+  const [liveReminders, setLiveReminders] = useState<ReminderRow[]>([]);
   const [attempt, setAttempt] = useState(0);
   const world = state.status === "ready" ? state.world : null;
   const workspaceId = world?.workspace.$id;
@@ -166,14 +172,33 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     };
   }, [workspaceId, generation]);
 
+  useEffect(() => {
+    if (!workspaceId) return;
+    let live = true;
+    setReminders("loading");
+    rowsOf<ReminderRow>("reminders", workspaceId).then(
+      (found) => live && setReminders(found),
+      (e: unknown) => {
+        console.error("reminders failed to load", e);
+        if (live) setReminders("failed");
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [workspaceId, generation]);
+
   // Pay-link actions reach the Owner's screens here, in well under a second.
   useEffect(() => {
     if (!workspaceId) return;
     setLiveEvents([]);
     setLiveInbox([]);
-    return watchRows(workspaceId, ["inbox", "events", "invoices", "promises"], (row, deleted) => {
+    setLiveReminders([]);
+    return watchRows(workspaceId, ["inbox", "events", "invoices", "promises", "reminders"], (row, deleted) => {
       if (row.$tableId === "inbox") {
         setLiveInbox((now) => upsert(now, row as unknown as InboxRow, deleted));
+      } else if (row.$tableId === "reminders") {
+        setLiveReminders((now) => upsert(now, row as unknown as ReminderRow, deleted));
       } else if (row.$tableId === "events") {
         setLiveEvents((now) => upsert(now, row as unknown as EventRow, deleted));
       } else {
@@ -213,8 +238,9 @@ export function WorldProvider({ children }: { children: ReactNode }) {
       reload,
       events: Array.isArray(events) ? merge(events, liveEvents) : events,
       inbox: Array.isArray(inbox) ? merge(inbox, liveInbox) : inbox,
+      reminders: Array.isArray(reminders) ? merge(reminders, liveReminders) : reminders,
     }),
-    [state, reset, retry, reload, events, inbox, liveEvents, liveInbox],
+    [state, reset, retry, reload, events, inbox, reminders, liveEvents, liveInbox, liveReminders],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -236,6 +262,12 @@ export function usePaymentHistory(): PaymentHistory {
 export function useInbox(): InboxState {
   const ctx = useWorldState();
   return ctx.status === "ready" ? ctx.inbox : "loading";
+}
+
+/** The Ladder's Reminders, live. "loading" until read. */
+export function useReminders(): RemindersState {
+  const ctx = useWorldState();
+  return ctx.status === "ready" ? ctx.reminders : "loading";
 }
 
 /** The loaded world. Only call under <WorldGate>. */

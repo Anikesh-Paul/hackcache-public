@@ -36,7 +36,7 @@ describe(".env.example", () => {
       for (const m of src.matchAll(/(?:requireEnv|need)\("([A-Z0-9_]+)"\)/g)) used.add(m[1]!);
     }
     // Set by the platform, not by us.
-    for (const platform of ["PORT", "RENDER_SDK_SOCKET_PATH", "RENDER_SDK_AUTO_START", "DEV", "PROD", "MODE"])
+    for (const platform of ["PORT", "RENDER", "RENDER_SDK_SOCKET_PATH", "RENDER_SDK_AUTO_START", "DEV", "PROD", "MODE"])
       used.delete(platform);
 
     const listed = exampleEnv();

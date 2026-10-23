@@ -7,8 +7,16 @@ export type { CustomerGrade, GradeInput, GradeLetter, HistoryEvent, HistoryInvoi
 export { INVOICE_FILTERS, invoiceStanding, isInvoiceFilter, matchesFilter } from "./invoice.ts";
 export type { InvoiceFacts, InvoiceFilter, InvoiceStanding, InvoiceState, PromiseFacts } from "./invoice.ts";
 
-export { LADDER_STAGES, ladderRungs } from "./ladder.ts";
-export type { LadderStage, Rung } from "./ladder.ts";
+export {
+  AUTO_SEND_SWITCHES,
+  DEFAULT_AUTO_SEND,
+  LADDER_STAGES,
+  ladderDay,
+  ladderRungs,
+  nextAction,
+  promiseBroken,
+} from "./ladder.ts";
+export type { LadderInvoice, LadderStage, LadderStep, NextAction, Rung } from "./ladder.ts";
 
 export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
 export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
@@ -79,3 +87,6 @@ export type {
 
 export { PROOF_LABEL, checkProof, proofFromModel } from "./proof-check.ts";
 export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";
+
+export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";
+export type { ReminderFacts } from "./templates.ts";

@@ -8,6 +8,7 @@ import { useTodayBook } from "../lib/today.ts";
 import { useInbox, usePaymentHistory, useWorld } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
 import { InboxLine, inboxItems } from "./Inbox.tsx";
+import { FollowUps } from "./FollowUps.tsx";
 
 const day = (iso: string) => formatDate(iso, { weekday: false });
 
@@ -36,6 +37,7 @@ export function Today() {
         <ChaseFirst book={book} />
       </Paper>
       <Paper label="Today's work">
+        <FollowUps />
         <DaysToGetPaid book={book} />
         <LatestInbox />
       </Paper>
