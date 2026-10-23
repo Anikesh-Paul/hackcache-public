@@ -52,6 +52,12 @@ describe("matchCredit", () => {
     }
   });
 
+  it("does not treat a different series prefix as the same Invoice", () => {
+    const tbw = invoice({ id: "tbw", number: "TBW/26-27/0012", customerName: "Other Stores", customerId: "c2", totalPaise: 500_000 });
+    const match = matchCredit(credit("NEFT INV/26-27/0012", 500_000), [tbw, INV_12]);
+    expect(match.allocations.map((a) => a.invoiceId)).toEqual(["i12"]);
+  });
+
   it("does not take a serial that is buried in a longer number", () => {
     const match = matchCredit(credit("UPI/CR/430200120000/PHONEPE", 500_000, "430200120000"), [INV_12]);
     expect(match.kind).toBe("unknown");
@@ -181,6 +187,12 @@ describe("matchCredit", () => {
       { invoiceId: "hotel", amountPaise: differencePaise(hotel.totalPaise, tds), tdsPaise: tds },
     ]);
     expect(match.note.toLowerCase()).toContain("installation");
+    const wholeShort = percentOfPaise(hotel.taxablePaise, 200);
+    const notInstallation = matchCredit(
+      credit("NEFT HOTEL GOMATI VIEW", differencePaise(hotel.totalPaise, wholeShort)),
+      [hotel],
+    );
+    expect(notInstallation.kind).not.toBe("tds");
   });
 
   it("flags 0.1% of taxable value for a large buyer", () => {

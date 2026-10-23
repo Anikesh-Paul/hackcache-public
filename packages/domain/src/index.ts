@@ -56,7 +56,16 @@ export {
 } from "./call.ts";
 export type { CallBlock, CallContext, CallGuard, CallGuardInput, CallOutcome, OutcomeCheck, RuleCheck, Said } from "./call.ts";
 
-export { MATCH_LABEL, bankTxnId, importCount, importSummary, matchCredit, matcherBrief, parseStatement } from "./matcher.ts";
+export {
+  MATCH_LABEL,
+  bankTxnId,
+  importCount,
+  importSummary,
+  invoicesForMatch,
+  matchCredit,
+  matcherBrief,
+  parseStatement,
+} from "./matcher.ts";
 export type {
   Match,
   MatchAllocation,

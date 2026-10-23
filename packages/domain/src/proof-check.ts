@@ -58,8 +58,13 @@ function asDate(text: string): string | null {
   return isCivilDate(iso) ? iso : null;
 }
 
+/** Spaces and hyphens are not part of a UTR. "6098 1234 5678" is the same as "609812345678". */
+export function normalUtr(utr: string): string {
+  return utr.trim().toUpperCase().replace(/[\s-]/g, "");
+}
+
 function utrOk(utr: string): boolean {
-  return UTR_OK.test(utr.trim().toUpperCase().replace(/\s/g, ""));
+  return UTR_OK.test(normalUtr(utr));
 }
 
 /**
@@ -85,11 +90,11 @@ export function checkProof(input: {
   if (date && daysBetween(input.today, date) > 0) {
     return view("not_found_yet", amountPaise, "The date on the screenshot is after today, so it is not in the statement yet.");
   }
-  const utr = input.extracted.utr.trim();
-  if (!utrOk(utr)) {
+  const utr = normalUtr(input.extracted.utr);
+  if (!utrOk(input.extracted.utr)) {
     return view("not_found_yet", amountPaise, "No UTR on the screenshot to look up in the bank statement yet.");
   }
-  const same = input.credits.filter((credit) => (credit.utr ?? "").trim().toUpperCase() === utr.toUpperCase());
+  const same = input.credits.filter((credit) => normalUtr(credit.utr ?? "") === utr);
   if (same.length === 0) {
     return view("not_found_yet", amountPaise, "This UTR is not in the bank statement yet.");
   }

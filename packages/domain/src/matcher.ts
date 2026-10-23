@@ -1,6 +1,16 @@
 // Suggest which Invoices a Bank credit pays. Nothing here marks an Invoice paid:
 // the Owner confirms that on the Bank page. Money arithmetic stays in `money`.
-import { differencePaise, formatInr, formatRateBps, isCivilDate, parseAmountPaise, percentOfPaise, sumPaise } from "@tagada/money";
+import {
+  differencePaise,
+  formatInr,
+  formatRateBps,
+  invoiceTotals,
+  isCivilDate,
+  isGstRate,
+  parseAmountPaise,
+  percentOfPaise,
+  sumPaise,
+} from "@tagada/money";
 
 export type MatchKind = "exact" | "part" | "multi" | "overpay" | "unknown" | "tds";
 
@@ -84,14 +94,17 @@ function namedInvoices(narration: string, invoices: readonly MatchInvoice[]): Ma
   for (const invoice of invoices) {
     const id = identity(invoice.number);
     if (!id) continue;
-    const owners = bySerial.get(id.serial) ?? [];
-    owners.push(invoice);
-    bySerial.set(id.serial, owners);
+    const sameSerial = bySerial.get(id.serial) ?? [];
+    sameSerial.push(invoice);
+    bySerial.set(id.serial, sameSerial);
+    const prefix = invoice.number.split("/")[0] ?? "";
     const pattern = new RegExp(
-      `(?:^|[^0-9])${id.fy.slice(0, 2)}\\s*[-/.]\\s*${id.fy.slice(3)}\\s*[-/.\\s]\\s*0*${id.serial}(?!\\d)`,
+      `(?:^|[^A-Z0-9])(?:([A-Z0-9]{1,6})\\s*[/\\-\\s]\\s*)?${id.fy.slice(0, 2)}\\s*[-/.]\\s*${id.fy.slice(3)}\\s*[-/.\\s]\\s*0*${id.serial}(?!\\d)`,
       "i",
     );
-    if (pattern.test(narration)) found.set(invoice.id, invoice);
+    const mentioned = pattern.exec(narration);
+    const saidPrefix = mentioned?.[1];
+    if (mentioned && (!saidPrefix || saidPrefix.toUpperCase() === prefix.toUpperCase())) found.set(invoice.id, invoice);
   }
   // A zero-padded serial on its own ("0012"), and only when just one Invoice has it.
   for (const token of narration.matchAll(/(?:^|[^0-9])(0\d{3,5})(?!\d)/g)) {
@@ -128,31 +141,50 @@ function serviceBase(invoice: MatchInvoice): number {
 function tdsFor(invoice: MatchInvoice, shortfall: number): { bps: number; onService: boolean } | null {
   if (shortfall <= 0) return null;
   const service = serviceBase(invoice);
-  const bases: { paise: number; onService: boolean }[] = [];
-  if (service > 0) bases.push({ paise: service, onService: true });
-  if (service !== invoice.taxablePaise) bases.push({ paise: invoice.taxablePaise, onService: false });
-  for (const base of bases) {
-    if (base.paise <= 0) continue;
-    for (const bps of TDS_RATES) {
-      if (percentOfPaise(base.paise, bps) === shortfall) return { bps, onService: base.onService };
+  const whole = invoice.taxablePaise;
+  const hit = (paise: number, rates: readonly number[], onService: boolean) => {
+    if (paise <= 0) return null;
+    for (const bps of rates) {
+      if (percentOfPaise(paise, bps) === shortfall) return { bps, onService };
     }
+    return null;
+  };
+  // A mixed Invoice: 1% and 2% apply to the installation line only, not the goods.
+  if (service > 0 && service !== whole) {
+    const onService = hit(service, [100, 200], true);
+    if (onService) return onService;
+  } else if (service > 0) {
+    const onService = hit(service, [100, 200, 1000], true);
+    if (onService) return onService;
   }
-  return null;
+  if (invoice.buyerType === "large_394Q") {
+    const large = hit(whole, [10], false);
+    if (large) return large;
+  }
+  // No separate installation line: 1%, 2% and 10% are of the Invoice's taxable value.
+  if (service === 0 || service === whole) return hit(whole, [100, 200, 1000], false);
+  return hit(whole, [1000], false);
 }
 
-function tdsNote(bps: number, onService: boolean): string {
+function tdsNote(bps: number, onService: boolean, buyerType: MatchInvoice["buyerType"]): string {
   const rate = formatRateBps(bps);
+  const who =
+    buyerType === "large_394Q"
+      ? "This Customer is a large buyer of goods."
+      : buyerType === "services"
+        ? "This Customer is billed for services."
+        : "This Customer is billed for goods, so confirm this before you treat the shortfall as TDS.";
   if (bps === 10) {
-    return `Possible TDS of ${rate} of the taxable value. A large buyer of goods can deduct this under section 393(1), table item 8(ii) (this used to be section 194Q).`;
+    return `Possible TDS of ${rate} of the taxable value. ${who} A large buyer of goods can deduct this under section 393(1), table item 8(ii) (this used to be section 194Q).`;
   }
   if (onService && bps === 200) {
-    return `Possible TDS of ${rate} of the installation line. A company deducts this on work under section 393(1), table item 6(i) (this used to be section 194C). The goods on the Invoice are not part of that deduction.`;
+    return `Possible TDS of ${rate} of the installation line. ${who} A company deducts this on work under section 393(1), table item 6(i) (this used to be section 194C). The goods on the Invoice are not part of that deduction.`;
   }
   if (bps === 100 || bps === 200) {
-    const who = bps === 100 ? "An individual or HUF is deducted at 1%" : "A company is deducted at 2%";
-    return `Possible TDS of ${rate} of the taxable value. ${who} on work under section 393(1), table item 6(i) (this used to be section 194C).`;
+    const rateWho = bps === 100 ? "An individual or HUF is deducted at 1%" : "A company is deducted at 2%";
+    return `Possible TDS of ${rate} of the taxable value. ${who} ${rateWho} on work under section 393(1), table item 6(i) (this used to be section 194C).`;
   }
-  return `Possible TDS of ${rate} of the taxable value. That rate is for professional or technical fees, so check it against this Customer before you treat the Invoice as covered.`;
+  return `Possible TDS of ${rate} of the taxable value. ${who} That rate is for professional or technical fees.`;
 }
 
 function unknown(): Match {
@@ -209,7 +241,7 @@ export function matchCredit(credit: MatchCredit, invoices: readonly MatchInvoice
       return {
         kind: "tds",
         allocations: [{ invoiceId: invoice.id, amountPaise: first.amountPaise, tdsPaise: short }],
-        note: tdsNote(tds.bps, tds.onService),
+        note: tdsNote(tds.bps, tds.onService, invoice.buyerType),
         tds: { rateBps: tds.bps, onService: tds.onService },
       };
     }
@@ -380,6 +412,66 @@ export function parseStatement(text: string): ParsedStatement {
   }
   if (credits.length === 0) return { ok: false, error: "The file has no credits." };
   return { ok: true, credits };
+}
+
+type StoredLine = {
+  invoiceId: string;
+  hsn: string | null;
+  qtyMilli: number;
+  ratePaise: number;
+  discountBp: number;
+  gstRateBp: number;
+};
+
+function lineTaxable(line: StoredLine): number {
+  const gstRatePercent = line.gstRateBp / 100;
+  const quantity = line.qtyMilli / 1000;
+  const discountPercent = line.discountBp / 100;
+  if (!isGstRate(gstRatePercent) || !Number.isInteger(quantity) || !Number.isInteger(discountPercent)) return 0;
+  return invoiceTotals({
+    registration: "regular",
+    supplierStateCode: "16",
+    placeOfSupplyStateCode: "16",
+    aggregateTurnoverPaise: 0,
+    lines: [{ quantity, ratePaise: line.ratePaise, discountPercent, gstRatePercent }],
+  }).taxablePaise;
+}
+
+/** Open Invoices in the shape `matchCredit` reads. Line taxable values come from `money`. */
+export function invoicesForMatch(input: {
+  customers: readonly { $id: string; name: string; buyerType: MatchInvoice["buyerType"] }[];
+  invoices: readonly {
+    $id: string;
+    number: string;
+    customerId: string;
+    issueDate: string;
+    taxablePaise: number;
+    totalPaise: number;
+    paidPaise: number;
+    status: string;
+  }[];
+  lines: readonly StoredLine[];
+}): MatchInvoice[] {
+  const customers = new Map(input.customers.map((customer) => [customer.$id, customer]));
+  return input.invoices
+    .filter((invoice) => invoice.status !== "paid" && invoice.status !== "draft" && invoice.totalPaise > invoice.paidPaise)
+    .map((invoice) => {
+      const customer = customers.get(invoice.customerId);
+      return {
+        id: invoice.$id,
+        number: invoice.number,
+        customerId: invoice.customerId,
+        customerName: customer?.name ?? "",
+        buyerType: customer?.buyerType ?? null,
+        issueDate: invoice.issueDate,
+        taxablePaise: invoice.taxablePaise,
+        totalPaise: invoice.totalPaise,
+        paidPaise: invoice.paidPaise,
+        lines: input.lines
+          .filter((line) => line.invoiceId === invoice.$id)
+          .map((line) => ({ taxablePaise: lineTaxable(line), gstRateBp: line.gstRateBp, hsn: line.hsn })),
+      };
+    });
 }
 
 export type BriefRow = { id: string; area: string; input: string; expected: string; actual: string; pass: boolean };

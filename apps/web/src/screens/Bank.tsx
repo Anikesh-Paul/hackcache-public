@@ -1,9 +1,9 @@
 // Bank statement: suggestions until the Owner confirms. Nothing is paid before that.
-import { useState, type DragEvent } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router";
 import { Check, CircleDot, CircleHelp, Copy, Flag, Scale } from "lucide-react";
-import type { BankAllocation, BankTxnRow } from "@tagada/appwrite";
-import { MATCH_LABEL, PROOF_LABEL, type MatchKind, type ProofResultKind } from "@tagada/domain";
+import type { BankAllocation, BankTxnRow, InvoiceLineRow } from "@tagada/appwrite";
+import { MATCH_LABEL, PROOF_LABEL, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
 import { formatDate, formatInr, parseAmountPaise } from "@tagada/money";
 import { SaveError, confirmBank, importBank } from "../lib/appwrite.ts";
 import { useWorkspaceRows, useWorld, useWorldState } from "../lib/world.tsx";
@@ -62,6 +62,7 @@ export function Bank() {
   const world = useWorld();
   const { reload } = useWorldState();
   const credits = useWorkspaceRows<BankTxnRow>("bank_txns", true);
+  const lines = useWorkspaceRows<InvoiceLineRow>("invoice_lines", true);
   const proofs = useWorkspaceRows<ProofRow>("proof_checks");
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -70,6 +71,23 @@ export function Bank() {
 
   const rows = Array.isArray(credits) ? [...credits].sort((a, b) => a.date.localeCompare(b.date) || a.$id.localeCompare(b.$id)) : [];
   const exact = rows.filter((row) => row.matchStatus === "suggested" && row.matchKind === "exact");
+  const notes = useMemo(() => {
+    const out = new Map<string, string>();
+    if (!Array.isArray(credits) || !Array.isArray(lines)) return out;
+    const open = invoicesForMatch({
+      customers: [...world.customers.values()],
+      invoices: world.invoices,
+      lines,
+    });
+    for (const row of credits) {
+      const match = matchCredit(
+        { date: row.date, narration: row.narration, reference: row.utr ?? "", amountPaise: row.amountPaise },
+        open,
+      );
+      out.set(row.$id, match.note);
+    }
+    return out;
+  }, [credits, lines, world]);
 
   const run = async (task: () => Promise<string>) => {
     setBusy(true);
@@ -159,7 +177,13 @@ export function Bank() {
         onDrop={onDrop}
       >
         <span className="block">Drop a CSV here, or choose a file.</span>
-        <span className="mt-1 block text-ink-2">Columns: date, narration, utr, amount.</span>
+        <span className="mt-1 block text-ink-2">
+          Columns: date, narration, utr, amount. A sample file is{" "}
+          <a href="/bank-statement.csv" download>
+            bank-statement.csv
+          </a>
+          .
+        </span>
         <input
           type="file"
           accept=".csv,text/csv"
@@ -194,7 +218,8 @@ export function Bank() {
                     <icon.icon aria-hidden /> {MATCH_LABEL[kind]}
                   </span>{" "}
                   <span className="word plain">{row.matchStatus === "confirmed" ? "Confirmed" : row.matchStatus === "suggested" ? "Suggested" : "Unmatched"}</span>
-                  {shares.length === 0 && <small className="mt-1 block">No Invoice suggested.</small>}
+                  {notes.get(row.$id) && <small className="mt-1 block">{notes.get(row.$id)}</small>}
+                  {shares.length === 0 && !notes.get(row.$id) && <small className="mt-1 block">No Invoice suggested.</small>}
                   {shares.map((share) => {
                     const invoice = invoiceOf(share.invoiceId);
                     return (

@@ -100,6 +100,17 @@ describe("checkProof", () => {
     expect(view.label).toBe("Amount differs");
   });
 
+  it("matches a UTR that was printed with spaces", () => {
+    const view = checkProof({
+      extracted: extracted({ utr: "6098 1234 5678" }),
+      today: TODAY,
+      balancePaise: GUPTA_BALANCE,
+      credits: [{ utr: UTR, amountPaise: 6_000_000 }],
+    });
+    expect(view.result).toBe("found");
+    expect(view.label).toBe("Matched ✓");
+  });
+
   it("does not call a screenshot dated after the Demo date matched", () => {
     const view = checkProof({
       extracted: extracted({ dateText: "03/11/2026" }),
