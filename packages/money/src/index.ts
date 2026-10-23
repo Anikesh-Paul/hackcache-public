@@ -16,7 +16,7 @@ export { callCostPaise, callCredits, paiseFromRupees, rupeesFromPaise } from "./
 
 export { addDays, addMonths, daysBetween, formatDate, isCivilDate, weekday } from "./date.ts";
 
-export { formatInr, formatInrShort, formatRateBps } from "./format.ts";
+export { formatAmountInput, formatInr, formatInrShort, formatRateBps } from "./format.ts";
 
 export { differencePaise, minimumSharePaise, nearestPaise, percentOfPaise, sharePaise, sumPaise, upiPayUri } from "./ledger.ts";
 

@@ -90,6 +90,25 @@ export function appwriteWorlds(client: Client): WorldStore {
       );
     },
 
+    async create(tableId, row) {
+      const { $id: rowId, $permissions: permissions, ...data } = row;
+      try {
+        await withRetry(() => db.createRow({ databaseId: DATABASE_ID, tableId, rowId, data, permissions }));
+        return "created";
+      } catch (e) {
+        // The row ID is the key: a second create for the same one is refused by Appwrite itself.
+        if (e instanceof AppwriteException && e.code === 409) return "exists";
+        throw e;
+      }
+    },
+
+    async get(tableId, rowId) {
+      return db.getRow({ databaseId: DATABASE_ID, tableId, rowId }).then(
+        (row) => row as unknown as StoredRow,
+        (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
+      );
+    },
+
     async update(tableId, rowId, patch) {
       await withRetry(() => db.updateRow({ databaseId: DATABASE_ID, tableId, rowId, data: patch }));
     },

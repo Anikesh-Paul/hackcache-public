@@ -6,7 +6,15 @@ import { payTokens } from "./pay-token.ts";
 const ok = async () => {};
 const demo = {
   userFromJwt: async () => null,
-  worlds: { exists: async () => false, remove: ok, write: ok, update: ok, list: async () => [] },
+  worlds: {
+    exists: async () => false,
+    remove: ok,
+    write: ok,
+    create: async () => "created" as const,
+    get: async () => null,
+    update: ok,
+    list: async () => [],
+  },
   later: () => {},
   tokens: payTokens("test-secret"),
 };

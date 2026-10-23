@@ -23,6 +23,10 @@ export type WorldStore = {
   remove(workspaceId: string): Promise<void>;
   /** Creates or overwrites the rows, all tables at once. */
   write(world: WorldRows): Promise<void>;
+  /** Creates one row, unless a row with its ID is already there: then nothing is written. */
+  create(tableId: string, row: OwnedRow): Promise<"created" | "exists">;
+  /** One row by ID, or null. */
+  get(tableId: string, rowId: string): Promise<StoredRow | null>;
   /** Changes some columns of one row. */
   update(tableId: string, rowId: string, patch: Record<string, unknown>): Promise<void>;
   /** Every row of one table in one workspace, optionally narrowed by equal columns. A demo world fits in one page. */

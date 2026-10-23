@@ -13,6 +13,16 @@ export function formatInr(paise: number, options?: { signed?: boolean }): string
   return `${sign}₹${body}`;
 }
 
+/** The amount as a form field shows it: 18000 → "180", 18050 → "180.50". No ₹ sign or grouping. */
+export function formatAmountInput(paise: number): string {
+  const value = requireInt(paise, "paise");
+  const neg = value < 0n;
+  const abs = neg ? -value : value;
+  const rem = abs % 100n;
+  const body = rem === 0n ? (abs / 100n).toString() : `${abs / 100n}.${rem.toString().padStart(2, "0")}`;
+  return `${neg ? "-" : ""}${body}`;
+}
+
 /** A chart label: "₹48k" under a lakh, "₹3.9L" from a lakh, whole rupees below ₹1,000. */
 export function formatInrShort(paise: number): string {
   const value = requireInt(paise, "paise");

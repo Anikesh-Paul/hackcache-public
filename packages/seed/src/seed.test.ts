@@ -160,7 +160,7 @@ describe("seedWorld", () => {
     const gupta = gradeOf("Gupta Traders");
     expect(gupta.grade).toBe("B");
     expect(gupta.avgDelayDays).toBe(12);
-    expect(gupta.reason).toContain("usually pays 12 days late");
+    expect(gupta.reason).toBe("usually pays 12 days late; this one is 38 days late");
   });
 
   it("grades Sen Handicrafts A, Paul Gift House C, and names Debnath Crafts' Dispute", () => {

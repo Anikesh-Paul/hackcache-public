@@ -11,10 +11,16 @@ import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
 
 const CHANNEL: Record<ReminderRow["channel"], string> = {
-  email: "Email",
+  email: "email",
   whatsapp_link: "WhatsApp",
-  call: "Call",
+  call: "call",
 };
+
+function stageOf(payload: string | null): number | null {
+  if (!payload) return null;
+  const data = JSON.parse(payload) as { stage?: number };
+  return typeof data.stage === "number" ? data.stage : null;
+}
 
 function amountOf(payload: string | null): number | null {
   if (!payload) return null;
@@ -43,8 +49,19 @@ export function CustomerDetail() {
   const grade = ready ? gradeFor(today, invoices, ready, world.promisesByInvoice) : null;
   const history = (ready ?? []).filter((event) => ids.has(event.invoiceId));
   const payments = history.filter((event) => event.type === "payment").sort((a, b) => b.at.localeCompare(a.at));
-  const reminderEvents = history.filter((event) => event.type === "reminder").sort((a, b) => b.at.localeCompare(a.at));
-  const reminderRows = (reminders && reminders !== "failed" ? reminders : []).filter((row) => row.customerId === customer.$id);
+  // A sent Reminder has both an event and a `reminders` row; list it once, by its event.
+  const reminderEvents = history.filter((event) => event.type === "reminder");
+  const logged = new Set(reminderEvents.map((event) => `${event.invoiceId}|${stageOf(event.payload)}`));
+  const reminderLines = [
+    ...reminderEvents.map((event) => ({ key: event.$id, day: istDay(event.at), text: event.summary })),
+    ...(reminders && reminders !== "failed" ? reminders : [])
+      .filter((row) => row.customerId === customer.$id && !logged.has(`${row.invoiceId}|${row.stage}`))
+      .map((row) => ({
+        key: row.$id,
+        day: row.sentDate ?? "",
+        text: `${LADDER_STAGES[row.stage - 1]?.name ?? "Reminder"} by ${CHANNEL[row.channel]}`,
+      })),
+  ].sort((a, b) => b.day.localeCompare(a.day));
   const callEvents = history.filter((event) => event.type === "call");
   const callRows = (calls && calls !== "failed" ? calls : []).filter((row) => ids.has(row.invoiceId));
 
@@ -147,24 +164,16 @@ export function CustomerDetail() {
           <Ln>
             <p className="text-ink-2">Reading reminders…</p>
           </Ln>
-        ) : reminderEvents.length === 0 && reminderRows.length === 0 ? (
+        ) : reminderLines.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No reminders yet.</p>
+            <p className="text-ink-2">No Reminders yet.</p>
           </Ln>
         ) : (
           <ul className="entries">
-            {reminderEvents.map((event) => (
-              <li key={event.$id} className="ln wide">
-                <div className="m">{formatDate(istDay(event.at), { weekday: false })}</div>
-                <div className="p">{event.summary}</div>
-              </li>
-            ))}
-            {reminderRows.map((row) => (
-              <li key={row.$id} className="ln wide">
-                <div className="m">{row.sentDate ? formatDate(row.sentDate, { weekday: false }) : ""}</div>
-                <div className="p">
-                  {LADDER_STAGES[row.stage - 1]?.name ?? "Reminder"} by {CHANNEL[row.channel]}
-                </div>
+            {reminderLines.map((line) => (
+              <li key={line.key} className="ln wide">
+                <div className="m">{line.day ? formatDate(line.day, { weekday: false }) : ""}</div>
+                <div className="p">{line.text}</div>
               </li>
             ))}
           </ul>

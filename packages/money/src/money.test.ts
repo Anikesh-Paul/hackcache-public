@@ -7,6 +7,7 @@ import {
   checkGstin,
   documentFor,
   financialYear,
+  formatAmountInput,
   formatInr,
   formatInrShort,
   gstinCheckDigit,
@@ -365,6 +366,13 @@ describe("Hindi words", () => {
 });
 
 describe("printed amounts", () => {
+  it("writes a stored rate back into the form so it reads the same", () => {
+    expect(formatAmountInput(18_000)).toBe("180");
+    expect(formatAmountInput(18_050)).toBe("180.50");
+    expect(formatAmountInput(5)).toBe("0.05");
+    for (const paise of [0, 5, 18_050, 11_800_000]) expect(parseAmountPaise(formatAmountInput(paise))).toBe(paise);
+  });
+
   it("parses the shapes a screenshot prints", () => {
     expect(parseAmountPaise("₹60,000.00")).toBe(6_000_000);
     expect(parseAmountPaise("60000")).toBe(6_000_000);

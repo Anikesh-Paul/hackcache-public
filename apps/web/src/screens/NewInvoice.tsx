@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
-import { GST_RATES, addDays, indianStates, isGstRate, parseAmountPaise, stateName, type GstRate } from "@tagada/money";
+import {
+  GST_RATES,
+  addDays,
+  formatAmountInput,
+  indianStates,
+  isGstRate,
+  parseAmountPaise,
+  stateName,
+  type GstRate,
+} from "@tagada/money";
 import { SaveError, createInvoice } from "../lib/appwrite.ts";
 import { LANGUAGES, type LanguageId } from "../lib/languages.ts";
 import { gstinMessage, priceDraft, type DraftLine, type PreviewAs } from "../lib/preview-as.ts";
@@ -23,6 +32,7 @@ const SAVE_ERRORS: Record<string, string> = {
   unknown_customer: "That Customer is not in this Demo world.",
   composition_interstate: "A composition seller cannot bill a Customer in another state.",
   world_not_ready: "Your books are still opening. Try again in a moment.",
+  number_taken: "Other Invoices were saved at the same moment. Save again for the next number.",
   unauthorized: "The session expired. Reload the page.",
 };
 
@@ -51,12 +61,6 @@ function blankLine(): LineDraft {
   return { key: crypto.randomUUID(), description: "", hsn: "", qty: "1", rate: "", discount: "0", gst: 5 };
 }
 
-function rupees(paise: number): string {
-  const whole = Math.trunc(paise / 100);
-  const rem = Math.abs(paise % 100);
-  return rem === 0 ? String(whole) : `${whole}.${String(rem).padStart(2, "0")}`;
-}
-
 function fromStored(line: InvoiceLineRow): LineDraft {
   const rate = line.gstRateBp / 100;
   return {
@@ -64,7 +68,7 @@ function fromStored(line: InvoiceLineRow): LineDraft {
     description: line.description,
     hsn: line.hsn ?? "",
     qty: String(line.qtyMilli / 1000),
-    rate: rupees(line.ratePaise),
+    rate: formatAmountInput(line.ratePaise),
     discount: String(line.discountBp / 100),
     gst: isGstRate(rate) ? rate : 5,
   };
@@ -245,7 +249,7 @@ export function NewInvoice() {
             ))}
           </div>
           {mode === "regular" ? (
-            <p className="mt-2 text-sm text-ink-2">Tripura Bamboo Works, on its own registration.</p>
+            <p className="mt-2 text-sm text-ink-2">{world.workspace.businessName}, on its own registration.</p>
           ) : (
             <p className="mt-2 text-sm">
               A sample seller in Agartala

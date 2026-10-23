@@ -119,6 +119,20 @@ describe("POST /api/invoices", () => {
     expect(second.invoice).toMatchObject({ number: "TBW/26-27/0033", taxablePaise: 500_000, igstPaise: 25_000, totalPaise: 525_000 });
   });
 
+  it("gives two saves sent at the same moment two different numbers", async () => {
+    await seed();
+    const gupta = named("Gupta Traders");
+    const [a, b] = await Promise.all([
+      postInvoice({ customerId: gupta.$id, lines: [chair] }),
+      postInvoice({ customerId: gupta.$id, lines: [chair] }),
+    ]);
+    const numbers = await Promise.all(
+      [a, b].map(async (res) => ((await res.json()) as { invoice: { number: string } }).invoice.number),
+    );
+    expect(numbers.sort()).toEqual(["TBW/26-27/0032", "TBW/26-27/0033"]);
+    for (const number of numbers) expect(db.rows().filter((row) => row.number === number)).toHaveLength(1);
+  });
+
   it("picks a Bill of Supply for a composition seller and a plain Invoice when unregistered", async () => {
     await seed();
     const saha = named("Saha Furniture Mart");

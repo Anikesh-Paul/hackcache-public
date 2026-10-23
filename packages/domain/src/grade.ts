@@ -63,9 +63,13 @@ export function gradeCustomer(
   const openDueDates: string[] = [];
   for (const invoice of invoices) {
     if (invoice.status === "paid") {
-      const payment = events.find((event) => event.invoiceId === invoice.id && event.type === "payment");
-      if (!payment) continue;
-      paidDaysLate.push(daysBetween(invoice.dueDate, payment.date));
+      // Paid in parts, it was settled by the last payment.
+      let settled: string | null = null;
+      for (const event of events) {
+        if (event.invoiceId === invoice.id && event.type === "payment" && (!settled || event.date > settled)) settled = event.date;
+      }
+      if (!settled) continue;
+      paidDaysLate.push(daysBetween(invoice.dueDate, settled));
     } else if (OPEN.has(invoice.status)) {
       openDueDates.push(invoice.dueDate);
     }

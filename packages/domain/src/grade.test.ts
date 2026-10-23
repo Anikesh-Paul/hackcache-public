@@ -142,6 +142,19 @@ describe("gradeCustomer", () => {
     expect(result.reason).toBe("usually pays 14 days late; this one is 38 days late");
   });
 
+  it("counts days late to the payment that settled an Invoice paid in parts", () => {
+    const result = gradeCustomer(
+      TODAY,
+      [{ id: "i1", dueDate: "2026-06-06", status: "paid" }],
+      [
+        { invoiceId: "i1", type: "payment", date: "2026-07-26" },
+        { invoiceId: "i1", type: "payment", date: "2026-06-08" },
+      ],
+      [],
+    );
+    expect(result).toMatchObject({ grade: "C", avgDelayDays: 50 });
+  });
+
   it("treats a broken Promise's instalment date as the day it broke", () => {
     const result = gradeCustomer(
       TODAY,

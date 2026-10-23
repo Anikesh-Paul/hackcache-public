@@ -1,5 +1,6 @@
 // POST /api/invoices. The browser may send totals; they are ignored. The
 // figures, the document type and the FY number all come from here.
+import { createHash } from "node:crypto";
 import { Permission, Role } from "node-appwrite";
 import type { CustomerRow, EventRow, InvoiceLineRow, InvoiceRow } from "@tagada/appwrite";
 import {
@@ -87,6 +88,11 @@ export function nextInvoiceNumber(existing: readonly string[], isoDate: string):
     if (Number.isInteger(serial) && serial > max) max = serial;
   }
   return invoiceNumber(PREFIX, isoDate, max + 1);
+}
+
+/** One row ID per number in a workspace, so the same number cannot be saved twice. */
+function invoiceRowId(workspaceId: string, number: string): string {
+  return `n${createHash("sha256").update(`${workspaceId}|${number}`).digest("hex").slice(0, 24)}`;
 }
 
 function parseLine(value: unknown): LineInput | null {
@@ -256,37 +262,46 @@ export async function issueInvoice(
     return fail(400, "invalid_line");
   }
 
-  const existing = (await worlds.list("invoices", workspaceId)).flatMap((row) => {
+  const taken = (await worlds.list("invoices", workspaceId)).flatMap((row) => {
     const number = text(row.number);
     return number ? [number] : [];
   });
-  const number = nextInvoiceNumber(existing, today);
-  const invoiceId = ids.row();
   const dueDate = addDays(today, creditDays);
-  const payToken = ids.payToken(invoiceId);
+  if (created) await worlds.write({ customers: [created] });
 
-  const invoice: InvoiceRow = {
-    $id: invoiceId,
-    workspaceId,
-    number,
-    docType: totals.docType,
-    customerId,
-    issueDate: today,
-    dueDate,
-    agreedDueDate: null,
-    taxablePaise: totals.taxablePaise,
-    cgstPaise: totals.cgstPaise,
-    sgstPaise: totals.sgstPaise,
-    igstPaise: totals.igstPaise,
-    roundOffPaise: totals.roundOffPaise,
-    totalPaise: totals.totalPaise,
-    paidPaise: 0,
-    status: "sent",
-    ladderStage: 0,
-    pausedUntil: null,
-    pauseReason: null,
-    payToken,
-  };
+  // Two quick saves can read the same last number. The row ID comes from the
+  // number, so the store refuses the second row and that save takes the next one.
+  let invoice: InvoiceRow | null = null;
+  for (let attempt = 0; attempt < 5 && !invoice; attempt++) {
+    const number = nextInvoiceNumber(taken, today);
+    const rowId = invoiceRowId(workspaceId, number);
+    const row: InvoiceRow = {
+      $id: rowId,
+      workspaceId,
+      number,
+      docType: totals.docType,
+      customerId,
+      issueDate: today,
+      dueDate,
+      agreedDueDate: null,
+      taxablePaise: totals.taxablePaise,
+      cgstPaise: totals.cgstPaise,
+      sgstPaise: totals.sgstPaise,
+      igstPaise: totals.igstPaise,
+      roundOffPaise: totals.roundOffPaise,
+      totalPaise: totals.totalPaise,
+      paidPaise: 0,
+      status: "sent",
+      ladderStage: 0,
+      pausedUntil: null,
+      pauseReason: null,
+      payToken: ids.payToken(rowId),
+    };
+    if ((await worlds.create("invoices", owned(row))) === "created") invoice = row;
+    else taken.push(number);
+  }
+  if (!invoice) return fail(409, "number_taken");
+  const { $id: invoiceId, number, payToken } = invoice;
 
   const invoiceLines: InvoiceLineRow[] = lines.map((line) => ({
     $id: ids.row(),
@@ -310,11 +325,9 @@ export async function issueInvoice(
   };
 
   const world: WorldRows = {
-    invoices: [owned(invoice)],
     invoice_lines: invoiceLines.map(owned),
     events: [owned(event)],
   };
-  if (created) world.customers = [created];
   await worlds.write(world);
 
   return {
