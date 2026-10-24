@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import {
   Bot,
   CalendarClock,
@@ -44,6 +44,7 @@ const ACTORS: Record<EventActor, typeof Bot> = {
 
 export function InvoiceDetail() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const world = useWorld();
   const t = useT();
   const invoice = world.invoices.find((i) => i.$id === id);
@@ -118,6 +119,7 @@ export function InvoiceDetail() {
           open={standing.state !== "paid"}
           overdue={standing.daysLate > 0}
           disputed={standing.state === "disputed"}
+          justMade={params.has("try")}
         />
         <div className="lg:order-first">
           <Head title={t.ladder.title} a={t.ladder.neverRepeats} />
@@ -383,6 +385,7 @@ function Actions({
   open,
   overdue,
   disputed,
+  justMade,
 }: {
   invoiceId: string;
   customerName: string;
@@ -391,6 +394,8 @@ function Actions({
   /** Past its due date: only then are the call, the letter and the case file offered. */
   overdue: boolean;
   disputed: boolean;
+  /** Saved just now from "Make your own invoice": say what to try next. */
+  justMade: boolean;
 }) {
   const late = open && overdue;
   const t = useT();
@@ -412,6 +417,16 @@ function Actions({
       <div className="ln wide">
         <div className="m" />
         <div className="p mt-4 grid gap-2">
+          {justMade && open && payLink && (
+            <div role="status" className="rounded-md border border-bamboo bg-bamboo-soft p-3 text-sm">
+              <p className="font-semibold">{t.invoice.madeTitle}</p>
+              <ol className="mt-1 list-decimal pl-5">
+                {t.invoice.madeSteps(customerName).map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </div>
+          )}
           {late && !disputed && (
             <Link to={`/call/${invoiceId}`} className="btn primary px-4 py-3 text-[15px]">
               <Phone aria-hidden /> {t.common.callWithAi}

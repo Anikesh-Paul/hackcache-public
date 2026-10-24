@@ -8,6 +8,7 @@ import {
   indianStates,
   isGstRate,
   parseAmountPaise,
+  quantityMilli,
   stateName,
   type GstRate,
 } from "@tagada/money";
@@ -42,8 +43,22 @@ type LineDraft = {
 
 const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper px-3 text-ink";
 
+/** Bamboo and cane basketwork, what this Demo business mostly sells. The Owner can type another. */
+const DEFAULT_HSN = "4602";
+
 function blankLine(): LineDraft {
-  return { key: crypto.randomUUID(), description: "", hsn: "", qty: "1", rate: "", discount: "0", gst: 5 };
+  return { key: crypto.randomUUID(), description: "", hsn: DEFAULT_HSN, qty: "1", rate: "", discount: "0", gst: 5 };
+}
+
+/** 2.5 or 0.75 are fine; at most three decimals, above 0. */
+function validQuantity(text: string): boolean {
+  const value = text.trim();
+  if (!/^\d*\.?\d+$/.test(value)) return false;
+  try {
+    return quantityMilli(Number(value)) >= 1n;
+  } catch {
+    return false;
+  }
 }
 
 function fromStored(line: InvoiceLineRow): LineDraft {
@@ -64,11 +79,10 @@ type LineField = "description" | "hsn" | "qty" | "rate" | "discount";
 /** The fields of a line that would stop it saving, so the form can say which. */
 function lineIssues(line: LineDraft): Set<LineField> {
   const issues = new Set<LineField>();
-  const quantity = line.qty.trim() === "" ? NaN : Number(line.qty);
   const discount = line.discount.trim() === "" ? 0 : Number(line.discount);
   if (!line.description.trim()) issues.add("description");
   if (!/^\d{4,8}$/.test(line.hsn.trim())) issues.add("hsn");
-  if (!Number.isInteger(quantity) || quantity < 1) issues.add("qty");
+  if (!validQuantity(line.qty)) issues.add("qty");
   if (!line.rate.trim() || parseAmountPaise(line.rate) === null) issues.add("rate");
   if (!Number.isInteger(discount) || discount < 0 || discount > 100) issues.add("discount");
   return issues;
@@ -89,8 +103,9 @@ function parseLine(line: LineDraft): DraftLine | null {
   };
 }
 
+/** A line counts as started once it has a description or a rate; the HSN comes filled in. */
 function touched(line: LineDraft): boolean {
-  return Boolean(line.description.trim() || line.hsn.trim() || line.rate.trim());
+  return Boolean(line.description.trim() || line.rate.trim());
 }
 
 function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
@@ -126,7 +141,8 @@ function newCustomerIssues(fresh: Fresh): CustomerIssue[] {
   const gstin = fresh.gstin.trim().toUpperCase();
   const issues: CustomerIssue[] = [];
   if (!fresh.name.trim()) issues.push("name");
-  if (!gstin || gstinMessage(gstin) !== null) issues.push("gstin");
+  // A GSTIN is optional (a shop or household buyer has none), but one that is typed must check.
+  if (gstin && gstinMessage(gstin) !== null) issues.push("gstin");
   if (stateName(fresh.stateCode) === null || (gstin.length >= 2 && fresh.stateCode !== gstin.slice(0, 2))) issues.push("state");
   if (!Number.isInteger(credit) || credit < 0 || credit > 365) issues.push("creditDays");
   return issues;
@@ -139,6 +155,8 @@ export function NewInvoice() {
   const t = useT();
   const [params] = useSearchParams();
   const fromId = params.get("from") ?? undefined;
+  // Came from the landing page's "Make your own invoice": walk the judge through it.
+  const trying = params.has("try");
   const source = fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined;
   const sourceLines = useInvoiceRows<InvoiceLineRow>("invoice_lines", source?.$id);
   const applied = useRef(false);
@@ -204,7 +222,7 @@ export function NewInvoice() {
         ? {
             customer: {
               name: fresh.name.trim(),
-              gstin: fresh.gstin.trim().toUpperCase(),
+              gstin: fresh.gstin.trim().toUpperCase() || undefined,
               stateCode: fresh.stateCode,
               creditDays: Number(fresh.creditDays),
               lang: fresh.lang,
@@ -216,7 +234,7 @@ export function NewInvoice() {
     try {
       const { invoiceId } = await createInvoice(body);
       await reload();
-      navigate(`/app/invoices/${invoiceId}`);
+      navigate(`/app/invoices/${invoiceId}${trying ? "?try" : ""}`);
     } catch (e) {
       const code = e instanceof SaveError ? e.code : "save_failed";
       setError(t.newInvoice.errors[code] ?? t.newInvoice.saveFailed);
@@ -239,6 +257,16 @@ export function NewInvoice() {
             </button>
           </div>
           <p className="mt-2 max-w-[60ch]">{t.newInvoice.intro}</p>
+          {trying && (
+            <div className="mt-4 rounded-md border border-bamboo bg-bamboo-soft p-3 text-sm">
+              <p className="font-semibold">{t.newInvoice.tryTitle}</p>
+              <ol className="mt-1 list-decimal pl-5">
+                {t.newInvoice.trySteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </div>
+          )}
           <div role="group" aria-label={t.newInvoice.previewAs} className="mt-4 flex flex-wrap gap-2">
             {MODES.map((id) => (
               <button
@@ -286,7 +314,7 @@ export function NewInvoice() {
               <Field label={t.newInvoice.name}>
                 <input className={control} value={fresh.name} onChange={(event) => setFresh({ ...fresh, name: event.target.value })} />
               </Field>
-              <Field label="GSTIN" hint={gstinProblem}>
+              <Field label={t.newInvoice.gstinOptional} hint={gstinProblem}>
                 <input
                   className={control}
                   value={fresh.gstin}
@@ -363,7 +391,7 @@ export function NewInvoice() {
                     <input className={control} inputMode="numeric" value={line.hsn} onChange={(event) => edit(line.key, { hsn: event.target.value })} />
                   </Field>
                   <Field label={t.newInvoice.quantity} hint={lineHint(line, "qty")}>
-                    <input className={control} inputMode="numeric" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
+                    <input className={control} inputMode="decimal" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
                   </Field>
                   <Field label={t.newInvoice.rate} hint={lineHint(line, "rate")}>
                     <input className={control} inputMode="decimal" value={line.rate} onChange={(event) => edit(line.key, { rate: event.target.value })} />

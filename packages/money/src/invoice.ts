@@ -7,7 +7,7 @@ export type Registration = "regular" | "composition" | "unregistered";
 export type DocType = "tax_invoice" | "bill_of_supply" | "invoice";
 
 export type InvoiceLineInput = {
-  /** Whole units. */
+  /** Units, to at most three decimals (2.5 kg, 0.75 m). At least 0.001. */
   quantity: number;
   /** Price of one unit, in paise, before the line discount. */
   ratePaise: number;
@@ -95,6 +95,18 @@ function stateCode(value: string, name: string): string {
   return code;
 }
 
+/**
+ * A quantity in thousandths of a unit, so 2.5 is 2500. A quantity with more
+ * than three decimals is refused rather than rounded: the bill would not
+ * match what was typed.
+ */
+export function quantityMilli(quantity: number): bigint {
+  if (!Number.isFinite(quantity)) throw new Error("quantity must be a number");
+  const milli = Math.round(quantity * 1000);
+  if (Math.abs(quantity * 1000 - milli) > 1e-6) throw new Error("quantity has more than three decimals");
+  return requireInt(milli, "quantity");
+}
+
 function roundPaiseToRupee(paise: bigint): bigint {
   return divRound(paise, 100n) * 100n;
 }
@@ -103,6 +115,7 @@ function roundPaiseToRupee(paise: bigint): bigint {
  * Price one invoice.
  *
  * Each line's taxable value is quantity × rate, minus the discount, in paise.
+ * A part quantity (2.5 kg) rounds the line's value to the paisa, half up.
  * CGST and SGST are each half the GST rate and are rounded to the paisa on
  * their own; IGST is the full rate, also per line. The sum is then rounded to
  * the nearest rupee (half up) and the difference is the round-off line.
@@ -127,15 +140,16 @@ export function invoiceTotals(input: InvoiceInput): InvoiceTotals {
   const lines: InvoiceLine[] = [];
 
   for (const line of input.lines) {
-    const quantity = requireInt(line.quantity, "quantity");
+    const milli = quantityMilli(line.quantity);
     const rate = requireInt(line.ratePaise, "ratePaise");
     const discountPercent = requireInt(line.discountPercent ?? 0, "discountPercent");
-    if (quantity < 1n) throw new Error("quantity must be at least 1");
+    if (milli < 1n) throw new Error("quantity must be more than 0");
     if (rate < 0n) throw new Error("ratePaise must be ≥ 0");
     if (discountPercent < 0n || discountPercent > 100n) throw new Error("discountPercent must be from 0 to 100");
     if (!isGstRate(line.gstRatePercent)) throw new Error(`GST rate ${line.gstRatePercent} is not configured`);
 
-    const gross = quantity * rate;
+    // Whole quantities divide exactly, so their figures are what they always were.
+    const gross = divRound(milli * rate, 1000n);
     const discount = divRound(gross * discountPercent, 100n);
     const lineTaxable = gross - discount;
     const halfBps = BigInt(line.gstRatePercent) * 50n;
@@ -185,7 +199,7 @@ export function lineMeasures(line: { quantity: number; discountPercent: number; 
   gstRateBp: number;
 } {
   return {
-    qtyMilli: line.quantity * 1000,
+    qtyMilli: Number(quantityMilli(line.quantity)),
     discountBp: line.discountPercent * 100,
     gstRateBp: line.gstRatePercent * 100,
   };

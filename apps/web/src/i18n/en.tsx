@@ -307,6 +307,12 @@ export const en = {
   },
   invoice: {
     label: "Invoice",
+    madeTitle: "Saved. Now be the Customer",
+    madeSteps: (name: string) => [
+      `Open the pay link as ${name}.`,
+      "Say it is paid, ask for more time, or raise a dispute.",
+      "Come back: the bell shows what they did, and this Invoice's timeline has it too.",
+    ],
     nextSteps: "Next steps",
     details: "Details",
     sameState: "Same state, so CGST and SGST.",
@@ -394,10 +400,16 @@ export const en = {
     removeLine: "Remove line",
     addLine: "Add a line",
     finishLines: "Finish every line you started, or clear it. The fields marked in red say what each needs.",
+    tryTitle: "Make your own invoice",
+    trySteps: [
+      "Choose a Customer, or add a new one: your own name works.",
+      "Fill in a line. The HSN comes filled in for bamboo basketwork; change it if you like.",
+      "Save. Today counts the new Invoice at once: what you are owed, its age and the 13-week cash.",
+    ],
     lineHints: {
       description: "Add a description.",
       hsn: "Enter an HSN or SAC code of 4 to 8 digits, such as 4602.",
-      qty: "Use a whole number, 1 or more.",
+      qty: "Use a number above 0, such as 3 or 2.5, with at most three decimals.",
       rate: "Enter the rate in rupees, such as 1,500.50.",
       discount: "Use a whole number from 0 to 100.",
     },
@@ -405,8 +417,8 @@ export const en = {
     blockers: {
       customer: "Choose a Customer, or add a new one.",
       name: "Add the new Customer's name.",
-      gstin: "Add the new Customer's GSTIN, all 15 characters.",
-      state: "Choose the state that matches the GSTIN's first two digits.",
+      gstin: "Fix the new Customer's GSTIN, or leave it empty if they have none.",
+      state: "Choose the Customer's state. With a GSTIN, it must match its first two digits.",
       creditDays: "Credit days must be a whole number from 0 to 365.",
       line: "Fill in at least one line.",
     },
@@ -415,6 +427,7 @@ export const en = {
     printPreview: "Print preview",
     previewEmpty: "Choose a Customer and add a line. The Invoice appears here as you type.",
     saveFailed: "The Invoice could not be saved. Try again.",
+    gstinOptional: "GSTIN (leave empty if they have none)",
     gstinCheck: "The check digit does not match. Check the GSTIN.",
     gstinShape: "A GSTIN is 15 letters and digits.",
     errors: {

@@ -9,7 +9,7 @@ A collections desk for India's small manufacturers: it ranks who to chase, calls
 **[Open the live app](https://app-web-dlk4.onrender.com)** · **[See every rupee checked](https://app-web-dlk4.onrender.com/proof)** · No login, no setup
 
 [![CI](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/unit%20tests-504%20passing-3f6b35)
+![Tests](https://img.shields.io/badge/unit%20tests-508%20passing-3f6b35)
 ![Proof](https://img.shields.io/badge/%2Fproof-44%20of%2044-3f6b35)
 ![Languages](https://img.shields.io/badge/English%20%C2%B7%20%E0%A4%B9%E0%A4%BF%E0%A4%A8%E0%A5%8D%E0%A4%A6%E0%A5%80%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-c9952b)
 
@@ -40,6 +40,7 @@ Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While y
 | Door | What happens |
 |---|---|
 | **Start the 2-minute tour** | Eight steps. The app moves itself to each screen and changes the books for you, from ₹48,000 short to salaries covered. |
+| **Make your own invoice** | Bill any customer, or add one with your own name (GSTIN optional, part quantities like 2.5 kg are fine). Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. |
 | **Be Gupta ji: take the call** | You play the customer. Speak Hindi or English to Munim, the AI agent, and watch the owner's books change as you talk. No microphone? Read or play the recorded call instead. |
 | **See the proof** | 44 test cases from the brief (GST, interest, matching, the Ladder, grades), computed live in your browser from the same code the app runs. |
 
@@ -194,7 +195,7 @@ flowchart LR
 
 | | |
 |---|---|
-| **504 unit tests** (Vitest) | Every money and domain rule, the server's routes, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
+| **508 unit tests** (Vitest) | Every money and domain rule, the server's routes, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
 | **44 live cases** on `/proof` | The brief's cases, from the same packages, in the judge's own browser |
 | **5 end-to-end tests** (Playwright), run against the live site | A customer's "already paid" reaching the owner's Inbox; the tour to *Salary covered ✓* and `/proof`; the tour twice in a row from a reset with no failed send; `/proof` typed mid-tour; the language switch |
 
