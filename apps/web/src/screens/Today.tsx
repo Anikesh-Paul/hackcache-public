@@ -2,16 +2,9 @@ import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { AlertTriangle, Check, FolderOpen, Inbox, Phone } from "lucide-react";
 import type { CallRow } from "@tagada/appwrite";
-import { callReturn, formatDate, formatInr } from "@tagada/money";
-import {
-  CHASE_WHY,
-  type AgeingBucket,
-  type ExpectedReceipt,
-  type Outflow,
-  type TodayBook,
-} from "@tagada/domain";
-import { ownerCopy, salaryHeadline } from "../i18n/owner.ts";
-import { useLang } from "../lib/prefs.ts";
+import { callReturn, formatInr } from "@tagada/money";
+import { type AgeingBucket, type ExpectedReceipt, type Outflow, type TodayBook } from "@tagada/domain";
+import { salaryHeadline, useT, type Copy } from "../i18n/index.ts";
 import { ForecastChart, ForecastTable, PayPackets, SalaryFigure } from "../books.tsx";
 import { useTodayBook } from "../lib/today.ts";
 import { useInbox, usePaymentHistory, useWorkspaceRows, useWorld } from "../lib/world.tsx";
@@ -19,18 +12,19 @@ import { Head, Ln, Paper } from "../ui.tsx";
 import { InboxLine, inboxItems } from "./Inbox.tsx";
 import { FollowUps } from "./FollowUps.tsx";
 
-const day = (iso: string) => formatDate(iso, { weekday: false });
+const day = (t: Copy, iso: string) => t.date(iso, { weekday: false });
 
 /** /app: the one number, and everything that explains it. */
 export function Today() {
   const state = useTodayBook();
   const world = useWorld();
+  const t = useT();
   if (state.status !== "ready") {
     return (
-      <Paper label="Today">
+      <Paper label={t.shell.tabs.today}>
         <Ln>
           <p className="text-ink-2" role="status">
-            {state.status === "loading" ? "Adding up your books…" : "Your books could not be read. Reload to try again."}
+            {state.status === "loading" ? t.today.adding : t.today.unreadable}
           </p>
         </Ln>
       </Paper>
@@ -39,13 +33,13 @@ export function Today() {
   const { book } = state;
   return (
     <div className="spread">
-      <Paper label="Money" className="spread-main">
+      <Paper label={t.today.money} className="spread-main">
         <Headline book={book} today={world.workspace.today} />
         <TotalsRow book={book} />
         <Forecast book={book} />
         <ChaseFirst book={book} />
       </Paper>
-      <Paper label="Today's work">
+      <Paper label={t.today.work}>
         <FollowUps />
         <DaysToGetPaid book={book} />
         <CallReturn />
@@ -55,24 +49,25 @@ export function Today() {
   );
 }
 
-function WhyButton({ open, onClick, children = "Why?" }: { open: boolean; onClick: () => void; children?: ReactNode }) {
+function WhyButton({ open, onClick, children }: { open: boolean; onClick: () => void; children?: ReactNode }) {
+  const t = useT();
   return (
     <button type="button" className="linkbtn text-sm" aria-expanded={open} onClick={onClick}>
-      {open ? "Hide" : children}
+      {open ? t.common.hide : (children ?? t.common.why)}
     </button>
   );
 }
 
 function Headline({ book, today }: { book: TodayBook; today: string }) {
-  const { lang } = useLang();
+  const t = useT();
   const [why, setWhy] = useState(false);
   const salary = book.salary;
   if (!salary) {
     return (
       <div className="sect">
         <Ln>
-          <h1 className="text-[28px] leading-tight">No salary day in the next 13 weeks</h1>
-          <p className="text-sm text-ink-2">Add salaries in Settings to see whether they are covered.</p>
+          <h1 className="text-[28px] leading-tight">{t.today.noSalary}</h1>
+          <p className="text-sm text-ink-2">{t.today.addSalaries}</p>
         </Ln>
       </div>
     );
@@ -91,12 +86,8 @@ function Headline({ book, today }: { book: TodayBook; today: string }) {
           </span>
         </div>
         <div className="p">
-          <h1 className="text-[28px] leading-tight">
-            {salaryHeadline(salary.daysAway, !short, lang)}
-          </h1>
-          <p className="text-sm text-ink-2">
-            {formatDate(salary.date)}: salaries of {formatInr(salary.salaryPaise)}.
-          </p>
+          <h1 className="text-[28px] leading-tight">{salaryHeadline(salary.daysAway, !short, t)}</h1>
+          <p className="text-sm text-ink-2">{t.salary.of(t.date(salary.date), formatInr(salary.salaryPaise))}</p>
         </div>
         <div className="a">
           <SalaryFigure cashAfterPaise={salary.cashAfterPaise} />
@@ -106,17 +97,15 @@ function Headline({ book, today }: { book: TodayBook; today: string }) {
         <PayPackets salary={salary} />
         <p className="mt-3">
           {short
-            ? `Bring in ${formatInr(-salary.cashAfterPaise)} before ${formatDate(salary.date)} and salaries are covered.`
-            : `Salaries on ${formatDate(salary.date)} are covered by what is in the bank and what is due before then.`}{" "}
-          <WhyButton open={why} onClick={() => setWhy((o) => !o)}>
-            Why?
-          </WhyButton>
+            ? t.today.bringIn(formatInr(-salary.cashAfterPaise), t.date(salary.date))
+            : t.today.coveredBy(t.date(salary.date))}{" "}
+          <WhyButton open={why} onClick={() => setWhy((o) => !o)} />
         </p>
       </Ln>
       {why && (
         <div className="entries working mt-2">
-          <Ln m={day(today)} a={formatInr(book.cashTodayPaise)}>
-            In the bank today
+          <Ln m={day(t, today)} a={formatInr(book.cashTodayPaise)}>
+            {t.today.inBankToday}
           </Ln>
           {lines.map((line) =>
             "receipt" in line ? (
@@ -126,14 +115,10 @@ function Headline({ book, today }: { book: TodayBook; today: string }) {
             ),
           )}
           <Ln a={<span className="dbl">{formatInr(salary.cashAfterPaise)}</span>} className="tot">
-            {short ? "Short on salary day" : "Spare on salary day"}
+            {short ? t.today.shortOnDay : t.today.spareOnDay}
           </Ln>
           <Ln>
-            <small>
-              Expected from Customers means each open Invoice on its due date plus that Customer's usual delay, or
-              on the date they promised. Invoices later than usual, disputed, or already in the bank are not
-              counted.
-            </small>
+            <small>{t.today.expectedNote}</small>
           </Ln>
         </div>
       )}
@@ -142,17 +127,19 @@ function Headline({ book, today }: { book: TodayBook; today: string }) {
 }
 
 function ReceiptLine({ r }: { r: ExpectedReceipt }) {
+  const t = useT();
   return (
-    <Ln m={day(r.date)} a={formatInr(r.amountPaise, { signed: true })}>
+    <Ln m={day(t, r.date)} a={formatInr(r.amountPaise, { signed: true })}>
       {r.customerName}
-      <small>{r.basis === "promise" ? "the date they promised" : "due date plus their usual delay"}</small>
+      <small>{r.basis === "promise" ? t.today.promisedDate : t.today.usualDelay}</small>
     </Ln>
   );
 }
 
 function OutflowLine({ o }: { o: Outflow }) {
+  const t = useT();
   return (
-    <Ln m={day(o.date)} a={formatInr(-o.amountPaise)}>
+    <Ln m={day(t, o.date)} a={formatInr(-o.amountPaise)}>
       {o.label}
     </Ln>
   );
@@ -162,42 +149,40 @@ type TotalKey = "receivables" | "overdue" | "expected" | "upcoming";
 
 function TotalsRow({ book }: { book: TodayBook }) {
   const [open, setOpen] = useState<TotalKey | null>(null);
-  const t = book.totals;
-  const until = formatDate(t.expectedUntil);
+  const t = useT();
+  const totals = book.totals;
+  const until = t.date(totals.expectedUntil);
   const tiles: { key: TotalKey; label: string; paise: number; sub: string; why: ReactNode }[] = [
     {
       key: "receivables",
-      label: "Total receivables",
-      paise: t.receivablesPaise,
-      sub: `${t.receivablesCount} Invoices not yet paid`,
-      why: (
-        <>
-          Everything still owed on Invoices that are not marked paid. {formatInr(t.inBankPaise)} of it is already in the
-          bank, waiting for you to confirm it on the <Link to="/app/bank">Bank</Link> page
-          {t.disputedPaise > 0 && <>, and {formatInr(t.disputedPaise)} is held up by a Dispute</>}.
-        </>
+      label: t.today.receivables,
+      paise: totals.receivablesPaise,
+      sub: t.today.receivablesSub(totals.receivablesCount),
+      why: t.today.receivablesWhy(
+        formatInr(totals.inBankPaise),
+        totals.disputedPaise > 0 ? formatInr(totals.disputedPaise) : null,
+        <Link to="/app/bank">{t.shell.tabs.bank}</Link>,
       ),
     },
     {
       key: "overdue",
-      label: "Overdue",
-      paise: t.overduePaise,
-      sub: `${t.overdueCount} Invoices past their due date`,
-      why: "The part of total receivables on Invoices whose due date has passed, including any with a Promise or a Dispute.",
+      label: t.today.overdue,
+      paise: totals.overduePaise,
+      sub: t.today.overdueSub(totals.overdueCount),
+      why: t.today.overdueWhy,
     },
     {
       key: "expected",
-      label: "Expected collections",
-      paise: t.expectedPaise,
-      sub: `by ${until}`,
+      label: t.today.expected,
+      paise: totals.expectedPaise,
+      sub: t.today.by(until),
       why: (
         <>
-          What the next 30 days should bring in: each open Invoice on its due date plus that Customer's usual delay, or
-          on the date they promised.
+          {t.today.expectedWhy}
           <span className="mt-2 block">
             {book.receipts
-              .filter((r) => r.date <= t.expectedUntil)
-              .map((r) => `${r.customerName} ${formatInr(r.amountPaise)} on ${day(r.date)}`)
+              .filter((r) => r.date <= totals.expectedUntil)
+              .map((r) => t.today.onDate(r.customerName, formatInr(r.amountPaise), day(t, r.date)))
               .join(". ")}
             .
           </span>
@@ -206,16 +191,16 @@ function TotalsRow({ book }: { book: TodayBook }) {
     },
     {
       key: "upcoming",
-      label: "Upcoming expenses",
-      paise: t.upcomingPaise,
-      sub: `by ${until}`,
+      label: t.today.upcoming,
+      paise: totals.upcomingPaise,
+      sub: t.today.by(until),
       why: (
         <>
-          Salaries, rent and suppliers due in the next 30 days.
+          {t.today.upcomingWhy}
           <span className="mt-2 block">
             {book.outflows
-              .filter((o) => o.date <= t.expectedUntil)
-              .map((o) => `${o.label} ${formatInr(o.amountPaise)} on ${day(o.date)}`)
+              .filter((o) => o.date <= totals.expectedUntil)
+              .map((o) => t.today.onDate(o.label, formatInr(o.amountPaise), day(t, o.date)))
               .join(". ")}
             .
           </span>
@@ -226,7 +211,7 @@ function TotalsRow({ book }: { book: TodayBook }) {
   const shown = tiles.find((tile) => tile.key === open);
   return (
     <div className="sect">
-      <Head title="Your position" />
+      <Head title={t.today.position} />
       <div className="tiles">
         {tiles.map((tile) => (
           <div key={tile.key} className="tile">
@@ -244,7 +229,7 @@ function TotalsRow({ book }: { book: TodayBook }) {
           </p>
         </Ln>
       )}
-      <Ageing buckets={book.ageing} total={t.receivablesPaise} />
+      <Ageing buckets={book.ageing} total={totals.receivablesPaise} />
     </div>
   );
 }
@@ -257,11 +242,12 @@ const AGE_TONE: Record<AgeingBucket["key"], string> = {
 };
 
 function Ageing({ buckets, total }: { buckets: readonly AgeingBucket[]; total: number }) {
+  const t = useT();
   return (
     <div className="mt-6">
       <Ln>
-        <h3 className="text-[15px]">How old the money owed is</h3>
-        <p className="text-[13px] text-ink-2">Days past the due date. Tap a group to see its Invoices.</p>
+        <h3 className="text-[15px]">{t.today.ageingTitle}</h3>
+        <p className="text-[13px] text-ink-2">{t.today.ageingNote}</p>
         <div className="ageing-bar mt-3" aria-hidden>
           {buckets.map((b) =>
             b.amountPaise > 0 ? (
@@ -279,11 +265,9 @@ function Ageing({ buckets, total }: { buckets: readonly AgeingBucket[]; total: n
             <div className="p">
               <Link to={`/app/invoices?age=${b.key}`} className="no-underline after:absolute after:inset-0">
                 {b.label}
-                <span className="sr-only"> days past due</span>
+                <span className="sr-only">{t.today.daysPastDue}</span>
               </Link>
-              <small>
-                {b.count} {b.count === 1 ? "Invoice" : "Invoices"}
-              </small>
+              <small>{t.common.invoices(b.count)}</small>
             </div>
             <div className="a">{formatInr(b.amountPaise)}</div>
           </li>
@@ -295,39 +279,33 @@ function Ageing({ buckets, total }: { buckets: readonly AgeingBucket[]; total: n
 
 function Forecast({ book }: { book: TodayBook }) {
   const [table, setTable] = useState(false);
-  const { lang } = useLang();
-  const t = ownerCopy(lang);
+  const t = useT();
   return (
     <div className="sect">
-      <Head title="Next 13 weeks" a="cash at week end" />
+      <Head title={t.forecast.title} a={t.forecast.cashAtWeekEnd} />
       <Ln>
         {book.newSales.weeklyPaise > 0 && (
           <p className="mb-1 text-[13px] text-ink-2">
-            {t.expectedSales(formatDate(book.newSales.fromDate, { weekday: false }), formatInr(book.newSales.weeklyPaise))}
+            {t.forecast.expectedSales(t.date(book.newSales.fromDate, { weekday: false }), formatInr(book.newSales.weeklyPaise))}
           </p>
         )}
         <ForecastChart weeks={book.weeks} />
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-2">
           <span className="inline-flex items-center gap-1.5">
-            <span className="swatch bar-ok-swatch" aria-hidden /> Enough cash
+            <span className="swatch bar-ok-swatch" aria-hidden /> {t.forecast.enough}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <span className="swatch bar-short-swatch" aria-hidden /> Short
+            <span className="swatch bar-short-swatch" aria-hidden /> {t.forecast.short}
           </span>
           <span className="flex-1" />
           <WhyButton open={table} onClick={() => setTable((o) => !o)}>
-            Why? See every week
+            {t.forecast.seeEveryWeek}
           </WhyButton>
         </div>
         {table && (
           <>
             <ForecastTable weeks={book.weeks} />
-            <p className="mt-2 text-[13px] text-ink-2">
-              Coming in: each open Invoice on its due date plus that Customer's usual delay, or on the date they
-              promised. Expected new sales: a week's share of what you invoiced in the last 3 months, from the day an
-              Invoice raised today would usually be paid. Going out: salaries, rent, power and raw bamboo. The
-              salary-day headline counts only what is in your books now.
-            </p>
+            <p className="mt-2 text-[13px] text-ink-2">{t.forecast.explain}</p>
           </>
         )}
       </Ln>
@@ -337,12 +315,13 @@ function Forecast({ book }: { book: TodayBook }) {
 
 function ChaseFirst({ book }: { book: TodayBook }) {
   const [why, setWhy] = useState(false);
+  const t = useT();
   return (
     <div className="sect" data-tour="chase">
-      <Head title="Chase these first" a="owed" />
+      <Head title={t.today.chaseTitle} a={t.today.owed} />
       {book.chase.length === 0 ? (
         <Ln>
-          <p className="text-ink-2">Nothing to chase: every unpaid Invoice is promised, disputed or on its way.</p>
+          <p className="text-ink-2">{t.today.nothingToChase}</p>
         </Ln>
       ) : (
         <ol className="entries">
@@ -353,15 +332,15 @@ function ChaseFirst({ book }: { book: TodayBook }) {
               </div>
               <div className="p">
                 <div className="font-medium">{row.customerName}</div>
-                <p className="text-sm">{row.reason}</p>
+                <p className="text-sm">{t.today.chaseReason(row.why, row.amountPaise, row.gapClosedPaise)}</p>
                 <div className="mt-2">
                   {row.action === "call" ? (
                     <Link to={`/call/${row.invoiceId}`} className="btn primary">
-                      <Phone aria-hidden /> Call with AI
+                      <Phone aria-hidden /> {t.common.callWithAi}
                     </Link>
                   ) : (
                     <Link to={`/app/invoices/${row.invoiceId}`} className="btn secondary">
-                      <FolderOpen aria-hidden /> Open
+                      <FolderOpen aria-hidden /> {t.common.open}
                     </Link>
                   )}
                 </div>
@@ -369,7 +348,7 @@ function ChaseFirst({ book }: { book: TodayBook }) {
               <div className="a">
                 <b>{formatInr(row.amountPaise)}</b>
                 <small className="block text-[13px] text-ink-2">
-                  {row.daysLate > 0 ? `${row.daysLate} ${row.daysLate === 1 ? "day" : "days"} late` : "not due yet"}
+                  {row.daysLate > 0 ? t.common.daysLate(row.daysLate) : t.common.notDueYet}
                 </small>
               </div>
             </li>
@@ -379,10 +358,10 @@ function ChaseFirst({ book }: { book: TodayBook }) {
       <Ln>
         <p className="mt-3">
           <WhyButton open={why} onClick={() => setWhy((o) => !o)}>
-            How is this order worked out?
+            {t.today.orderWhy}
           </WhyButton>
         </p>
-        {why && <p className="mt-2 max-w-[68ch] text-sm">{CHASE_WHY}</p>}
+        {why && <p className="mt-2 max-w-[68ch] text-sm">{t.today.chaseWhy}</p>}
       </Ln>
     </div>
   );
@@ -390,29 +369,18 @@ function ChaseFirst({ book }: { book: TodayBook }) {
 
 function DaysToGetPaid({ book }: { book: TodayBook }) {
   const [why, setWhy] = useState(false);
+  const t = useT();
   const { days, count, ifKeptDays, promisedCount } = book.daysToGetPaid;
   return (
     <div className="sect">
-      <Head title="Days to get paid" />
+      <Head title={t.today.daysToGetPaid} />
       <Ln>
         {days === null ? (
-          <p>No Invoice was paid in the last 6 months.</p>
+          <p>{t.today.nonePaid}</p>
         ) : (
           <p className="text-[17px] leading-snug">
-            You wait <b>{days} days</b> on average to get paid.
-            {ifKeptDays !== null && (
-              <>
-                {" "}
-                If today's promises are kept,{" "}
-                {ifKeptDays === days ? (
-                  <>that stays at {days}.</>
-                ) : (
-                  <>
-                    that {ifKeptDays < days ? "drops" : "rises"} to <b>{ifKeptDays}</b>.
-                  </>
-                )}
-              </>
-            )}
+            {t.today.youWait(days)}
+            {ifKeptDays !== null && t.today.ifKept(days, ifKeptDays)}
           </p>
         )}
         <p className="mt-2">
@@ -420,10 +388,8 @@ function DaysToGetPaid({ book }: { book: TodayBook }) {
         </p>
         {why && (
           <p className="mt-2 text-sm">
-            Days from the Invoice date to the day it was paid, averaged over the {count} Invoices paid in the last 6
-            months.
-            {ifKeptDays !== null &&
-              ` The second figure adds the ${promisedCount} unpaid ${promisedCount === 1 ? "Invoice" : "Invoices"} with a Promise or Plan, as if each is paid on its last promised date.`}{" "}
+            {t.today.daysWhy(count)}
+            {ifKeptDays !== null && t.today.daysWhyKept(promisedCount)}
           </p>
         )}
       </Ln>
@@ -434,7 +400,7 @@ function DaysToGetPaid({ book }: { book: TodayBook }) {
 /** What the AI calls cost against what the Plans and Promises agreed on them secured. */
 function CallReturn() {
   const world = useWorld();
-  const { lang } = useLang();
+  const t = useT();
   const calls = useWorkspaceRows<CallRow>("calls");
   const [why, setWhy] = useState(false);
   if (!Array.isArray(calls)) return null;
@@ -446,20 +412,13 @@ function CallReturn() {
   });
   return (
     <div className="sect">
-      <Head title={ownerCopy(lang).aiCalls} />
+      <Head title={t.today.aiCalls} />
       <Ln>
-        <p className="text-[17px] leading-snug">
-          Cost <b>{formatInr(roi.costPaise)}</b>, secured <b>{formatInr(roi.securedPaise)}</b>.
-        </p>
+        <p className="text-[17px] leading-snug">{t.today.costSecured(formatInr(roi.costPaise), formatInr(roi.securedPaise))}</p>
         <p className="mt-2">
           <WhyButton open={why} onClick={() => setWhy((o) => !o)} />
         </p>
-        {why && (
-          <p className="mt-2 text-sm">
-            {roi.calls} {roi.calls === 1 ? "call" : "calls"}, priced by how long each one ran. Secured is what the Plans
-            and Promises agreed on a call add up to, while they stand.
-          </p>
-        )}
+        {why && <p className="mt-2 text-sm">{t.today.callsWhy(roi.calls)}</p>}
       </Ln>
     </div>
   );
@@ -480,20 +439,17 @@ function LatestInbox() {
   const world = useWorld();
   const inbox = useInbox();
   const history = usePaymentHistory();
+  const t = useT();
   const items = Array.isArray(inbox) ? inboxItems(world, inbox, Array.isArray(history) ? history : null).slice(0, 3) : [];
   return (
     <div className="sect">
-      <Head title="Inbox" a={<Link to="/app/inbox">Open</Link>} />
+      <Head title={t.inbox.title} a={<Link to="/app/inbox">{t.common.open}</Link>} />
       <div className="entries" aria-live="polite">
         {items.length > 0 ? (
           items.map((item) => <InboxLine key={item.row.$id} item={item} fresh={!item.row.read} />)
         ) : (
           <Ln m={<Inbox size={16} aria-hidden className="ml-auto" />}>
-            <p className="text-sm text-ink-2">
-              {inbox === "loading"
-                ? "Loading the Inbox…"
-                : "Replies from the pay link land here: paid claims, Disputes, Plans and screenshots."}
-            </p>
+            <p className="text-sm text-ink-2">{inbox === "loading" ? t.inbox.loading : t.today.inboxEmpty}</p>
           </Ln>
         )}
       </div>

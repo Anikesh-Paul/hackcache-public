@@ -7,13 +7,12 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { bankTxnId, planInWords } from "@tagada/domain";
-import { addDays, formatDate, formatInr } from "@tagada/money";
+import { addDays, formatInr } from "@tagada/money";
 import { GUPTA_PLAN, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR } from "@tagada/seed";
 import { confirmBank, importBank, runLadder } from "./lib/appwrite.ts";
 import { pay } from "./lib/pay.ts";
 import { PayLinkQr } from "./pay-qr.tsx";
-import { ownerCopy } from "./i18n/owner.ts";
-import { useLang } from "./lib/prefs.ts";
+import { useT, type Copy } from "./i18n/index.ts";
 import { CallPlayer } from "./sample-call.tsx";
 
 /** What the tour needs to know about the visitor's Demo world, read once on the landing page. */
@@ -54,15 +53,16 @@ function save(state: TourState | null) {
 }
 
 type Step = {
-  title: string;
+  /** Names the step's title and body in the strings tables, so a reorder keeps each title on its step. */
+  id: keyof Copy["tour"]["steps"];
   /** Where the step happens. */
   route: (s: TourState) => string;
   /** The element the coach mark rings; the step still reads without it. */
   target: string;
-  body: (s: TourState) => ReactNode;
+  body: (s: TourState, t: Copy) => ReactNode;
   /** Puts the books in the state the step talks about. Returns what changed. */
   enter?: (s: TourState) => Promise<Partial<TourState>>;
-  extra?: (s: TourState) => ReactNode;
+  extra?: (s: TourState, t: Copy) => ReactNode;
 };
 
 /** Gupta ji agrees, on his pay link, the Plan the sample call agreed, unless a Plan is already in place. */
@@ -94,114 +94,48 @@ async function confirmGupta(s: TourState): Promise<Partial<TourState>> {
 }
 
 const STEPS: Step[] = [
+  { id: "salary", route: () => "/app", target: '[data-tour="headline"]', body: (_s, t) => t.tour.steps.salary.body() },
+  { id: "chase", route: () => "/app", target: '[data-tour="chase"]', body: (_s, t) => t.tour.steps.chase.body() },
+  { id: "guard", route: (s) => `/call/${s.invoiceId}`, target: '[data-tour="guard"]', body: (_s, t) => t.tour.steps.guard.body() },
   {
-    title: "Is salary day safe?",
-    route: () => "/app",
-    target: '[data-tour="headline"]',
-    body: () => (
-      <>
-        Today adds up the bank balance and the payments due in, less rent, suppliers and salaries, up to salary day. The
-        nine pay packets are the nine people paid that day. Press <b>Why?</b> to see every number.
-      </>
-    ),
-  },
-  {
-    title: "Chase these first",
-    route: () => "/app",
-    target: '[data-tour="chase"]',
-    body: () => (
-      <>
-        Unpaid Invoices, ranked by what is owed, how late it is and how this Customer usually pays. Gupta Traders owes
-        ₹1,18,000, 38 days late. <b>Why?</b> shows how each row is ranked.
-      </>
-    ),
-  },
-  {
-    title: "Before the call",
-    route: (s) => `/call/${s.invoiceId}`,
-    target: '[data-tour="guard"]',
-    body: () => (
-      <>
-        Before Munim, the AI agent, rings anyone, Tagada checks consent, calling hours and your Plan rule. Munim says
-        it is an AI in its first line. Code checks the Plan rule, not the AI.
-      </>
-    ),
-  },
-  {
-    title: "Be Gupta ji: take the call",
+    id: "call",
     route: (s) => `/call/${s.invoiceId}`,
     target: '[data-tour="start"]',
-    body: () => (
-      <>
-        Press <b>Start call</b> and answer as Gupta ji, in Hindi or English. Offer ₹40,000 on Friday and hear Munim
-        ask for more. No microphone, or no time? Hear or read the call below, then press <b>Next</b>: the tour records
-        the Plan it agreed.
-      </>
-    ),
+    body: (_s, t) => t.tour.steps.call.body(),
     extra: () => <CallPlayer />,
   },
   {
-    title: "Salary covered",
+    id: "covered",
     route: () => "/app",
     target: '[data-tour="headline"]',
     enter: agreePlan,
-    body: (s) => (
-      <>
-        {s.plan ? (
-          <>
-            The tour recorded the Plan the call agreed, on Gupta ji's pay link, as he could himself: {s.plan}. It is
-            inside your rule, so it is agreed and the Ladder pauses for him.
-          </>
-        ) : (
-          <>Once a Plan from Gupta ji is agreed, the Ladder pauses for him.</>
-        )}{" "}
-        His first {formatInr(FIRST.amountPaise)} lands before salary day, so the pay packets fill and the headline turns
-        to <b>Salary covered</b>.
-      </>
-    ),
+    body: (s, t) => t.tour.steps.covered.body(s.plan ? t.call.plan(GUPTA_PLAN) : null, formatInr(FIRST.amountPaise)),
   },
   {
-    title: "Gupta ji's pay link",
+    id: "paylink",
     route: (s) => (s.token ? `/pay/${s.token}` : `/app/invoices/${s.invoiceId}`),
     target: '[data-tour="paid"]',
-    body: () => (
-      <>
-        This is what Gupta ji sees, in Hindi, with no login. He can pay by UPI, pick a Plan, raise a Dispute, or say{" "}
-        <span lang="hi">मैंने भुगतान कर दिया है</span> (I have already paid) and add a screenshot. Nothing counts as
-        paid until the bank statement shows it.
-      </>
-    ),
-    extra: (s) => (s.token ? <PayLinkQr token={s.token} label="Open this pay link on your phone" /> : null),
+    body: (_s, t) => t.tour.steps.paylink.body(),
+    extra: (s, t) => (s.token ? <PayLinkQr token={s.token} label={t.tour.qrLabel} /> : null),
   },
   {
-    title: "A week later: the money is in",
+    id: "week",
     route: () => "/app/bank",
     target: `[data-utr="${GUPTA_PROOF_UTR}"]`,
     enter: aWeekLater,
-    body: (s) => (
-      <>
-        The tour imported the week's bank statement, then moved the Demo date on to{" "}
-        {formatDate(addDays(s.today, WEEK))} and ran the daily Ladder for it: the same workflow the 10:00 cron starts.
-        Gupta ji's {formatInr(FIRST.amountPaise)} came in on {formatDate(GUPTA_PROOF_DATE)}, and it is matched to his
-        Invoice. Nothing is paid until you confirm it: press <b>Confirm</b>, or <b>Next</b> and the tour confirms it.
-      </>
-    ),
+    body: (s, t) =>
+      t.tour.steps.week.body(t.date(addDays(s.today, WEEK)), formatInr(FIRST.amountPaise), t.date(GUPTA_PROOF_DATE)),
   },
   {
-    title: "Salary covered ✓",
+    id: "done",
     route: () => "/app",
     target: '[data-tour="headline"]',
     enter: confirmGupta,
-    body: () => (
-      <>
-        Gupta ji kept the Plan's first instalment, and the week's other payments came in, so the salaries are covered
-        with money to spare. The Automation log shows every run of the Ladder, with its retries.
-      </>
-    ),
-    extra: () => (
+    body: (_s, t) => t.tour.steps.done.body(),
+    extra: (_s, t) => (
       <p className="mt-2">
         <Link to="/app/automation" className="linkbtn">
-          Automation log
+          {t.shell.log}
         </Link>
       </p>
     ),
@@ -292,8 +226,7 @@ function useRing(selector: string, on: boolean) {
 function Coach({ state, onChange }: { state: TourState; onChange: (next: TourState | null) => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const { lang } = useLang();
-  const t = ownerCopy(lang);
+  const t = useT();
   const step = STEPS[state.step] ?? STEPS[0]!;
   const route = step.route(state);
   const here = pathname === route;
@@ -326,7 +259,7 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         changes = await next.enter(state);
       } catch (e) {
         console.error("tour step failed", e);
-        setError("The tour could not change the books for this step. The screen still shows what is there.");
+        setError(t.tour.failed);
       } finally {
         setBusy(false);
       }
@@ -335,15 +268,15 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
   };
 
   const end = () => onChange(null);
-  const progress = t.tourProgress(state.step + 1, STEPS.length);
+  const progress = t.tour.progress(state.step + 1, STEPS.length);
 
   if (folded) {
     return (
       <div className="tour-chip no-print">
         <button type="button" className="btn primary" onClick={() => onChange({ ...state, arrive: true })}>
-          {t.resumeTour(state.step + 1, STEPS.length)}
+          {t.tour.resume(state.step + 1, STEPS.length)}
         </button>
-        <button type="button" className="tour-x" onClick={end} aria-label={t.endTour}>
+        <button type="button" className="tour-x" onClick={end} aria-label={t.tour.end}>
           <X size={16} aria-hidden />
         </button>
       </div>
@@ -368,17 +301,17 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
       >
         <div className="flex items-start gap-2">
           <p className="text-xs text-ink-2">{progress}</p>
-          <button type="button" className="tour-x" onClick={end} aria-label={t.endTour}>
+          <button type="button" className="tour-x" onClick={end} aria-label={t.tour.end}>
             <X size={16} aria-hidden />
           </button>
         </div>
         <h2 id="tour-title" ref={heading} tabIndex={-1} className="text-lg leading-snug font-semibold">
-          {t.tourTitles[state.step] ?? step.title}
+          {t.tour.steps[step.id].title}
         </h2>
         {/* Only the body scrolls, so Back and Next stay in view under a long sample call. */}
         <div className="tour-body mt-1 text-[14.5px]">
-          <p>{step.body(state)}</p>
-          {step.extra?.(state)}
+          <p>{step.body(state, t)}</p>
+          {step.extra?.(state, t)}
           {error && (
             <p role="alert" className="mt-2 text-sindoor">
               {error}
@@ -388,27 +321,27 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         <div className="mt-3 flex items-center gap-2">
           <span className="tour-dots" aria-hidden>
             {STEPS.map((s, i) => (
-              <i key={s.title} className={i === state.step ? "on" : i < state.step ? "done" : ""} />
+              <i key={s.id} className={i === state.step ? "on" : i < state.step ? "done" : ""} />
             ))}
           </span>
           <span className="flex-1" />
           {state.step > 0 && (
             <button type="button" className="btn secondary" disabled={busy} onClick={() => go(state.step - 1)}>
-              <ArrowLeft aria-hidden /> {t.back}
+              <ArrowLeft aria-hidden /> {t.tour.back}
             </button>
           )}
           {last ? (
             <Link to="/proof" className="btn primary" onClick={end}>
-              {t.seeProof} <ArrowRight aria-hidden />
+              {t.tour.seeProof} <ArrowRight aria-hidden />
             </Link>
           ) : (
             <button type="button" className="btn primary" disabled={busy} onClick={() => go(state.step + 1)}>
-              {busy ? "…" : t.next} {!busy && <ArrowRight aria-hidden />}
+              {busy ? "…" : t.tour.next} {!busy && <ArrowRight aria-hidden />}
             </button>
           )}
         </div>
         <p className="sr-only" role="status" aria-live="polite">
-          {busy ? "Changing the books for the next step…" : ""}
+          {busy ? t.tour.changing : ""}
         </p>
       </section>
     </>

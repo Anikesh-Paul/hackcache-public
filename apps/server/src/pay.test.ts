@@ -290,6 +290,13 @@ describe("GET /api/pay/:token/audio", () => {
     expect(spoken.at(-1)).toContain("নমস্কার");
     expect(spoken.at(-1)).not.toContain("हिंदी");
     expect(spoken.at(-1)).toContain("টাকা");
+    expect(spoken.at(-1)).not.toContain("₹");
+  });
+
+  it("reads an English page with spoken dates, not ISO ones", async () => {
+    const res = await app.request(`/api/pay/${gupta().payToken}/audio?lang=en`);
+    expect(res.status).toBe(200);
+    expect(spoken.at(-1)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
   });
 });
 

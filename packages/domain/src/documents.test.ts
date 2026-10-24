@@ -286,7 +286,7 @@ describe("documents in the Customer's language", () => {
 
   it("prints Gupta's letter in Hindi, with the amount in Hindi words", () => {
     const letter = demandLetter({ ...input, lang: "hi" });
-    expect(letter.title).toBe("भुगतान मांग पत्र");
+    expect(letter.title).toBe("बकाया भुगतान के लिए पत्र");
     expect(letter.disclaimer).toBe("यह जीएसटी या कानूनी नोटिस नहीं है।");
     expect(letter.outstandingWords).toBe(hindiRupees(11_800_000));
     expect(letter.headings.outstanding).toBe("बकाया");

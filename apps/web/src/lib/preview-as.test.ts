@@ -128,7 +128,7 @@ describe("gstinMessage", () => {
   it("stays quiet until there is a value, then flags a bad check digit", () => {
     expect(gstinMessage("")).toBeNull();
     expect(gstinMessage(good)).toBeNull();
-    expect(gstinMessage(bad)).toMatch(/check digit/i);
-    expect(gstinMessage("16AA")).not.toMatch(/check digit/i);
+    expect(gstinMessage(bad)).toBe("check-digit");
+    expect(gstinMessage("16AA")).toBe("shape");
   });
 });

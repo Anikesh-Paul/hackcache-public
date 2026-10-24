@@ -12,7 +12,9 @@ import {
   formatDate,
   formatInr,
   formatRateBps,
+  bengaliDate,
   hindiDate,
+  hindiShortDate,
   sumPaise,
   upiPayUri,
 } from "@tagada/money";
@@ -170,29 +172,31 @@ export type CaseFile = {
   transcriptLine: string;
 };
 
-const BN_MONTHS = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
-
 function dated(iso: string, lang: DocLang): string {
   if (lang === "hi") return hindiDate(iso);
-  if (lang === "bn") {
-    const [year, month, day] = iso.split("-").map(Number);
-    const name = BN_MONTHS[(month ?? 0) - 1];
-    return name && day && year ? `${day} ${name} ${year}` : iso;
-  }
+  if (lang === "bn") return bengaliDate(iso, { year: true });
   return formatDate(iso, { weekday: false, year: true });
+}
+
+/** A date in a list of workings: short, in the letter's language. */
+function shortDated(iso: string, lang: DocLang): string {
+  if (lang === "hi") return hindiShortDate(iso);
+  if (lang === "bn") return bengaliDate(iso);
+  return formatDate(iso, { weekday: false });
 }
 
 function restLine(
   invoiceNumber: string,
   rest: { start: string | null; end: string | null; rates: { days: number | null; annualBps: number }[]; interestPaise: number },
   phrases: DocPhrases,
+  lang: DocLang,
 ): string {
   const rates = rest.rates
     .map((part) => (part.days === null ? formatRateBps(part.annualBps) : phrases.restRate(formatRateBps(part.annualBps), part.days)))
     .join(" + ");
   const when =
     rest.start && rest.end
-      ? phrases.restSpan(formatDate(rest.start, { weekday: false }), formatDate(rest.end, { weekday: false }))
+      ? phrases.restSpan(shortDated(rest.start, lang), shortDated(rest.end, lang))
       : phrases.restMonth;
   return `${invoiceNumber}: ${when}, ${rates}, ${formatInr(rest.interestPaise)}`;
 }
@@ -251,7 +255,7 @@ function prepare(
     if (!meter) continue;
     interests.push(meter.interestPaise);
     principals.push(meter.principalPaise);
-    for (const rest of meter.rests) workings.push(restLine(invoice.number, rest, phrases));
+    for (const rest of meter.rests) workings.push(restLine(invoice.number, rest, phrases, lang));
   }
   const outstandingPaise = sumPaise(balances);
   const interestPaise = sumPaise(interests);

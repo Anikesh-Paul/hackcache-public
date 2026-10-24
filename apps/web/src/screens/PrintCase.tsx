@@ -6,6 +6,7 @@ import { useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { customerOf, invoiceOf, invoicesForDocument, promisesForDocument, sellerOf } from "../lib/documents.ts";
 import { NotFound } from "./NotFound.tsx";
 import { NothingDue, PlanBanner, PrintBar } from "./PrintBar.tsx";
+import { useT } from "../i18n/index.ts";
 
 const sheet =
   "on-paper case-file mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-4 text-[12px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[10mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
@@ -18,14 +19,15 @@ export function PrintCase() {
   const calls = useWorkspaceRows<CallRow>("calls", true);
   const invoice = world.invoices.find((row) => row.$id === id);
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
+  const [englishCopy, setEnglishCopy] = useState(false);
+  const t = useT();
   if (!invoice || !customer) return <NotFound what="Invoice" />;
 
-  const [englishCopy, setEnglishCopy] = useState(false);
   const lang = englishCopy ? "en" : customer.lang === "hi" || customer.lang === "bn" ? customer.lang : "en";
   const listed = invoicesForDocument(world.invoices, invoice).map(invoiceOf);
   const ready = reminders !== null && reminders !== "failed" && calls !== null && calls !== "failed";
-  const file = ready
-    ? odrCaseFile({
+  const input = ready
+    ? {
         seller: sellerOf(world.workspace),
         customer: customerOf(customer),
         invoices: listed,
@@ -39,21 +41,23 @@ export function PrintCase() {
         })),
         calls: calls.map((row) => ({ invoiceId: row.invoiceId, startedAt: row.startedAt, transcript: row.transcript })),
         today: world.workspace.today,
-        lang,
-      })
+      }
     : null;
+  const file = input ? odrCaseFile({ ...input, lang }) : null;
+  // The page prints in the Customer's language; what only the Owner sees on screen follows the header.
+  const screen = input && lang !== t.lang ? odrCaseFile({ ...input, lang: t.lang }) : file;
   const copy = { englishCopy, onEnglishCopy: () => setEnglishCopy((on) => !on) };
-  if (file?.nothingDue) return <NothingDue invoiceId={invoice.$id} text={file.nothingDue} {...copy} />;
+  if (screen?.nothingDue) return <NothingDue invoiceId={invoice.$id} text={screen.nothingDue} {...copy} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
       <PrintBar invoiceId={invoice.$id} canPrint={file !== null} {...copy} />
-      <PlanBanner text={file?.planBanner ?? null} />
+      <PlanBanner text={screen?.planBanner ?? null} />
       {!ready || !file ? (
         <p className="text-center text-ink-2">
           {reminders === "failed" || calls === "failed"
-            ? "The case file could not be loaded. Reload the page to try again."
-            : "Loading the case file…"}
+            ? t.print.caseFailed
+            : t.print.caseLoading}
         </p>
       ) : (
         <article className={sheet}>

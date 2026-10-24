@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useParams } from "react-router";
 import { demandLetter } from "@tagada/domain";
-import { useLang } from "../lib/prefs.ts";
+import { useT } from "../i18n/index.ts";
 import { useWorld } from "../lib/world.tsx";
 import { customerOf, invoiceOf, invoicesForDocument, promisesForDocument, sellerOf } from "../lib/documents.ts";
 import { Badge } from "../ui.tsx";
@@ -18,19 +18,14 @@ export function PrintLetter() {
   const world = useWorld();
   const invoice = world.invoices.find((row) => row.$id === id);
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
+  const t = useT();
+  const [englishCopy, setEnglishCopy] = useState(false);
   if (!invoice || !customer) return <NotFound what="Invoice" />;
 
-  const { lang: uiLang } = useLang();
-  const [englishCopy, setEnglishCopy] = useState(false);
-  const note =
-    uiLang === "hi"
-      ? { upi: "डेमो UPI ID, कोई भुगतान नहीं होता", bank: "इस डेमो की नमूना खाता जानकारी। कोई भुगतान नहीं होता।" }
-      : uiLang === "bn"
-        ? { upi: "ডেমো UPI ID, কোনো টাকা যায় না", bank: "এই ডেমোর নমুনা অ্যাকাউন্ট। কোনো টাকা যায় না।" }
-        : { upi: "Simulated UPI ID: no one is paid", bank: "Sample account for this Demo world. No one is paid." };
+  const note = { upi: t.print.upiNote, bank: t.print.bankNote };
   const payUrl = invoice.payToken ? `${location.origin}/pay/${invoice.payToken}` : null;
   const lang = englishCopy ? "en" : customer.lang === "hi" || customer.lang === "bn" ? customer.lang : "en";
-  const letter = demandLetter({
+  const input = {
     seller: sellerOf(world.workspace),
     customer: customerOf(customer),
     invoices: invoicesForDocument(world.invoices, invoice).map(invoiceOf),
@@ -38,15 +33,17 @@ export function PrintLetter() {
     invoiceId: invoice.$id,
     today: world.workspace.today,
     payUrl,
-    lang,
-  });
+  };
+  const letter = demandLetter({ ...input, lang });
+  // The page prints in the Customer's language; what only the Owner sees on screen follows the header.
+  const screen = lang === t.lang ? letter : demandLetter({ ...input, lang: t.lang });
   const copy = { englishCopy, onEnglishCopy: () => setEnglishCopy((on) => !on) };
-  if (letter.nothingDue) return <NothingDue invoiceId={invoice.$id} text={letter.nothingDue} {...copy} />;
+  if (screen.nothingDue) return <NothingDue invoiceId={invoice.$id} text={screen.nothingDue} {...copy} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
       <PrintBar invoiceId={invoice.$id} {...copy} />
-      <PlanBanner text={letter.planBanner} />
+      <PlanBanner text={screen.planBanner} />
       <article className={sheet}>
         <header className="border-b-2 border-ink pb-3">
           <p className="text-lg font-semibold">{letter.fromName}</p>

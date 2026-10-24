@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Check, Clock, Flag, Handshake, CircleDot } from "lucide-react";
-import { formatDate } from "@tagada/money";
 import type { InvoiceStanding } from "@tagada/domain";
+import { useT } from "./i18n/index.ts";
 
 /** A ledger line: margin | particulars | amount. Without `a`, particulars run the full width. */
 export function Ln({
@@ -44,35 +44,36 @@ export function Badge({ kind, children }: { kind: "real" | "sim"; children: Reac
 
 /** Status as an icon and a word, never colour alone. */
 export function StatusWord({ standing, dueDate }: { standing: InvoiceStanding; dueDate: string }) {
+  const t = useT();
   switch (standing.state) {
     case "paid":
       return (
         <span className="word ok">
-          <Check aria-hidden /> Paid
+          <Check aria-hidden /> {t.status.paid}
         </span>
       );
     case "disputed":
       return (
         <span className="word short">
-          <Flag aria-hidden /> Disputed
+          <Flag aria-hidden /> {t.status.disputed}
         </span>
       );
     case "promised":
       return (
         <span className="word ok">
-          <Handshake aria-hidden /> Promised
+          <Handshake aria-hidden /> {t.status.promised}
         </span>
       );
     case "overdue":
       return (
         <span className="word warn">
-          <Clock aria-hidden /> {standing.daysLate} {standing.daysLate === 1 ? "day" : "days"} late
+          <Clock aria-hidden /> {t.common.daysLate(standing.daysLate)}
         </span>
       );
     case "open":
       return (
         <span className="word plain">
-          <CircleDot aria-hidden /> {standing.daysToDue === 0 ? "Due today" : `Due ${formatDate(dueDate)}`}
+          <CircleDot aria-hidden /> {standing.daysToDue === 0 ? t.status.dueToday : t.status.dueOn(t.date(dueDate))}
         </span>
       );
   }

@@ -134,6 +134,17 @@ export type ChaseRow = {
   /** Call with AI when the Customer agreed to calls and the reminders are done; else open the Invoice. */
   action: "call" | "open";
   reason: string;
+  /** The reason's parts, so a screen can word it in the Owner's language. */
+  why: ChaseWhy;
+};
+
+export type ChaseWhy = {
+  /** "none": salaries are covered, so it brings in its amount; "all" or "part" of the salary gap. */
+  gap: "none" | "all" | "part";
+  gapPaise: number;
+  avgDelayDays: number | null;
+  /** Days since the last Reminder; null when there was none. */
+  reminderAgoDays: number | null;
 };
 
 export type DaysToGetPaid = {
@@ -452,6 +463,12 @@ function chaseFirst(
       gapClosedPaise,
       action: call ? "call" : "open",
       reason: `${what}. ${habit.charAt(0).toUpperCase()}${habit.slice(1)}; ${lastReminder(input, r.invoiceId)}.`,
+      why: {
+        gap: gap === 0 ? "none" : gapClosedPaise >= gap ? "all" : "part",
+        gapPaise: gap,
+        avgDelayDays: r.grade.avgDelayDays,
+        reminderAgoDays: reminderAgo(input, r.invoiceId),
+      },
       score,
     });
   }
@@ -461,10 +478,16 @@ function chaseFirst(
     .map(({ score: _score, ...row }) => row);
 }
 
-function lastReminder(input: BookInput, invoiceId: string): string {
+function reminderAgo(input: BookInput, invoiceId: string): number | null {
   const last = latestDate(input.events.filter((e) => e.invoiceId === invoiceId && e.type === "reminder").map((e) => e.date));
-  if (last === null) return "no reminder yet";
+  if (last === null) return null;
   const ago = daysBetween(last, input.today);
+  return ago < 0 ? 0 : ago;
+}
+
+function lastReminder(input: BookInput, invoiceId: string): string {
+  const ago = reminderAgo(input, invoiceId);
+  if (ago === null) return "no reminder yet";
   if (ago <= 0) return "reminded today";
   return `no reminder in ${ago} ${ago === 1 ? "day" : "days"}`;
 }

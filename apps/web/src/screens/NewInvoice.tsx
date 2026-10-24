@@ -17,24 +17,9 @@ import { gstinMessage, priceDraft, type DraftLine, type PreviewAs } from "../lib
 import { useInvoiceRows, useWorld, useWorldState } from "../lib/world.tsx";
 import { Ln, Paper } from "../ui.tsx";
 import { TaxInvoice } from "./TaxInvoice.tsx";
+import { useT } from "../i18n/index.ts";
 
-const MODES: { id: PreviewAs; label: string }[] = [
-  { id: "regular", label: "Regular" },
-  { id: "composition", label: "Composition seller" },
-  { id: "unregistered", label: "Unregistered" },
-];
-
-const SAVE_ERRORS: Record<string, string> = {
-  invalid_gstin: "That GSTIN check digit does not match.",
-  invalid_line: "Check the lines. Each needs a description, an HSN of 4 to 8 digits, a quantity, a rate and a listed GST rate.",
-  invalid_customer: "Check the new Customer's name, state and credit days.",
-  invalid_body: "The Invoice could not be read. Try again.",
-  unknown_customer: "That Customer is not in this Demo world.",
-  composition_interstate: "A composition seller cannot bill a Customer in another state.",
-  world_not_ready: "Your books are still opening. Try again in a moment.",
-  number_taken: "Other Invoices were saved at the same moment. Save again for the next number.",
-  unauthorized: "The session expired. Reload the page.",
-};
+const MODES: PreviewAs[] = ["regular", "composition", "unregistered"];
 
 type Fresh = {
   name: string;
@@ -140,6 +125,7 @@ export function NewInvoice() {
   const world = useWorld();
   const { reload } = useWorldState();
   const navigate = useNavigate();
+  const t = useT();
   const [params] = useSearchParams();
   const fromId = params.get("from") ?? undefined;
   const source = fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined;
@@ -182,7 +168,8 @@ export function NewInvoice() {
     !partial &&
     ready.length > 0 &&
     (customerId !== "new" ? Boolean(world.customers.get(customerId)) : newCustomerReady(fresh));
-  const gstinProblem = customerId === "new" && fresh.gstin.trim() ? gstinMessage(fresh.gstin) : null;
+  const gstinCheck = customerId === "new" && fresh.gstin.trim() ? gstinMessage(fresh.gstin) : null;
+  const gstinProblem = gstinCheck === null ? null : gstinCheck === "check-digit" ? t.newInvoice.gstinCheck : t.newInvoice.gstinShape;
 
   const edit = (key: string, patch: Partial<LineDraft>) =>
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
@@ -211,50 +198,45 @@ export function NewInvoice() {
       navigate(`/app/invoices/${invoiceId}`);
     } catch (e) {
       const code = e instanceof SaveError ? e.code : "save_failed";
-      setError(SAVE_ERRORS[code] ?? "The Invoice could not be saved. Try again.");
+      setError(t.newInvoice.errors[code] ?? t.newInvoice.saveFailed);
       setSaving(false);
     }
   };
 
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Paper label="New invoice">
+      <Paper label={t.newInvoice.label}>
         <Ln>
           <p className="text-[13px] text-ink-2">
-            <Link to="/app/invoices">Invoices</Link>
-            {source ? ` / ${source.number}` : ""} / new
+            <Link to="/app/invoices">{t.invoices.title}</Link>
+            {source ? ` / ${source.number}` : ""} / {t.newInvoice.crumbNew}
           </p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-            <h1 className="text-[28px] leading-tight">New invoice</h1>
+            <h1 className="text-[28px] leading-tight">{t.newInvoice.title}</h1>
             <button type="button" className="btn primary" disabled={!canSave} onClick={save}>
-              {saving ? "Saving…" : priced?.saves === false ? "Preview only" : "Save invoice"}
+              {saving ? t.common.saving : priced?.saves === false ? t.newInvoice.previewOnly : t.newInvoice.save}
             </button>
           </div>
-          <p className="mt-2 max-w-[60ch]">
-            Totals update as you type. On save, the server works them out again and gives the Invoice the next number.
-          </p>
-          <div role="group" aria-label="Preview as" className="mt-4 flex flex-wrap gap-2">
-            {MODES.map((item) => (
+          <p className="mt-2 max-w-[60ch]">{t.newInvoice.intro}</p>
+          <div role="group" aria-label={t.newInvoice.previewAs} className="mt-4 flex flex-wrap gap-2">
+            {MODES.map((id) => (
               <button
-                key={item.id}
+                key={id}
                 type="button"
-                aria-pressed={mode === item.id}
-                onClick={() => setMode(item.id)}
+                aria-pressed={mode === id}
+                onClick={() => setMode(id)}
                 className={`min-h-11 rounded-md border px-3 text-sm ${
-                  mode === item.id ? "border-ink bg-ink font-semibold text-paper" : "border-rule-strong text-ink"
+                  mode === id ? "border-ink bg-ink font-semibold text-paper" : "border-rule-strong text-ink"
                 }`}
               >
-                {item.label}
+                {t.newInvoice.modes[id]}
               </button>
             ))}
           </div>
           {mode === "regular" ? (
-            <p className="mt-2 text-sm text-ink-2">{world.workspace.businessName}, on its own registration.</p>
+            <p className="mt-2 text-sm text-ink-2">{t.newInvoice.ownRegistration(world.workspace.businessName)}</p>
           ) : (
-            <p className="mt-2 text-sm">
-              A sample seller in Agartala
-              {mode === "composition" ? ", who charges no GST" : ", with no GSTIN"}. This preview is not saved.
-            </p>
+            <p className="mt-2 text-sm">{t.newInvoice.sampleSeller(mode === "composition")}</p>
           )}
         </Ln>
 
@@ -266,21 +248,21 @@ export function NewInvoice() {
             void save();
           }}
         >
-          <Field label="Customer">
+          <Field label={t.newInvoice.customer}>
             <select className={control} value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
-              <option value="">Choose a Customer</option>
+              <option value="">{t.newInvoice.choose}</option>
               {customers.map((customer) => (
                 <option key={customer.$id} value={customer.$id}>
                   {customer.name}, {customer.place}
                 </option>
               ))}
-              <option value="new">Add a new Customer</option>
+              <option value="new">{t.newInvoice.addNew}</option>
             </select>
           </Field>
 
           {customerId === "new" && (
             <div className="grid gap-3 rounded-md border border-rule p-3">
-              <Field label="Name">
+              <Field label={t.newInvoice.name}>
                 <input className={control} value={fresh.name} onChange={(event) => setFresh({ ...fresh, name: event.target.value })} />
               </Field>
               <Field label="GSTIN" hint={gstinProblem}>
@@ -302,13 +284,13 @@ export function NewInvoice() {
                 />
               </Field>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="State">
+                <Field label={t.newInvoice.state}>
                   <select
                     className={control}
                     value={fresh.stateCode}
                     onChange={(event) => setFresh({ ...fresh, stateCode: event.target.value })}
                   >
-                    <option value="">Choose a state</option>
+                    <option value="">{t.newInvoice.chooseState}</option>
                     {indianStates().map((state) => (
                       <option key={state.code} value={state.code}>
                         {state.code} {state.name}
@@ -316,7 +298,7 @@ export function NewInvoice() {
                     ))}
                   </select>
                 </Field>
-                <Field label="Credit days">
+                <Field label={t.newInvoice.creditDays}>
                   <input
                     className={control}
                     inputMode="numeric"
@@ -325,7 +307,7 @@ export function NewInvoice() {
                   />
                 </Field>
               </div>
-              <Field label="Preferred language">
+              <Field label={t.newInvoice.language}>
                 <select
                   className={control}
                   value={fresh.lang}
@@ -338,7 +320,7 @@ export function NewInvoice() {
                   ))}
                 </select>
               </Field>
-              <Field label="Address">
+              <Field label={t.newInvoice.address}>
                 <input
                   className={control}
                   value={fresh.address}
@@ -351,21 +333,21 @@ export function NewInvoice() {
           <div className="grid gap-3">
             {lines.map((line, index) => (
               <fieldset key={line.key} className="grid gap-2 border-t border-rule pt-3">
-                <legend className="text-sm font-medium">Line {index + 1}</legend>
-                <Field label="Description">
+                <legend className="text-sm font-medium">{t.newInvoice.line(index + 1)}</legend>
+                <Field label={t.newInvoice.description}>
                   <input className={control} value={line.description} onChange={(event) => edit(line.key, { description: event.target.value })} />
                 </Field>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label="HSN or SAC">
+                  <Field label={t.newInvoice.hsn}>
                     <input className={control} inputMode="numeric" value={line.hsn} onChange={(event) => edit(line.key, { hsn: event.target.value })} />
                   </Field>
-                  <Field label="Quantity">
+                  <Field label={t.newInvoice.quantity}>
                     <input className={control} inputMode="numeric" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
                   </Field>
-                  <Field label="Rate (₹)">
+                  <Field label={t.newInvoice.rate}>
                     <input className={control} inputMode="decimal" value={line.rate} onChange={(event) => edit(line.key, { rate: event.target.value })} />
                   </Field>
-                  <Field label="Discount %">
+                  <Field label={t.newInvoice.discount}>
                     <input
                       className={control}
                       inputMode="numeric"
@@ -374,7 +356,7 @@ export function NewInvoice() {
                     />
                   </Field>
                 </div>
-                <Field label="GST rate">
+                <Field label={t.newInvoice.gstRate}>
                   <select
                     className={control}
                     value={line.gst}
@@ -396,17 +378,17 @@ export function NewInvoice() {
                     className="btn bare justify-self-start"
                     onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}
                   >
-                    Remove line
+                    {t.newInvoice.removeLine}
                   </button>
                 )}
               </fieldset>
             ))}
             <button type="button" className="btn secondary justify-self-start" onClick={() => setLines((current) => [...current, blankLine()])}>
-              Add a line
+              {t.newInvoice.addLine}
             </button>
           </div>
 
-          {partial && <p className="text-sm">Finish every line you started, or clear it.</p>}
+          {partial && <p className="text-sm">{t.newInvoice.finishLines}</p>}
           {error && (
             <p role="alert" className="text-sm text-sindoor">
               {error}
@@ -419,9 +401,7 @@ export function NewInvoice() {
       <div className="min-w-0">
         {priced?.sampleCustomer && (
           <p className="mb-3 text-sm">
-            {mode === "composition"
-              ? "A composition seller sells only inside their own state, so this preview bills a sample Customer in Agartala."
-              : "This preview bills a sample Customer in Agartala."}
+            {mode === "composition" ? t.newInvoice.compositionSample : t.newInvoice.sample}
           </p>
         )}
         {priced ? (
@@ -435,10 +415,10 @@ export function NewInvoice() {
             dueDate={addDays(world.workspace.today, creditDays)}
           />
         ) : (
-          <Paper label="Print preview">
+          <Paper label={t.newInvoice.printPreview}>
             <Ln>
-              <h2 className="text-lg">Print preview</h2>
-              <p className="mt-2 text-ink-2">Choose a Customer and add a line. The Invoice appears here as you type.</p>
+              <h2 className="text-lg">{t.newInvoice.printPreview}</h2>
+              <p className="mt-2 text-ink-2">{t.newInvoice.previewEmpty}</p>
             </Ln>
           </Paper>
         )}

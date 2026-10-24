@@ -13,4 +13,10 @@ describe("proof links", () => {
       );
     }
   });
+
+  it("links to main when the build does not know its commit", () => {
+    expect(proofHref("unknown", "packages/money/src/money.test.ts")).toBe(
+      "https://github.com/Anikesh-Paul/hackcache-public/blob/main/packages/money/src/money.test.ts",
+    );
+  });
 });
