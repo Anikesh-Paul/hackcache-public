@@ -482,7 +482,7 @@ function Outcome(props: {
       <Head title={agreed ? t.call.planAgreed : o.kind === "promise" ? t.call.promiseMade : t.call.needsDecision} />
       <Ln m={agreed && <span className="stamp ok">{t.call.planAgreed}</span>}>
         <p className="font-semibold">{t.call.plan(plan)}</p>
-        {o.kind === "plan_needs_owner" && <p className="text-sm">{o.reasons.join(" ")}</p>}
+        {o.kind === "plan_needs_owner" && <p className="text-sm">{o.issues.map(t.call.issue).join(" ")}</p>}
         {!recorded.saved && <small className="text-ink-2">{t.common.saving}</small>}
       </Ln>
       {recorded.saved && !decided && (

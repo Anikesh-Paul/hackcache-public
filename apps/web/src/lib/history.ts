@@ -3,9 +3,17 @@
 // type and data. A type this does not know keeps its stored sentence.
 import type { EventRow, PromiseRow } from "@tagada/appwrite";
 import { formatInr } from "@tagada/money";
-import type { Copy } from "../i18n/index.ts";
+import { reminderName, type Copy } from "../i18n/index.ts";
 
-type Payload = { totalPaise?: unknown; amountPaise?: unknown; stage?: unknown; promiseId?: unknown; email?: unknown };
+type Payload = {
+  totalPaise?: unknown;
+  amountPaise?: unknown;
+  stage?: unknown;
+  promiseId?: unknown;
+  channel?: unknown;
+  email?: unknown;
+  reason?: unknown;
+};
 
 function payloadOf(event: EventRow): Payload {
   if (!event.payload) return {};
@@ -19,9 +27,25 @@ function payloadOf(event: EventRow): Payload {
 
 const money = (value: unknown) => (typeof value === "number" && Number.isSafeInteger(value) ? formatInr(value) : null);
 
-/** What the Customer said, when the stored sentence quotes it. */
-function quoted(summary: string): string | null {
-  return /"([^"]+)"/.exec(summary)?.[1] ?? null;
+/** What the Customer said: the payload's reason, or for older events the quote in the stored sentence. */
+function reasonOf(p: Payload, summary: string): string | null {
+  return typeof p.reason === "string" ? p.reason : (/"([^"]+)"/.exec(summary)?.[1] ?? null);
+}
+
+/** Sent by email: the payload's channel, or for older events the stored sentence. */
+function byEmail(p: Payload, summary: string): boolean {
+  if (typeof p.channel === "string") return p.channel === "email";
+  return p.email !== undefined || /by email/.test(summary);
+}
+
+/** The Promise's instalments in words, or null when the stored JSON cannot be read. */
+function planOf(t: Copy, promise: PromiseRow): string | null {
+  try {
+    const instalments = JSON.parse(promise.instalments) as unknown;
+    return Array.isArray(instalments) ? t.call.plan(instalments as { amountPaise: number; date: string }[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRow[]): string {
@@ -29,13 +53,13 @@ export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRo
   const p = payloadOf(event);
   const h = t.history;
   const promise = typeof p.promiseId === "string" ? promises.find((row) => row.$id === p.promiseId) : undefined;
-  const plan = promise ? t.call.plan(JSON.parse(promise.instalments) as { amountPaise: number; date: string }[]) : null;
+  const plan = promise ? planOf(t, promise) : null;
   switch (event.type) {
     case "sent":
       return h.sent(money(p.totalPaise));
     case "reminder": {
-      const stage = typeof p.stage === "number" ? (t.ladder.reminderNames[p.stage - 1] ?? t.ladder.stages[p.stage - 1]?.name) : null;
-      return h.reminder(stage ?? t.ladder.reminder, p.email !== undefined || /by email/.test(event.summary));
+      const stage = typeof p.stage === "number" ? reminderName(t, p.stage) : t.ladder.reminder;
+      return h.reminder(stage, byEmail(p, event.summary));
     }
     case "payment":
       return h.payment(money(p.amountPaise));
@@ -64,7 +88,7 @@ export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRo
     case "promise_broken":
       return h.promiseBroken;
     case "dispute":
-      return h.dispute(quoted(event.summary));
+      return h.dispute(reasonOf(p, event.summary));
     case "consent":
       return h.consent;
     case "link_opened":

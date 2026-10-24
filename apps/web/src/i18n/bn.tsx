@@ -76,13 +76,15 @@ export const bn: Copy = {
     simulated: "নমুনা",
     simulatedNote: "ব্যাংক ফিড, UPI ID আর আজকের আগের ইতিহাস।",
     opening: "আপনার খাতা খুলছে…",
+    openFailed: "আপনার ডেমো খোলা গেল না।",
+    resetFailed: "ডেমো নতুন করে শুরু করা গেল না।",
   },
   status: {
     paid: "মেটানো হয়েছে",
     disputed: "আপত্তি",
     promised: "প্রতিশ্রুতি",
     dueToday: "আজ দেয়",
-    dueOn: (when) => `${when} দেয়`,
+    dueOn: (when) => `${when}-এ দেয়`,
   },
   notFound: {
     invoice: "বিল",
@@ -193,7 +195,7 @@ export const bn: Copy = {
           ? "এখনও কোনো অনুস্মারক যায়নি"
           : why.reminderAgoDays === 0
             ? "আজ অনুস্মারক গেছে"
-            : `${why.reminderAgoDays} দিন কোনো অনুস্মারক যায়নি`;
+            : `${why.reminderAgoDays} দিন ধরে কোনো অনুস্মারক যায়নি`;
       return `${what}। ${habit(why.avgDelayDays)}; ${last}।`;
     },
     daysToGetPaid: "টাকা পেতে কত দিন",
@@ -562,7 +564,7 @@ export const bn: Copy = {
       sent: "পাঠানো হয়েছে",
       failed: "যায়নি",
       retried: "আবার চেষ্টা",
-      skipped_cap: "কালকে সরানো হয়েছে (দিনে একটি)",
+      skipped_cap: "কালকের জন্য রাখা হয়েছে (দিনে একটি)",
       skipped_stage_off: "মালিকের জন্য তৈরি",
     },
     story: {
@@ -710,6 +712,10 @@ export const bn: Copy = {
     declinedNote: "নামঞ্জুর হয়েছে। অনুস্মারকের সিঁড়ি চলতে থাকবে।",
     notSaved: "সেভ হয়নি। আবার চেষ্টা করুন।",
     plan: (plan) => plan.map((i) => `${formatInr(i.amountPaise)}, ${date(i.date)}-এর মধ্যে`).join(", তারপর "),
+    issue: (i) =>
+      i.kind === "first_short"
+        ? `প্রথম কিস্তি, ${formatInr(i.amountPaise)}, আপনার ${i.pct}% নিয়মের (${formatInr(i.minPaise)}) চেয়ে কম।`
+        : `${i.kind === "first_late" ? "প্রথম" : "শেষ"} কিস্তির তারিখ ${date(i.date)}, আপনার ${i.days} দিনের (${date(i.by)}) পরে।`,
   },
   sample: {
     read: "একটি নমুনা কল পড়ুন",
@@ -789,7 +795,7 @@ export const bn: Copy = {
         title: "গুপ্তাজি হয়ে কল ধরুন",
         body: () => (
           <>
-            <b>কল শুরু করুন</b> চাপুন আর গুপ্তাজি হয়ে হিন্দি বা ইংরেজিতে উত্তর দিন। শুক্রবার ₹40,000 দিতে চান আর শুনুন মুনিম
+            <b>কল শুরু করুন</b> চাপুন আর গুপ্তাজি হয়ে হিন্দি বা ইংরেজিতে উত্তর দিন। শুক্রবার ₹40,000 দেওয়ার প্রস্তাব দিন আর শুনুন মুনিম
             কীভাবে আরও চায়। মাইক্রোফোন নেই, বা সময় নেই? নিচে কলটি শুনুন বা পড়ুন, তারপর <b>পরের ধাপ</b> চাপুন: ট্যুর কলে ঠিক
             হওয়া কিস্তির পরিকল্পনা লিখে রাখবে।
           </>

@@ -208,6 +208,7 @@ describe("checkOutcome, what record_outcome may record", () => {
           { amountPaise: 4_000_000, date: "2026-11-06" },
           { amountPaise: 7_800_000, date: "2026-12-02" },
         ],
+        issues: [{ kind: "first_short", amountPaise: 4_000_000, minPaise: 5_900_000, pct: 50 }],
         reasons: ["The first instalment, ₹40,000, is below your 50% rule (₹59,000)."],
         notes: "Short on cash this week",
       },

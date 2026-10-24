@@ -13,7 +13,7 @@ export type World = {
   generation: number;
 };
 
-type WorldState = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; world: World };
+type WorldState = { status: "loading" } | { status: "error"; failed: "open" | "reset" } | { status: "ready"; world: World };
 
 /** Payment history for grades. "loading" until the seed's events have been read. */
 export type PaymentHistory = EventRow[] | "loading" | "failed";
@@ -143,7 +143,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
         (world) => live && setState({ status: "ready", world }),
         (e: unknown) => {
           console.error("Demo world failed to load", e);
-          if (live) setState({ status: "error", message: "Your Demo world could not be opened." });
+          if (live) setState({ status: "error", failed: "open" });
         },
       );
     return () => {
@@ -234,7 +234,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
       setState({ status: "ready", world: await loadWorld(await resetDemo()) });
     } catch (e) {
       console.error("Reset failed", e);
-      setState({ status: "error", message: "The demo could not be reset." });
+      setState({ status: "error", failed: "reset" });
     }
   }, []);
   const retry = useCallback(() => {

@@ -249,7 +249,7 @@ export function WorldGate({ children }: { children: React.ReactNode }) {
             <p className="text-ink-2">{t.shell.opening}</p>
           ) : (
             <>
-              <p>{state.message}</p>
+              <p>{state.failed === "reset" ? t.shell.resetFailed : t.shell.openFailed}</p>
               <button type="button" className="btn secondary mt-3" onClick={state.retry}>
                 {t.common.tryAgain}
               </button>
