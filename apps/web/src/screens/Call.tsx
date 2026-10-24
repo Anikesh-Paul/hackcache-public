@@ -102,7 +102,7 @@ function CallPage() {
         </Link>
       </p>
       <div className="call-grid">
-        <Paper label="Call with AI">
+        <Paper label="Call with AI" className="call-leaf">
           <Head title={`Call with AI: ${name}`} a={formatInr(view.standing.balancePaise)} />
           {phase.name === "ready" && !call.recorded && (
             <Setup

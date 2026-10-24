@@ -100,6 +100,8 @@ export function Landing() {
               key={door.key}
               type="button"
               className="door"
+              aria-label={door.title}
+              aria-describedby={`door-${door.key}`}
               disabled={needsWorld(door) || opening !== null}
               onClick={() => open(door, i)}
               onPointerEnter={() => setPulled(i)}
@@ -110,7 +112,7 @@ export function Landing() {
               <span className="rib" style={{ background: door.ribbon }} aria-hidden />
               <span>
                 <b>{door.title}</b>
-                <small>{what(door)}</small>
+                <small id={`door-${door.key}`}>{what(door)}</small>
               </span>
               <ArrowRight aria-hidden className="ar" />
             </button>

@@ -23,15 +23,17 @@ export function PrintInvoice() {
       {lines === "failed" ? (
         <p className="text-center">The lines could not be loaded. Reload the page to try again.</p>
       ) : lines ? (
-        <TaxInvoice
-          workspace={world.workspace}
-          customer={customer}
-          lines={lines}
-          priced={priceLines(world.workspace, customer, lines)}
-          number={invoice.number}
-          issueDate={invoice.issueDate}
-          dueDate={invoice.dueDate}
-        />
+        <div className="on-paper">
+          <TaxInvoice
+            workspace={world.workspace}
+            customer={customer}
+            lines={lines}
+            priced={priceLines(world.workspace, customer, lines)}
+            number={invoice.number}
+            issueDate={invoice.issueDate}
+            dueDate={invoice.dueDate}
+          />
+        </div>
       ) : (
         <p className="text-center text-ink-2">Loading the Invoice…</p>
       )}

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, NavLink, Outlet } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Bell, ChevronLeft, ChevronRight, Moon, RotateCcw, Sun } from "lucide-react";
 import { addDays, formatDate } from "@tagada/money";
 import { runLadder, type LadderRun } from "./lib/appwrite.ts";
@@ -60,11 +60,51 @@ const TABS = [
   { to: "/app/settings", en: "Settings", hi: "सेटिंग्स" },
 ];
 
+/** Keeps the active tab in view, and says when more tabs sit past the right edge. */
+function useTabRow(pathname: string, lang: string) {
+  const ref = useRef<HTMLElement>(null);
+  const [more, setMore] = useState(false);
+  useEffect(() => {
+    const nav = ref.current;
+    if (!nav) return;
+    const mark = () => {
+      const overflow = nav.scrollWidth > nav.clientWidth + 1;
+      const atEnd = nav.scrollLeft + nav.clientWidth >= nav.scrollWidth - 1;
+      setMore(overflow && !atEnd);
+    };
+    const follow = () => {
+      const active = nav.querySelector<HTMLElement>('[aria-current="page"]');
+      if (!active) return;
+      const navBox = nav.getBoundingClientRect();
+      const box = active.getBoundingClientRect();
+      const fade = Number.parseFloat(getComputedStyle(nav).getPropertyValue("--tab-fade")) || 0;
+      const gap = 12;
+      if (box.left < navBox.left + gap) nav.scrollLeft -= navBox.left + gap - box.left;
+      else if (box.right > navBox.right - fade) nav.scrollLeft += box.right - (navBox.right - fade);
+    };
+    follow();
+    mark();
+    const observer = new ResizeObserver(() => {
+      follow();
+      mark();
+    });
+    observer.observe(nav);
+    nav.addEventListener("scroll", mark, { passive: true });
+    return () => {
+      observer.disconnect();
+      nav.removeEventListener("scroll", mark);
+    };
+  }, [pathname, lang]);
+  return { ref, more };
+}
+
 /** The cloth cover band with index tabs over the Owner's ledger pages. */
 export function AppShell() {
   const state = useWorldState();
+  const { pathname } = useLocation();
   const { theme, toggle } = useTheme();
   const { lang, choose } = useLang();
+  const tabs = useTabRow(pathname, lang);
   const [resetting, setResetting] = useState(false);
   const [stepping, setStepping] = useState(false);
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null);
@@ -103,7 +143,7 @@ export function AppShell() {
     <div className="min-h-dvh">
       <header className="cover no-print bg-cover text-on-cover">
         <div className="mx-auto flex max-w-[1240px] flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-3 sm:px-7">
-          <Link to="/app" className="flex min-h-11 items-center gap-2 no-underline">
+          <Link to="/app" aria-label="Tagada" className="flex min-h-11 items-center gap-2 no-underline">
             <span lang="hi" className="text-2xl leading-none font-bold">
               तगादा
             </span>
@@ -189,8 +229,10 @@ export function AppShell() {
           </button>
         </div>
         <nav
+          ref={tabs.ref}
           aria-label="Main"
-          className="mx-auto flex max-w-[1240px] gap-1 overflow-x-auto px-4 pt-3 [scrollbar-width:none] sm:px-7"
+          data-more={tabs.more ? "true" : "false"}
+          className="tab-row mx-auto flex max-w-[1240px] gap-1 overflow-x-auto px-4 pt-3 sm:px-7"
         >
           {TABS.map((tab) => (
             <NavLink
