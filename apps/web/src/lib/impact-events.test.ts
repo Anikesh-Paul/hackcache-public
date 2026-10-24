@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventRow } from "@tagada/appwrite";
-import { impactEventOf } from "./impact.ts";
+import { impactEventOf } from "./impact-events.ts";
 
 const row = (over: Partial<EventRow>): EventRow =>
   ({
