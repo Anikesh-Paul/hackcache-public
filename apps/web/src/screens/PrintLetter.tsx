@@ -8,7 +8,7 @@ import { NothingDue, PlanBanner, PrintBar } from "./PrintBar.tsx";
 import { UpiQr } from "./TaxInvoice.tsx";
 
 const sheet =
-  "mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-5 text-[13px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:bg-white print:p-0 print:text-[12px] print:text-black print:shadow-none";
+  "on-paper mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-5 text-[13px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:bg-white print:p-0 print:text-[12px] print:text-black print:shadow-none";
 
 /** /print/letter/:id. The toolbar is screen-only, so the printed page has no app chrome. */
 export function PrintLetter() {
