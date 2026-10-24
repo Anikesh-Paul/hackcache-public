@@ -14,7 +14,7 @@ import {
   daysBetween,
   weekday,
 } from "@tagada/money";
-import { planRule, type Instalment, type PlanRule } from "./plan-rule.ts";
+import { planRule, type Instalment, type PlanIssue, type PlanRule } from "./plan-rule.ts";
 
 /** Calls are made from 10 AM up to, not at, 6 PM IST, by the Demo date clock. */
 export const CALLING_HOURS = { from: "10:00", to: "18:00" } as const;
@@ -226,7 +226,7 @@ export const CALL_OUTCOMES = [
 export type CallOutcome =
   | { kind: "promise"; instalments: [Instalment]; notes: string | null }
   | { kind: "plan"; instalments: Instalment[]; notes: string | null }
-  | { kind: "plan_needs_owner"; instalments: Instalment[]; reasons: string[]; notes: string | null }
+  | { kind: "plan_needs_owner"; instalments: Instalment[]; issues: PlanIssue[]; reasons: string[]; notes: string | null }
   | { kind: "already_paid"; reference: string | null; date: string | null; notes: string | null }
   | { kind: "dispute"; notes: string }
   | { kind: "callback"; date: string | null; notes: string | null }
@@ -284,6 +284,7 @@ export function checkOutcome(ctx: CallContext, args: unknown): OutcomeCheck {
             { amountPaise: first, date },
             { amountPaise: differencePaise(ctx.owedPaise, first), date: restDate },
           ],
+          issues: verdict.issues,
           reasons: verdict.reasons,
           notes,
         },

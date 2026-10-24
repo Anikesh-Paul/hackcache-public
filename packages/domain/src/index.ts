@@ -22,8 +22,8 @@ export type { LadderInvoice, LadderStage, LadderStep, NextAction, Rung } from ".
 export { suggestedInBank, waitingInBank } from "./in-bank.ts";
 export type { BankSuggestion } from "./in-bank.ts";
 
-export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
-export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
+export { DEFAULT_PLAN_RULE, planIssueReason, planRule } from "./plan-rule.ts";
+export type { Instalment, PlanIssue, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
 
 export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS } from "./msmed.ts";
 export type { MsmedMeter, SellerFacts } from "./msmed.ts";
