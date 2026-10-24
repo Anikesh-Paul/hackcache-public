@@ -15,6 +15,7 @@ import { Today } from "./screens/Today.tsx";
 import { Inbox } from "./screens/Inbox.tsx";
 import { PayLink } from "./screens/PayLink.tsx";
 import { CustomerDetail } from "./screens/CustomerDetail.tsx";
+import { CustomerForm } from "./screens/CustomerForm.tsx";
 import { CallScreen } from "./screens/Call.tsx";
 import { Bank } from "./screens/Bank.tsx";
 import { Automation } from "./screens/Automation.tsx";
@@ -52,7 +53,9 @@ const router = createBrowserRouter([
               { path: "/app/invoices/:id/duplicate", element: <DuplicatePreview /> },
               { path: "/app/invoices/:id", element: <InvoiceDetail /> },
               { path: "/app/customers", element: <Customers /> },
+              { path: "/app/customers/new", element: <CustomerForm /> },
               { path: "/app/customers/:id", element: <CustomerDetail /> },
+              { path: "/app/customers/:id/edit", element: <CustomerForm /> },
               { path: "/app/inbox", element: <Inbox /> },
               { path: "/app/bank", element: <Bank /> },
             ],

@@ -71,6 +71,7 @@ export {
   callDay,
   callGuard,
   checkOutcome,
+  indianMobile,
   munimFirstLine,
   planInWords,
   proposePlan,

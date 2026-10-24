@@ -5,6 +5,7 @@ import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
 import { assignCredit, confirmMatches, importStatement, keepAdvance } from "./bank.ts";
+import { addCustomer, editCustomer, type CustomerFailure, type CustomerSaved } from "./customers.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
   CALL_LIMITS,
@@ -56,6 +57,8 @@ export function maskEmail(address: string): string {
 export type LadderAppDeps = {
   mailer: Mailer | null;
   demoInbox: string | null;
+  /** Reminder emails can reach a Customer's own address (Resend sends from our own domain). */
+  mailCustomers?: boolean;
   webOrigin: string;
   /** Starts the run: on Render, the `dailyLadder` workflow; by default, in this process. */
   runner?: LadderRunner;
@@ -137,6 +140,38 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       return failed(c, "/api/invoices", e);
     }
   });
+
+  // Customers the visitor adds or edits, in their own world only.
+  const customerRoute =
+    (path: string, run: (userId: string, body: unknown, c: Context) => Promise<CustomerSaved | CustomerFailure>) =>
+    async (c: Context) => {
+      const jwt = bearer(c);
+      if (!jwt) return c.json({ error: "unauthorized" }, 401);
+      let body: unknown;
+      try {
+        body = await c.req.json();
+      } catch {
+        return c.json({ error: "invalid_body" }, 400);
+      }
+      try {
+        const userId = await demo.userFromJwt(jwt);
+        if (!userId) return c.json({ error: "unauthorized" }, 401);
+        const result = await run(userId, body, c);
+        return result.ok ? c.json({ customer: result.customer }) : c.json({ error: result.error }, result.status);
+      } catch (e) {
+        return failed(c, path, e);
+      }
+    };
+  app.post(
+    "/api/customers",
+    customerRoute("/api/customers", (userId, body) =>
+      addCustomer(demo.worlds, userId, body, () => `n${randomBytes(12).toString("hex")}`),
+    ),
+  );
+  app.post(
+    "/api/customers/:id",
+    customerRoute("/api/customers/:id", (userId, body, c) => editCustomer(demo.worlds, userId, c.req.param("id") ?? "", body)),
+  );
 
   app.post("/api/invoices/:id/dispute", async (c) => {
     const jwt = bearer(c);
@@ -345,6 +380,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     worlds: demo.worlds,
     mailer: ladder?.mailer ?? null,
     demoInbox: ladder?.demoInbox ?? null,
+    mailCustomers: ladder?.mailCustomers ?? false,
     webOrigin: ladder?.webOrigin ?? webOrigin ?? "",
   };
   const runner = ladder?.runner ?? inProcessRunner(ladderDeps, ladder?.runId);
@@ -390,6 +426,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       c.json({
         demoInbox: ladderDeps.demoInbox === null ? null : maskEmail(ladderDeps.demoInbox),
         emailReady: ladderDeps.mailer !== null && ladderDeps.demoInbox !== null,
+        customerEmails: ladderDeps.mailer !== null && ladderDeps.mailCustomers,
       }),
     ),
   );

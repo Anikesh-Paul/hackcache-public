@@ -121,6 +121,20 @@ export async function createInvoice(body: unknown): Promise<{ invoiceId: string 
   return { invoiceId: data.invoice.$id };
 }
 
+/** Adds a Customer (no `customerId`) or changes one. The server checks every field. */
+export async function saveCustomer(customerId: string | null, body: unknown): Promise<{ customerId: string }> {
+  const jwt = await sessionJwt();
+  const path = customerId ? `/api/customers/${encodeURIComponent(customerId)}` : "/api/customers";
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; customer?: { $id?: string } } | null;
+  if (!res.ok || !data?.customer?.$id) throw new SaveError(data?.error ?? "save_failed");
+  return { customerId: data.customer.$id };
+}
+
 export type ImportReport = { already: number; added: number; summary: string };
 
 async function authed(path: string, body: unknown): Promise<unknown> {
@@ -266,10 +280,12 @@ export async function markReminderSent(body: { invoiceId: string; stage: number;
 }
 
 /** Where reminder emails go, and whether this server can send them at all. */
-export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean }> {
-  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean }>("/api/settings/email");
+export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean; customerEmails: boolean }> {
+  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean; customerEmails?: boolean }>(
+    "/api/settings/email",
+  );
   if (status !== 200 || !data) throw new SaveError("email_setup_failed");
-  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true };
+  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true, customerEmails: data.customerEmails === true };
 }
 
 /** Saves some Settings. A refusal names the field it could not use. */

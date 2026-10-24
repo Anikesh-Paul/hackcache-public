@@ -254,7 +254,7 @@ describe("GET /api/settings/email", () => {
   it("names the Demo inbox every reminder email goes to, masked, and never sends the full address", async () => {
     const res = await app.request("/api/settings/email", { headers: jwt });
     const body = await res.text();
-    expect(JSON.parse(body)).toEqual({ demoInbox: "d***@example.com", emailReady: true });
+    expect(JSON.parse(body)).toEqual({ demoInbox: "d***@example.com", emailReady: true, customerEmails: false });
     expect(body).not.toContain(INBOX);
   });
 });

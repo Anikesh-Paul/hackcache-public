@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { cloneElement, useId, type ReactElement, type ReactNode } from "react";
 import { Check, Clock, Flag, Handshake, CircleDot } from "lucide-react";
 import type { InvoiceStanding } from "@tagada/domain";
 import { useT } from "./i18n/index.ts";
@@ -92,5 +92,35 @@ export function Paper({
     <section aria-label={label} className={`leaf shadow-[var(--sheet-shadow)] ${className}`}>
       {children}
     </section>
+  );
+}
+
+/** A form control's look, for inputs and selects. */
+export const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper px-3 text-ink";
+
+/** A labelled control, with what is wrong with it said under it. */
+export function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string | null;
+  children: ReactElement<{ id?: string; "aria-describedby"?: string }>;
+}) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  return (
+    <div className="grid content-start gap-1 text-sm">
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
+      {cloneElement(children, { id, "aria-describedby": hintId })}
+      {hint && (
+        <span id={hintId} role="alert" className="text-sindoor">
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }

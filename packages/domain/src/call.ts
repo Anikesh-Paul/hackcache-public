@@ -340,6 +340,12 @@ export function callConfirmation(input: {
 }
 
 /** A wa.me link with the text filled in; an Indian 10-digit number gets 91 in front. */
+/** An Indian mobile, with or without +91, a leading 0, spaces or dashes, as "+91" and ten digits; null if it is not one. */
+export function indianMobile(value: string): string | null {
+  const digits = value.replace(/[\s()-]/g, "").replace(/^\+?91(?=\d{10}$)/, "").replace(/^0(?=\d{10}$)/, "");
+  return /^[6-9]\d{9}$/.test(digits) ? `+91${digits}` : null;
+}
+
 export function whatsappLink(phone: string | null, message: string): string {
   const digits = (phone ?? "").replace(/\D/g, "");
   const to = digits.length === 10 ? `91${digits}` : digits;
