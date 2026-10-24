@@ -452,8 +452,8 @@ function CallReturn() {
         </p>
         {why && (
           <p className="mt-2 text-sm">
-            {roi.calls} {roi.calls === 1 ? "call" : "calls"}, priced by the voice credits each used. Secured is what the
-            Plans and Promises agreed on a call add up to, while they stand.
+            {roi.calls} {roi.calls === 1 ? "call" : "calls"}, priced by how long each one ran. Secured is what the Plans
+            and Promises agreed on a call add up to, while they stand.
           </p>
         )}
       </Ln>

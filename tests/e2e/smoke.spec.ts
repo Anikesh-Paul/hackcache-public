@@ -58,6 +58,12 @@ test("the guided tour runs from the landing page to Salary covered and /proof", 
     if (i < titles.length - 1) await tour.getByRole("button", { name: "Next" }).click();
   }
   await expect(page.locator('[data-tour="headline"] h1')).toHaveText("Salary covered");
+  // The week's run sent its emails: no failed send.
+  await tour.getByRole("link", { name: "Automation log" }).click();
+  const log = page.getByRole("region", { name: "Automation log" });
+  await expect(log).toContainText("0 failed");
+  await expect(log).not.toContainText(/[1-9]\d* failed/);
+  await page.getByRole("button", { name: /Resume tour/ }).click();
   await tour.getByRole("link", { name: "See the proof" }).click();
   await expect(page).toHaveURL(/\/proof$/);
   await expect(page.getByText(/(\d+) of \1 passed/)).toBeVisible();

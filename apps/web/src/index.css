@@ -1623,6 +1623,10 @@ h3 {
       width: auto;
       max-height: 52dvh;
     }
+    .tour-chip {
+      right: 8px;
+      bottom: 8px;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .tour-ring {

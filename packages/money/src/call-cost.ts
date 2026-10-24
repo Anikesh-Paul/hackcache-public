@@ -35,9 +35,10 @@ export function callReturn(input: {
   securedPaise: readonly number[];
 }): { calls: number; costPaise: number; securedPaise: number } {
   const credits = input.calls.map((call) => call.credits ?? (call.durationS === null ? 0 : callCredits(call.durationS)));
+  const total = credits.reduce((sum, c) => sum + count(c, "credits"), 0n);
   return {
     calls: input.calls.length,
-    costPaise: callCostPaise(credits.reduce((sum, c) => sum + c, 0)),
+    costPaise: callCostPaise(toInt(total, "credits")),
     securedPaise: sumPaise(input.securedPaise),
   };
 }
