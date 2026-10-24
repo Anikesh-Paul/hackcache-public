@@ -15,7 +15,7 @@ import {
 } from "@tagada/money";
 import { gradeCustomer, paymentHabit, type CustomerGrade, type HistoryEvent } from "./grade.ts";
 import { suggestedInBank, waitingInBank, type BankSuggestion } from "./in-bank.ts";
-import { invoiceStanding, type InvoiceFacts, type PromiseFacts } from "./invoice.ts";
+import { invoiceStanding, isClosed, type InvoiceFacts, type PromiseFacts } from "./invoice.ts";
 
 export type BookInvoice = InvoiceFacts & { $id: string; customerId: string; number: string; issueDate: string };
 export type BookCustomer = { $id: string; name: string; consentCalls: boolean };
@@ -46,6 +46,11 @@ export type BookInput = {
   /** Every Invoice event, dated by its IST day. */
   events: readonly HistoryEvent[];
   bankCredits: readonly BookCredit[];
+  /**
+   * Payments the Owner recorded by hand (cash, cheque, UPI, bank transfer):
+   * in hand from their date, as a Bank credit is from its own.
+   */
+  received?: readonly { date: string; amountPaise: number }[];
   cashItems: readonly CashItem[];
 };
 
@@ -219,7 +224,9 @@ export function expectedNewSales(
   daysToGetPaid: number | null,
 ): NewSales {
   const since = addMonths(today, -3);
-  const raised = invoices.filter((i) => i.status !== "draft" && i.issueDate >= since && i.issueDate < today);
+  const raised = invoices.filter(
+    (i) => i.status !== "draft" && i.status !== "cancelled" && i.issueDate >= since && i.issueDate < today,
+  );
   return {
     // An estimate, so to the nearest ₹100.
     weeklyPaise: nearestPaise(sharePaise(sumPaise(raised.map((i) => i.totalPaise)), FORECAST_WEEKS), 10_000),
@@ -227,13 +234,18 @@ export function expectedNewSales(
   };
 }
 
-/** The opening balance, plus Bank credits dated from `cashAsOf` on, less payments out from then until the Demo date. */
+/**
+ * The opening balance, plus Bank credits dated from `cashAsOf` on and payments
+ * recorded by hand from then up to the Demo date, less payments out from then
+ * until the Demo date.
+ */
 function cashToday(input: BookInput): number {
-  const asOf = input.cashAsOf;
-  if (!asOf || asOf >= input.today) return input.openingCashPaise;
+  const asOf = input.cashAsOf ?? input.today;
+  const byHand = (input.received ?? []).filter((r) => r.date >= asOf && r.date <= input.today).map((r) => r.amountPaise);
+  if (asOf >= input.today) return sumPaise([input.openingCashPaise, ...byHand]);
   const credits = input.bankCredits.filter((c) => c.date !== undefined && c.date >= asOf).map((c) => c.amountPaise ?? 0);
   const paidOut = expandCashItems(input.cashItems, asOf, addDays(input.today, -1)).map((o) => o.amountPaise);
-  return differencePaise(sumPaise([input.openingCashPaise, ...credits]), sumPaise(paidOut));
+  return differencePaise(sumPaise([input.openingCashPaise, ...credits, ...byHand]), sumPaise(paidOut));
 }
 
 export function todayBook(input: BookInput): TodayBook {
@@ -267,7 +279,7 @@ export function todayBook(input: BookInput): TodayBook {
   const receivables: Receivable[] = [];
   const receipts: ExpectedReceipt[] = [];
   for (const invoice of input.invoices) {
-    if (invoice.status === "paid" || invoice.status === "draft") continue;
+    if (isClosed(invoice.status) || invoice.status === "draft") continue;
     const promises = input.promises.filter((p) => p.invoiceId === invoice.$id);
     const standing = invoiceStanding(invoice, promises, today);
     const banked = inBank.get(invoice.$id) ?? 0;
@@ -517,7 +529,7 @@ function daysToGetPaid(input: BookInput): DaysToGetPaid {
   }
   const promised: number[] = [];
   for (const invoice of input.invoices) {
-    if (invoice.status === "paid" || invoice.status === "draft") continue;
+    if (isClosed(invoice.status) || invoice.status === "draft") continue;
     const promise = input.promises.find((p) => p.invoiceId === invoice.$id && p.status === "approved");
     const last = latestDate(promise?.instalments.map((x) => x.date) ?? []);
     if (last) promised.push(daysBetween(invoice.issueDate, last));

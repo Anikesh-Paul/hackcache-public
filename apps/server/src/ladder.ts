@@ -10,6 +10,7 @@ import {
   DEFAULT_AUTO_SEND,
   REMINDER_NAMES,
   REPEAT_REFUSED,
+  isClosed,
   isCustomerLang,
   isRepeatRefused,
   ladderDay,
@@ -33,8 +34,14 @@ export type LadderDeps = {
   worlds: WorldStore;
   /** Null when Resend is not set up: every email then fails, and says why. */
   mailer: Mailer | null;
-  /** Where every reminder email really goes. */
+  /** Where a reminder email goes when it cannot go to the Customer's own address. */
   demoInbox: string | null;
+  /**
+   * True when Resend sends from a domain of our own, so an email can reach a
+   * Customer's own address (one the visitor typed in). Otherwise every email
+   * goes to the Demo inbox.
+   */
+  mailCustomers?: boolean;
   /** The web app's origin, for the https pay link. */
   webOrigin: string;
 };
@@ -74,6 +81,9 @@ export type RunSummary = {
 
 const text = (value: unknown): string | null => (typeof value === "string" ? value : null);
 const whole = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? value : 0);
+
+/** Emails a Demo world may send to addresses its visitor typed in; after that they go to the Demo inbox. */
+export const OWN_ADDRESS_LIMIT = 10;
 
 export const reminderKey = (invoiceId: string, stage: number) => `rem_${invoiceId}_s${stage}`;
 
@@ -197,7 +207,8 @@ export async function planRun(deps: LadderDeps, workspaceId: string, demoDate: s
     worlds.list("bank_txns", workspaceId),
   ]);
   if (!workspace) throw new Error(`no workspace ${workspaceId}`);
-  const open = invoices.filter((i) => i.status !== "paid");
+  // A paid or cancelled Invoice is not chased, and no Promise on it can break.
+  const open = invoices.filter((i) => !isClosed((text(i.status) ?? "sent") as InvoiceFacts["status"]));
   const standing = await breakPromises(worlds, workspace, open, promises, suggestedInBank(bankSuggestions(bank)), demoDate);
   // Read again after breaking Promises: a broken one no longer pauses its Invoice.
   const ladderInvoices = open.map((i) => {
@@ -300,16 +311,17 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     payUrl: `${deps.webOrigin}/pay/${text(invoice.payToken) ?? ""}`,
     contact: ownerEmail ?? businessName,
   });
+  const to = (await ownAddress(deps, job.workspaceId, text(customer.email))) ?? deps.demoInbox;
   const mail: Mail = {
     fromName: `${businessName} via Tagada`,
-    to: deps.demoInbox ?? "",
+    to: to ?? "",
     replyTo: ownerEmail,
     subject: message.subject,
     text: message.text,
     idempotencyKey: resendKey(workspace, key),
   };
   const outcome =
-    !deps.mailer || !deps.demoInbox
+    !deps.mailer || !to
       ? { ok: false as const, error: "Email is not set up on this server (RESEND_API_KEY and DEMO_INBOX_EMAIL)" }
       : attempts === 1 && (await refusedOnce(worlds, job))
         ? { ok: false as const, error: SEEDED_FAILURE }
@@ -333,6 +345,24 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     payload: { stage: job.stage, channel: "email", email: mail, providerMessageId: outcome.id },
   });
   return retry ? "retried" : "sent";
+}
+
+/**
+ * The Customer's own address, when this server can send to it and the world
+ * has not used up its emails to typed-in addresses. Seeded Customers have none.
+ */
+async function ownAddress(deps: LadderDeps, workspaceId: string, email: string | null): Promise<string | null> {
+  if (!deps.mailCustomers || !email) return null;
+  const events = await deps.worlds.list("events", workspaceId, { type: "reminder" });
+  const used = events.filter((event) => {
+    try {
+      const to = (JSON.parse(text(event.payload) ?? "{}") as { email?: { to?: unknown } }).email?.to;
+      return typeof to === "string" && to !== deps.demoInbox;
+    } catch {
+      return false;
+    }
+  }).length;
+  return used < OWN_ADDRESS_LIMIT ? email : null;
 }
 
 /**

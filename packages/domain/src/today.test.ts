@@ -221,6 +221,30 @@ describe("cash on the Demo date", () => {
     expect(b.weeks[0]?.closePaise).toBe(-800_000);
   });
 
+  it("adds payments recorded by hand from their date, as a Bank credit is added from its own", () => {
+    const b = todayBook(
+      book({
+        today: "2026-11-09",
+        cashAsOf: "2026-11-02",
+        // 1 Nov is before the opening balance was counted; 12 Nov has not happened yet.
+        received: [
+          { date: "2026-11-01", amountPaise: 700_000 },
+          { date: "2026-11-04", amountPaise: 2_000_000 },
+          { date: "2026-11-12", amountPaise: 300_000 },
+        ],
+      }),
+    );
+    expect(b.cashTodayPaise).toBe(7_000_000);
+    expect(todayBook(book({ received: [{ date: TODAY, amountPaise: 2_000_000 }] })).cashTodayPaise).toBe(7_000_000);
+  });
+
+  it("leaves a cancelled Invoice out of what is owed and expected", () => {
+    const b = todayBook(book({ invoices: [invoice("i1", { status: "cancelled" }), invoice("i2")] }));
+    expect(b.receivables.map((r) => r.invoiceId)).toEqual(["i2"]);
+    expect(b.totals.receivablesPaise).toBe(1_000_000);
+    expect(expectedNewSales([invoice("i1", { status: "cancelled" })], TODAY, null).weeklyPaise).toBe(0);
+  });
+
   it("is the opening balance when the books do not say when it was counted", () => {
     const b = todayBook(book({ bankCredits: [credit("2026-11-06", 6_000_000)] }));
     expect(b.cashTodayPaise).toBe(5_000_000);

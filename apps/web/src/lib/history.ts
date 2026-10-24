@@ -13,6 +13,11 @@ type Payload = {
   channel?: unknown;
   email?: unknown;
   reason?: unknown;
+  /** A payment recorded by hand: cash, cheque, upi or bank_transfer, and the day it came. */
+  mode?: unknown;
+  date?: unknown;
+  fromTotalPaise?: unknown;
+  dueDate?: unknown;
 };
 
 function payloadOf(event: EventRow): Payload {
@@ -48,6 +53,21 @@ function planOf(t: Copy, promise: PromiseRow): string | null {
   }
 }
 
+/** Payments the Owner recorded by hand: in hand from the day each came. Bank matches have no `mode`. */
+export function receivedByHand(events: readonly EventRow[]): { date: string; amountPaise: number }[] {
+  return events.flatMap((event) => {
+    if (event.type !== "payment" || !event.payload) return [];
+    try {
+      const p = JSON.parse(event.payload) as { mode?: unknown; date?: unknown; amountPaise?: unknown };
+      return typeof p.mode === "string" && typeof p.date === "string" && typeof p.amountPaise === "number"
+        ? [{ date: p.date, amountPaise: p.amountPaise }]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRow[]): string {
   if (t.lang === "en") return event.summary;
   const p = payloadOf(event);
@@ -62,7 +82,17 @@ export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRo
       return h.reminder(stage, byEmail(p, event.summary));
     }
     case "payment":
-      return h.payment(money(p.amountPaise));
+      return typeof p.mode === "string" && p.mode in t.invoice.payModes
+        ? h.paymentByHand(
+            money(p.amountPaise),
+            t.invoice.payModes[p.mode as keyof typeof t.invoice.payModes],
+            typeof p.date === "string" ? t.date(p.date, { weekday: false }) : null,
+          )
+        : h.payment(money(p.amountPaise));
+    case "cancelled":
+      return h.cancelled(reasonOf(p, event.summary));
+    case "edited":
+      return h.edited(money(p.fromTotalPaise), money(p.totalPaise), typeof p.dueDate === "string" ? t.date(p.dueDate, { weekday: false }) : null);
     case "advance":
       return h.advance(money(p.amountPaise));
     case "paid_claim":

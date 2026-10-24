@@ -252,7 +252,7 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
     }
     for (const allocation of fresh.allocations) {
       const invoice = invoices.get(allocation.invoiceId);
-      if (!invoice || invoice.status === "paid") continue;
+      if (!invoice || invoice.status === "paid" || invoice.status === "cancelled") continue;
       const applied = sumPaise([whole(invoice.paidPaise), allocation.amountPaise, allocation.tdsPaise ?? 0]);
       const total = whole(invoice.totalPaise);
       const covered = applied >= total;

@@ -23,6 +23,14 @@ export type Mailer = {
   send(mail: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string; repeat?: boolean }>;
 };
 
+/**
+ * True when reminder emails can reach a Customer's own address: Resend sends
+ * from a domain of our own. From the shared resend.dev address, it cannot.
+ */
+export function mailsCustomers(apiKey: string | undefined, fromDomain: string | undefined): boolean {
+  return Boolean(apiKey && fromDomain && fromDomain !== "resend.dev");
+}
+
 /** A display name Resend takes as is: no quotes, angle brackets or line breaks. */
 function displayName(name: string): string {
   return name.replace(/["<>\r\n\\]/g, "").trim();

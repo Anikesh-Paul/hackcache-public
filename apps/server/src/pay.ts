@@ -126,6 +126,7 @@ export function slipOf({ workspace, invoice, customer, promises, events, bank }:
   let state: PaySlip["state"] = "owing";
   let plan: PayInstalment[] | null = null;
   if (standing.state === "paid") state = "paid";
+  else if (standing.state === "cancelled") state = "cancelled";
   else if (standing.state === "disputed") state = "disputed";
   else if (inBank || claimed) state = "paid_claim";
   else if (agreed) [state, plan] = ["plan", agreed.instalments];
@@ -448,6 +449,7 @@ function spokenBengali(slip: PaySlip): string {
   // No grouping commas either (formatAmountInput): the voice reads one plain number, not its parts.
   const money = (paise: number) => `${formatAmountInput(paise)} টাকা`;
   if (slip.state === "paid") return `${hello} আপনার বিল পুরো মিটে গেছে। ধন্যবাদ।`;
+  if (slip.state === "cancelled") return `${hello} এই বিল বাতিল করা হয়েছে। এর জন্য কিছু দিতে হবে না।`;
   if (slip.state === "paid_claim") return `${hello} ধন্যবাদ। ব্যাংকে নিশ্চিত হলেই আপনাকে জানাব।`;
   if (slip.state === "disputed") return `${hello} আপনার কথা পৌঁছেছে। উত্তর আসা পর্যন্ত কোনো অনুস্মারক পাঠানো হবে না।`;
   if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
@@ -465,6 +467,7 @@ function spokenBengali(slip: PaySlip): string {
 function spokenEnglish(slip: PaySlip): string {
   const hello = `Namaste, ${slip.customer.name}. A message from ${slip.from.businessName}.`;
   if (slip.state === "paid") return `${hello} This bill is paid in full. Thank you.`;
+  if (slip.state === "cancelled") return `${hello} This bill was cancelled. Nothing is due on it.`;
   if (slip.state === "paid_claim") return `${hello} Thank you. We'll let you know as soon as the bank confirms it.`;
   if (slip.state === "disputed") return `${hello} Your message has reached them. No reminders are sent meanwhile.`;
   if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
@@ -482,6 +485,7 @@ function spokenEnglish(slip: PaySlip): string {
 export function spokenHindi(slip: PaySlip): string {
   const hello = `नमस्ते, ${slip.customer.name}। ${slip.from.businessName} का संदेश।`;
   if (slip.state === "paid") return `${hello} आपका बिल पूरा भर दिया गया है। धन्यवाद।`;
+  if (slip.state === "cancelled") return `${hello} यह बिल रद्द कर दिया गया है। इस पर कुछ नहीं देना है।`;
   if (slip.state === "paid_claim") return `${hello} धन्यवाद। बैंक में पुष्टि होते ही हम आपको बताएंगे।`;
   if (slip.state === "disputed") return `${hello} आपकी शिकायत हमें मिल गई है। जवाब आने तक कोई अनुस्मारक नहीं भेजा जाएगा।`;
   if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {

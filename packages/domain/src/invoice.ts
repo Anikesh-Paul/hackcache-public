@@ -4,7 +4,7 @@ import { daysBetween, differencePaise } from "@tagada/money";
 export type InvoiceFacts = {
   totalPaise: number;
   paidPaise: number;
-  status: "draft" | "sent" | "part" | "paid" | "disputed";
+  status: "draft" | "sent" | "part" | "paid" | "disputed" | "cancelled";
   dueDate: string;
   /** Last Ladder stage taken, 0 when none. */
   ladderStage: number;
@@ -17,17 +17,22 @@ export type PromiseFacts = {
   instalments: { amountPaise: number; date: string }[];
 };
 
-export type InvoiceState = "paid" | "disputed" | "promised" | "overdue" | "open";
+export type InvoiceState = "paid" | "cancelled" | "disputed" | "promised" | "overdue" | "open";
 
 export type InvoiceStanding = {
   state: InvoiceState;
-  /** Still owed. 0 once paid. */
+  /** Still owed. 0 once paid or cancelled. */
   balancePaise: number;
   /** Whole days past the due date; 0 until it has passed, and once paid. */
   daysLate: number;
   /** Whole days from the Demo date to the due date; negative once past. */
   daysToDue: number;
 };
+
+/** Paid in full or cancelled: nothing more comes in on it, and nobody chases it. */
+export function isClosed(status: InvoiceFacts["status"]): boolean {
+  return status === "paid" || status === "cancelled";
+}
 
 /** Where an Invoice stands on the Demo date `today`. */
 export function invoiceStanding(
@@ -37,6 +42,8 @@ export function invoiceStanding(
 ): InvoiceStanding {
   const daysToDue = daysBetween(today, invoice.dueDate);
   if (invoice.status === "paid") return { state: "paid", balancePaise: 0, daysLate: 0, daysToDue };
+  // A cancelled Tax Invoice keeps its number, but nothing on it is owed.
+  if (invoice.status === "cancelled") return { state: "cancelled", balancePaise: 0, daysLate: 0, daysToDue };
   const balancePaise = differencePaise(invoice.totalPaise, invoice.paidPaise);
   const daysLate = Math.max(0, -daysToDue);
   const state: InvoiceState =

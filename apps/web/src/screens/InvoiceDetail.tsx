@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import {
+  Ban,
   Bot,
   CalendarClock,
   Copy,
@@ -9,6 +10,7 @@ import {
   Flag,
   IndianRupee,
   Pause,
+  Pencil,
   Phone,
   Printer,
   Scale,
@@ -17,8 +19,10 @@ import {
 } from "lucide-react";
 import type { CustomerRow, EventActor, EventRow, InvoiceLineRow, InvoiceRow, WorkspaceRow } from "@tagada/appwrite";
 import {
+  formatAmountInput,
   formatInr,
   formatRateBps,
+  parseAmountPaise,
   SECTION16_RATE_BEFORE_BPS,
   SECTION16_RATE_CHANGE,
   SECTION16_RATE_FROM_BPS,
@@ -29,10 +33,10 @@ import { isSeededEvent } from "@tagada/seed";
 import { proofAmount, proofTone } from "../lib/proof.ts";
 import { useT } from "../i18n/index.ts";
 import { eventText } from "../lib/history.ts";
-import { markDisputed } from "../lib/appwrite.ts";
+import { SaveError, cancelInvoice, markDisputed, recordPayment } from "../lib/appwrite.ts";
 import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { istDay, priceLines, storedTotalsMatch } from "../lib/pricing.ts";
-import { Badge, Head, Ln, StatusWord } from "../ui.tsx";
+import { Badge, Field, Head, Ln, StatusWord, control } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
 
 const ACTORS: Record<EventActor, typeof Bot> = {
@@ -63,7 +67,9 @@ export function InvoiceDetail() {
   const owedLine =
     standing.state === "paid"
       ? t.invoice.paidInFull(formatInr(invoice.totalPaise))
-      : invoice.paidPaise > 0
+      : standing.state === "cancelled"
+        ? t.invoice.cancelledLine
+        : invoice.paidPaise > 0
         ? t.invoice.owedAfter(formatInr(invoice.paidPaise))
         : t.invoice.owedNothingPaid;
 
@@ -100,8 +106,8 @@ export function InvoiceDetail() {
             <ProofLine invoiceId={invoice.$id} />
           </div>
           <div className="a border-l-0 max-sm:col-span-full max-sm:mt-3 max-sm:pl-[calc(var(--margin)+14px)] max-sm:text-left">
-            <span className="figure dbl">
-              {formatInr(standing.state === "paid" ? invoice.totalPaise : standing.balancePaise)}
+            <span className={`figure dbl ${standing.state === "cancelled" ? "line-through" : ""}`}>
+              {formatInr(standing.state === "paid" || standing.state === "cancelled" ? invoice.totalPaise : standing.balancePaise)}
             </span>
             <p className="mt-2 text-[13px] text-ink-2">{owedLine}</p>
           </div>
@@ -113,10 +119,12 @@ export function InvoiceDetail() {
         className="leaf flex flex-col gap-9 max-lg:shadow-[var(--sheet-shadow)] lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-l lg:border-rule"
       >
         <Actions
-          invoiceId={invoice.$id}
+          invoice={invoice}
+          balancePaise={standing.balancePaise}
+          today={workspace.today}
           customerName={customer?.name ?? t.invoice.theCustomer}
           payToken={invoice.payToken}
-          open={standing.state !== "paid"}
+          open={standing.state !== "paid" && standing.state !== "cancelled"}
           overdue={standing.daysLate > 0}
           disputed={standing.state === "disputed"}
           justMade={params.has("try")}
@@ -295,6 +303,7 @@ function amountOf(payload: string | null): number | null {
 function LadderNote({ state, pauseReason }: { state: InvoiceState; pauseReason: string | null }) {
   const t = useT();
   if (state === "paid") return <p className="mt-3 text-sm text-ink-2">{t.ladder.paidStopped}</p>;
+  if (state === "cancelled") return <p className="mt-3 text-sm text-ink-2">{t.ladder.cancelledStopped}</p>;
   if (state === "disputed" || pauseReason === "dispute") {
     return (
       <p className="mt-3 text-sm">
@@ -379,7 +388,9 @@ function Meter({ meter }: { meter: MsmedMeter }) {
 }
 
 function Actions({
-  invoiceId,
+  invoice,
+  balancePaise,
+  today,
   customerName,
   payToken,
   open,
@@ -387,7 +398,10 @@ function Actions({
   disputed,
   justMade,
 }: {
-  invoiceId: string;
+  invoice: InvoiceRow;
+  balancePaise: number;
+  /** The Demo date: the latest a payment can be dated. */
+  today: string;
   customerName: string;
   payToken: string | null;
   open: boolean;
@@ -397,10 +411,14 @@ function Actions({
   /** Saved just now from "Make your own invoice": say what to try next. */
   justMade: boolean;
 }) {
+  const invoiceId = invoice.$id;
   const late = open && overdue;
   const t = useT();
   const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
   const [disputing, setDisputing] = useState(false);
+  const [form, setForm] = useState<"payment" | "cancel" | null>(null);
+  // Nothing paid against it: it can still be corrected, or cancelled.
+  const untouched = invoice.paidPaise === 0 && (invoice.status === "sent" || invoice.status === "disputed");
   const payLink = payToken ? `${location.origin}/pay/${payToken}` : null;
   const copy = async () => {
     if (!payLink) return;
@@ -426,6 +444,14 @@ function Actions({
                 ))}
               </ol>
             </div>
+          )}
+          {open && form !== "payment" && (
+            <button type="button" className="btn secondary" onClick={() => setForm("payment")}>
+              <IndianRupee aria-hidden /> {t.invoice.recordPayment}
+            </button>
+          )}
+          {open && form === "payment" && (
+            <PaymentForm invoice={invoice} balancePaise={balancePaise} today={today} onDone={() => setForm(null)} />
           )}
           {late && !disputed && (
             <Link to={`/call/${invoiceId}`} className="btn primary px-4 py-3 text-[15px]">
@@ -474,6 +500,11 @@ function Actions({
           <Link to={`/print/invoice/${invoiceId}`} className="btn secondary">
             <Printer aria-hidden /> {t.invoice.printTax}
           </Link>
+          {untouched && (
+            <Link to={`/app/invoices/${invoiceId}/edit`} className="btn secondary">
+              <Pencil aria-hidden /> {t.invoice.edit}
+            </Link>
+          )}
           <Link to={`/app/invoices/${invoiceId}/duplicate`} className="btn secondary">
             <Copy aria-hidden /> {t.invoice.duplicate}
           </Link>
@@ -483,6 +514,13 @@ function Actions({
             </button>
           )}
           {open && !disputed && disputing && <DisputeForm invoiceId={invoiceId} onDone={() => setDisputing(false)} />}
+          {untouched && form !== "cancel" && (
+            <button type="button" className="btn bare justify-start" onClick={() => setForm("cancel")}>
+              <Ban aria-hidden /> {t.invoice.cancelInvoice}
+            </button>
+          )}
+          {untouched && form === "cancel" && <CancelForm invoiceId={invoiceId} number={invoice.number} onDone={() => setForm(null)} />}
+          {open && invoice.paidPaise > 0 && <small className="text-xs text-ink-2">{t.invoice.cannotCancel}</small>}
         </div>
       </div>
     </div>
@@ -552,6 +590,136 @@ function DisputeForm({ invoiceId, onDone }: { invoiceId: string; onDone: () => v
         </small>
       )}
       <small className="text-xs text-ink-2">{t.invoice.disputeNote}</small>
+    </form>
+  );
+}
+
+const PAY_MODES = ["cash", "cheque", "upi", "bank_transfer"] as const;
+type PayMode = (typeof PAY_MODES)[number];
+
+/**
+ * A payment received by hand. Up to what is still owed, dated from the issue
+ * date to the Demo date. Today counts it as cash in hand from that day.
+ */
+function PaymentForm({
+  invoice,
+  balancePaise,
+  today,
+  onDone,
+}: {
+  invoice: InvoiceRow;
+  balancePaise: number;
+  today: string;
+  onDone: () => void;
+}) {
+  const t = useT();
+  const [amount, setAmount] = useState(formatAmountInput(balancePaise));
+  const [date, setDate] = useState(today);
+  const [mode, setMode] = useState<PayMode>("upi");
+  const [reference, setReference] = useState("");
+  const [state, setState] = useState<"idle" | "saving" | { failed: string }>("idle");
+  const paise = parseAmountPaise(amount);
+  const amountProblem =
+    amount.trim() === "" ? null : paise === null || paise < 1 ? t.invoice.amountHint : paise > balancePaise ? t.invoice.amountOver(formatInr(balancePaise)) : null;
+  const dateProblem = date < invoice.issueDate || date > today ? t.invoice.dateHint : null;
+  const ready = paise !== null && paise >= 1 && !amountProblem && !dateProblem && state !== "saving";
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!ready || paise === null) return;
+    setState("saving");
+    try {
+      await recordPayment(invoice.$id, { amountPaise: paise, date, mode, ...(reference.trim() ? { reference: reference.trim() } : {}) });
+      onDone();
+    } catch (error) {
+      const code = error instanceof SaveError ? error.code : "save_failed";
+      setState({ failed: t.invoice.paymentErrors[code] ?? t.invoice.paymentFailed });
+    }
+  };
+  return (
+    <form onSubmit={submit} className="mt-1 grid gap-3 rounded-md border border-rule p-3">
+      <p className="text-sm font-medium">{t.invoice.recordPayment}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={t.invoice.amountReceived} hint={amountProblem}>
+          <input className={control} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </Field>
+        <Field label={t.invoice.receivedOn} hint={dateProblem}>
+          <input className={control} type="date" min={invoice.issueDate} max={today} value={date} onChange={(e) => setDate(e.target.value)} />
+        </Field>
+        <Field label={t.invoice.payMode}>
+          <select className={control} value={mode} onChange={(e) => setMode(e.target.value as PayMode)}>
+            {PAY_MODES.map((id) => (
+              <option key={id} value={id}>
+                {t.invoice.payModeNames[id]}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label={t.invoice.payReference}>
+          <input className={control} maxLength={64} value={reference} onChange={(e) => setReference(e.target.value)} />
+        </Field>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className="btn primary" disabled={!ready}>
+          <IndianRupee aria-hidden /> {state === "saving" ? t.common.saving : t.invoice.savePayment}
+        </button>
+        <button type="button" className="btn bare" onClick={onDone}>
+          {t.common.cancel}
+        </button>
+      </div>
+      {typeof state === "object" && (
+        <small className="text-xs text-sindoor" role="alert">
+          {state.failed}
+        </small>
+      )}
+      <small className="text-xs text-ink-2">{t.invoice.paymentNote}</small>
+    </form>
+  );
+}
+
+/** Cancels the Invoice. Under GST it is not deleted: its number stays used, and the timeline says why. */
+function CancelForm({ invoiceId, number, onDone }: { invoiceId: string; number: string; onDone: () => void }) {
+  const t = useT();
+  const [reason, setReason] = useState("");
+  const [state, setState] = useState<"idle" | "saving" | { failed: string }>("idle");
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim()) return;
+    setState("saving");
+    try {
+      await cancelInvoice(invoiceId, reason.trim());
+      onDone();
+    } catch (error) {
+      const code = error instanceof SaveError ? error.code : "save_failed";
+      setState({ failed: t.invoice.cancelErrors[code] ?? t.invoice.cancelFailed });
+    }
+  };
+  return (
+    <form onSubmit={submit} className="mt-1 grid gap-2">
+      <label htmlFor={`cancel-${invoiceId}`} className="text-sm font-medium">
+        {t.invoice.cancelAsk}
+      </label>
+      <textarea
+        id={`cancel-${invoiceId}`}
+        rows={2}
+        maxLength={500}
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        className="w-full rounded-md border border-rule-strong bg-paper p-2 text-sm"
+      />
+      <small className="text-xs text-ink-2">{t.invoice.cancelNote(number)}</small>
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" className="btn secondary" disabled={state === "saving" || !reason.trim()}>
+          <Ban aria-hidden /> {state === "saving" ? t.common.saving : t.invoice.cancelInvoice}
+        </button>
+        <button type="button" className="btn bare" onClick={onDone}>
+          {t.invoice.keepInvoice}
+        </button>
+      </div>
+      {typeof state === "object" && (
+        <small className="text-xs text-sindoor" role="alert">
+          {state.failed}
+        </small>
+      )}
     </form>
   );
 }

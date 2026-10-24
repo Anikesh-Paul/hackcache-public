@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { BankAllocation, BankTxnRow, CashItemRow } from "@tagada/appwrite";
 import { todayBook, type BookCredit, type BookPromise, type TodayBook } from "@tagada/domain";
 import { DEMO_TODAY } from "@tagada/seed";
+import { receivedByHand } from "./history.ts";
 import { istDay } from "./pricing.ts";
 import { usePaymentHistory, useWorkspaceRows, useWorld } from "./world.tsx";
 
@@ -47,6 +48,7 @@ export function useTodayBook(extra: BookPromise | null = null): TodayState {
         promises,
         events: events.map((e) => ({ invoiceId: e.invoiceId, type: e.type, date: istDay(e.at) })),
         bankCredits: bankSuggestionsOf(credits),
+        received: receivedByHand(events),
         cashItems: cash,
       }),
     };
