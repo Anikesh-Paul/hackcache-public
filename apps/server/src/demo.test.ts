@@ -23,7 +23,8 @@ beforeEach(() => {
       userFromJwt: async (jwt) => USERS[jwt] ?? null,
       worlds: db.store,
       later: (task) => void pending.push(task),
-      tokens: payTokens("test-secret"),
+      // A fixed clock: a reset that falls in the next second would otherwise sign different pay links.
+      tokens: payTokens("test-secret", () => Date.parse("2026-11-02T06:00:00Z")),
     },
     files: memoryFiles().files,
     voice: { speak: async () => new Uint8Array() },
