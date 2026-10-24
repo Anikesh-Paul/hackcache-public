@@ -12,8 +12,8 @@ export function compareInvoiceList(a: ListedInvoice, b: ListedInvoice): number {
   const paidA = a.standing.state === "paid";
   const paidB = b.standing.state === "paid";
   if (paidA !== paidB) return paidA ? 1 : -1;
+  const direction = paidA ? -1 : 1;
   const byDue = a.invoice.dueDate.localeCompare(b.invoice.dueDate);
-  if (byDue !== 0) return paidA ? -byDue : byDue;
-  const byNumber = a.invoice.number.localeCompare(b.invoice.number);
-  return paidA ? -byNumber : byNumber;
+  if (byDue !== 0) return byDue * direction;
+  return a.invoice.number.localeCompare(b.invoice.number) * direction;
 }

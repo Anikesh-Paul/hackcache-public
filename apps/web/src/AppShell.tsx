@@ -77,7 +77,7 @@ function useTabRow(pathname: string, lang: string) {
       if (!active) return;
       const navBox = nav.getBoundingClientRect();
       const box = active.getBoundingClientRect();
-      const fade = 32;
+      const fade = Number.parseFloat(getComputedStyle(nav).getPropertyValue("--tab-fade")) || 0;
       if (box.left < navBox.left + 8) nav.scrollLeft -= navBox.left + 12 - box.left;
       else if (box.right > navBox.right - fade) nav.scrollLeft += box.right - (navBox.right - fade);
     };
