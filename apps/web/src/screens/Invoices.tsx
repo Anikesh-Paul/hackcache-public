@@ -25,7 +25,7 @@ export function Invoices() {
 
   const views = world.invoices.map((invoice) => viewOf(world, invoice)).sort(compareInvoiceList);
   const shown = age
-    ? views.filter((v) => v.standing.state !== "paid" && ageingBucket(v.standing.daysLate) === age.key)
+    ? views.filter((v) => v.standing.balancePaise > 0 && ageingBucket(v.standing.daysLate) === age.key)
     : views.filter((v) => matchesFilter(v.standing, filter));
   const paidOnly = !age && filter === "paid";
   const total = sumPaise(shown.map((v) => (paidOnly ? v.invoice.totalPaise : v.standing.balancePaise)));
@@ -96,10 +96,10 @@ export function Invoices() {
                   </small>
                 </div>
                 <div className="a">
-                  {standing.state === "paid" ? (
-                    <span className="text-ink-2">
+                  {standing.state === "paid" || standing.state === "cancelled" ? (
+                    <span className={`text-ink-2 ${standing.state === "cancelled" ? "line-through" : ""}`}>
                       {formatInr(invoice.totalPaise)}
-                      <small className="block text-xs">{t.invoices.paid}</small>
+                      <small className="block text-xs">{standing.state === "paid" ? t.invoices.paid : t.invoices.cancelled}</small>
                     </span>
                   ) : (
                     formatInr(standing.balancePaise)

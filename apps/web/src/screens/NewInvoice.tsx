@@ -1,12 +1,11 @@
-import { cloneElement, useEffect, useId, useRef, useState, type ReactElement } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
   GST_RATES,
   LINE_UNITS,
   addDays,
   formatAmountInput,
-  indianStates,
   isGstRate,
   isLineUnit,
   parseAmountPaise,
@@ -15,24 +14,17 @@ import {
   type GstRate,
   type LineUnit,
 } from "@tagada/money";
-import { SaveError, createInvoice } from "../lib/appwrite.ts";
-import { LANGUAGES, type LanguageId } from "../lib/languages.ts";
-import { gstinMessage, priceDraft, type DraftLine, type PreviewAs } from "../lib/preview-as.ts";
+import { SaveError, createInvoice, editInvoice } from "../lib/appwrite.ts";
+import { blankCustomer, customerBody, customerIssues, type CustomerDraft } from "../lib/customer-form.ts";
+import { priceDraft, type DraftLine, type PreviewAs } from "../lib/preview-as.ts";
 import { useInvoiceRows, useWorld, useWorldState } from "../lib/world.tsx";
-import { Ln, Paper } from "../ui.tsx";
+import { Field, Ln, Paper, control } from "../ui.tsx";
+import { CustomerFields } from "./CustomerFields.tsx";
+import { NotFound } from "./NotFound.tsx";
 import { TaxInvoice } from "./TaxInvoice.tsx";
 import { useT } from "../i18n/index.ts";
 
 const MODES: PreviewAs[] = ["regular", "composition", "unregistered"];
-
-type Fresh = {
-  name: string;
-  gstin: string;
-  stateCode: string;
-  creditDays: string;
-  lang: LanguageId;
-  address: string;
-};
 
 type LineDraft = {
   key: string;
@@ -44,8 +36,6 @@ type LineDraft = {
   discount: string;
   gst: GstRate;
 };
-
-const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper px-3 text-ink";
 
 /** Bamboo and cane basketwork, what this Demo business mostly sells. The Owner can type another. */
 const DEFAULT_HSN = "4602";
@@ -114,7 +104,7 @@ function touched(line: LineDraft): boolean {
   return Boolean(line.description.trim() || line.rate.trim());
 }
 
-function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
+function freshCustomer(fresh: CustomerDraft, workspaceId: string): CustomerRow | null {
   if (!/^[0-9]{2}$/.test(fresh.stateCode)) return null;
   const credit = Number(fresh.creditDays);
   return {
@@ -125,59 +115,45 @@ function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
     gstin: fresh.gstin.trim().toUpperCase() || null,
     stateCode: fresh.stateCode,
     place: stateName(fresh.stateCode),
-    phone: null,
-    email: null,
+    phone: fresh.phone.trim() || null,
+    email: fresh.email.trim() || null,
     buyerType: "goods",
     creditDays: Number.isInteger(credit) && credit >= 0 && credit <= 365 ? credit : 30,
     avgDelayDays: null,
     grade: null,
     gradeReason: null,
-    consentCalls: false,
+    consentCalls: fresh.consentCalls,
     consentAt: null,
     lang: fresh.lang,
     gender: null,
   };
 }
 
-type CustomerIssue = "name" | "gstin" | "state" | "creditDays";
-
-/** What still stops a new Customer saving. The server asks the same of them. */
-function newCustomerIssues(fresh: Fresh): CustomerIssue[] {
-  const credit = fresh.creditDays.trim() === "" ? NaN : Number(fresh.creditDays);
-  const gstin = fresh.gstin.trim().toUpperCase();
-  const issues: CustomerIssue[] = [];
-  if (!fresh.name.trim()) issues.push("name");
-  // A GSTIN is optional (a shop or household buyer has none), but one that is typed must check.
-  if (gstin && gstinMessage(gstin) !== null) issues.push("gstin");
-  if (stateName(fresh.stateCode) === null || (gstin.length >= 2 && fresh.stateCode !== gstin.slice(0, 2))) issues.push("state");
-  if (!Number.isInteger(credit) || credit < 0 || credit > 365) issues.push("creditDays");
-  return issues;
-}
-
+/**
+ * /app/invoices/new, and /app/invoices/:id/edit for an unpaid Invoice with
+ * nothing paid against it: its lines and due date change; its number,
+ * Customer and issue date stay.
+ */
 export function NewInvoice() {
   const world = useWorld();
   const { reload } = useWorldState();
   const navigate = useNavigate();
   const t = useT();
   const [params] = useSearchParams();
+  const { id: editId } = useParams();
+  const editing = editId ? world.invoices.find((invoice) => invoice.$id === editId) : undefined;
   const fromId = params.get("from") ?? undefined;
   // Came from the landing page's "Make your own invoice": walk the judge through it.
   const trying = params.has("try");
-  const source = fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined;
+  const source = editing ?? (fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined);
   const sourceLines = useInvoiceRows<InvoiceLineRow>("invoice_lines", source?.$id);
   const applied = useRef(false);
 
   const [mode, setMode] = useState<PreviewAs>("regular");
   const [customerId, setCustomerId] = useState("");
-  const [fresh, setFresh] = useState<Fresh>({
-    name: "",
-    gstin: "",
-    stateCode: "",
-    creditDays: "30",
-    lang: "en",
-    address: "",
-  });
+  const [fresh, setFresh] = useState<CustomerDraft>(blankCustomer);
   const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
+  const [dueDate, setDueDate] = useState(editing?.dueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,25 +173,25 @@ export function NewInvoice() {
   const partial = lines.some((line) => touched(line) && !parseLine(line));
   const priced = priceDraft({ mode, workspace: world.workspace, customer: picked, lines: ready });
   const creditDays = picked?.creditDays ?? 30;
-  const customerIssues = customerId === "new" ? newCustomerIssues(fresh) : [];
+  const dueOk = !editing || (dueDate >= editing.issueDate && dueDate <= addDays(editing.issueDate, 365));
+  const freshIssues = customerId === "new" ? customerIssues(fresh) : [];
   const canSave =
     priced?.saves === true &&
     !saving &&
     !partial &&
     ready.length > 0 &&
-    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : customerIssues.length === 0);
+    dueOk &&
+    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : freshIssues.length === 0);
   // Why Save is off, in words, so a disabled button never leaves the Owner guessing.
   const blockers: string[] = [];
   if (mode === "regular" && !saving) {
     if (!customerId) blockers.push(t.newInvoice.blockers.customer);
-    for (const issue of customerIssues) blockers.push(t.newInvoice.blockers[issue]);
+    for (const issue of freshIssues) blockers.push(t.newInvoice.blockers[issue]);
     if (!lines.some(touched)) blockers.push(t.newInvoice.blockers.line);
+    if (!dueOk) blockers.push(t.newInvoice.blockers.dueDate);
   }
   const lineHint = (line: LineDraft, field: LineField) =>
     touched(line) && lineIssues(line).has(field) ? t.newInvoice.lineHints[field] : null;
-  const gstinCheck = customerId === "new" && fresh.gstin.trim() ? gstinMessage(fresh.gstin) : null;
-  const gstinProblem = gstinCheck === null ? null : gstinCheck === "check-digit" ? t.newInvoice.gstinCheck : t.newInvoice.gstinShape;
-
   const edit = (key: string, patch: Partial<LineDraft>) =>
     setLines((current) => current.map((line) => (line.key === key ? { ...line, ...patch } : line)));
 
@@ -226,18 +202,18 @@ export function NewInvoice() {
     const body =
       customerId === "new"
         ? {
-            customer: {
-              name: fresh.name.trim(),
-              gstin: fresh.gstin.trim().toUpperCase() || undefined,
-              stateCode: fresh.stateCode,
-              creditDays: Number(fresh.creditDays),
-              lang: fresh.lang,
-              address: fresh.address.trim() || undefined,
-            },
+            customer: customerBody(fresh),
             lines: ready,
           }
         : { customerId, lines: ready };
     try {
+      if (editing) {
+        await editInvoice(editing.$id, { lines: ready, dueDate });
+        // Read again, so the Invoice's lines are the new ones.
+        await reload();
+        navigate(`/app/invoices/${editing.$id}`);
+        return;
+      }
       const { invoiceId } = await createInvoice(body);
       await reload();
       navigate(`/app/invoices/${invoiceId}${trying ? "?try" : ""}`);
@@ -248,21 +224,51 @@ export function NewInvoice() {
     }
   };
 
+  if (editId && !editing) return <NotFound what="Invoice" />;
+  if (editing && (editing.paidPaise > 0 || (editing.status !== "sent" && editing.status !== "disputed"))) {
+    return (
+      <Paper label={t.newInvoice.editTitle}>
+        <Ln>
+          <h1 className="text-[28px] leading-tight">{t.newInvoice.editTitle}</h1>
+          <p className="mt-2 max-w-[60ch]">{t.newInvoice.notEditable}</p>
+          <Link to={`/app/invoices/${editing.$id}`} className="btn secondary mt-4">
+            {t.newInvoice.backToInvoice(editing.number)}
+          </Link>
+        </Ln>
+      </Paper>
+    );
+  }
+
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Paper label={t.newInvoice.label}>
+      <Paper label={editing ? t.newInvoice.editTitle : t.newInvoice.label}>
         <Ln>
           <p className="text-[13px] text-ink-2">
             <Link to="/app/invoices">{t.invoices.title}</Link>
-            {source ? ` / ${source.number}` : ""} / {t.newInvoice.crumbNew}
+            {editing ? (
+              <>
+                {" / "}
+                <Link to={`/app/invoices/${editing.$id}`}>{editing.number}</Link> / {t.newInvoice.crumbEdit}
+              </>
+            ) : (
+              <>
+                {source ? ` / ${source.number}` : ""} / {t.newInvoice.crumbNew}
+              </>
+            )}
           </p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-            <h1 className="text-[28px] leading-tight">{t.newInvoice.title}</h1>
+            <h1 className="text-[28px] leading-tight">{editing ? t.newInvoice.editTitle : t.newInvoice.title}</h1>
             <button type="button" className="btn primary" disabled={!canSave} onClick={save}>
-              {saving ? t.common.saving : priced?.saves === false ? t.newInvoice.previewOnly : t.newInvoice.save}
+              {saving
+                ? t.common.saving
+                : priced?.saves === false
+                  ? t.newInvoice.previewOnly
+                  : editing
+                    ? t.newInvoice.saveChanges
+                    : t.newInvoice.save}
             </button>
           </div>
-          <p className="mt-2 max-w-[60ch]">{t.newInvoice.intro}</p>
+          <p className="mt-2 max-w-[60ch]">{editing ? t.newInvoice.editIntro(editing.number) : t.newInvoice.intro}</p>
           {trying && (
             <div className="mt-4 rounded-md border border-bamboo bg-bamboo-soft p-3 text-sm">
               <p className="font-semibold">{t.newInvoice.tryTitle}</p>
@@ -273,6 +279,7 @@ export function NewInvoice() {
               </ol>
             </div>
           )}
+          {!editing && (
           <div role="group" aria-label={t.newInvoice.previewAs} className="mt-4 flex flex-wrap gap-2">
             {MODES.map((id) => (
               <button
@@ -288,6 +295,7 @@ export function NewInvoice() {
               </button>
             ))}
           </div>
+          )}
           {mode === "regular" ? (
             <p className="mt-2 text-sm text-ink-2">{t.newInvoice.ownRegistration(world.workspace.businessName)}</p>
           ) : (
@@ -304,7 +312,12 @@ export function NewInvoice() {
           }}
         >
           <Field label={t.newInvoice.customer}>
-            <select className={control} value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <select
+              className={control}
+              value={customerId}
+              disabled={Boolean(editing)}
+              onChange={(event) => setCustomerId(event.target.value)}
+            >
               <option value="">{t.newInvoice.choose}</option>
               {customers.map((customer) => (
                 <option key={customer.$id} value={customer.$id}>
@@ -316,73 +329,22 @@ export function NewInvoice() {
           </Field>
 
           {customerId === "new" && (
-            <div className="grid gap-3 rounded-md border border-rule p-3">
-              <Field label={t.newInvoice.name}>
-                <input className={control} value={fresh.name} onChange={(event) => setFresh({ ...fresh, name: event.target.value })} />
-              </Field>
-              <Field label={t.newInvoice.gstinOptional} hint={gstinProblem}>
-                <input
-                  className={control}
-                  value={fresh.gstin}
-                  autoCapitalize="characters"
-                  spellCheck={false}
-                  aria-invalid={gstinProblem ? true : undefined}
-                  onChange={(event) => {
-                    const gstin = event.target.value.toUpperCase();
-                    const valid = gstin.trim().length > 0 && gstinMessage(gstin) === null;
-                    setFresh((current) => ({
-                      ...current,
-                      gstin,
-                      stateCode: valid ? gstin.trim().slice(0, 2) : current.stateCode,
-                    }));
-                  }}
-                />
-              </Field>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label={t.newInvoice.state}>
-                  <select
-                    className={control}
-                    value={fresh.stateCode}
-                    onChange={(event) => setFresh({ ...fresh, stateCode: event.target.value })}
-                  >
-                    <option value="">{t.newInvoice.chooseState}</option>
-                    {indianStates().map((state) => (
-                      <option key={state.code} value={state.code}>
-                        {state.code} {state.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label={t.newInvoice.creditDays}>
-                  <input
-                    className={control}
-                    inputMode="numeric"
-                    value={fresh.creditDays}
-                    onChange={(event) => setFresh({ ...fresh, creditDays: event.target.value })}
-                  />
-                </Field>
-              </div>
-              <Field label={t.newInvoice.language}>
-                <select
-                  className={control}
-                  value={fresh.lang}
-                  onChange={(event) => setFresh({ ...fresh, lang: event.target.value as LanguageId })}
-                >
-                  {LANGUAGES.map((language) => (
-                    <option key={language.id} value={language.id} lang={language.id}>
-                      {language.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={t.newInvoice.address}>
-                <input
-                  className={control}
-                  value={fresh.address}
-                  onChange={(event) => setFresh({ ...fresh, address: event.target.value })}
-                />
-              </Field>
+            <div className="rounded-md border border-rule p-3">
+              <CustomerFields draft={fresh} onChange={setFresh} />
             </div>
+          )}
+
+          {editing && (
+            <Field label={t.newInvoice.dueDate} hint={dueOk ? null : t.newInvoice.blockers.dueDate}>
+              <input
+                className={control}
+                type="date"
+                min={editing.issueDate}
+                max={addDays(editing.issueDate, 365)}
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </Field>
           )}
 
           <div className="grid gap-3">
@@ -493,9 +455,9 @@ export function NewInvoice() {
             customer={priced.customer}
             lines={priced.lines}
             priced={priced.totals}
-            number={null}
-            issueDate={world.workspace.today}
-            dueDate={addDays(world.workspace.today, creditDays)}
+            number={editing?.number ?? null}
+            issueDate={editing?.issueDate ?? world.workspace.today}
+            dueDate={editing ? dueDate || editing.dueDate : addDays(world.workspace.today, creditDays)}
           />
         ) : (
           <Paper label={t.newInvoice.printPreview}>
@@ -510,28 +472,3 @@ export function NewInvoice() {
   );
 }
 
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string | null;
-  children: ReactElement<{ id?: string; "aria-describedby"?: string }>;
-}) {
-  const id = useId();
-  const hintId = hint ? `${id}-hint` : undefined;
-  return (
-    <div className="grid content-start gap-1 text-sm">
-      <label htmlFor={id} className="font-medium">
-        {label}
-      </label>
-      {cloneElement(children, { id, "aria-describedby": hintId })}
-      {hint && (
-        <span id={hintId} role="alert" className="text-sindoor">
-          {hint}
-        </span>
-      )}
-    </div>
-  );
-}

@@ -104,11 +104,17 @@ function merge<T extends { $id: string }>(read: readonly T[], live: readonly T[]
 
 /**
  * The Owner's world with one live change applied: the workspace (a new Demo
- * date, from the stepper or the tour) and the Invoices and Promises the screens keep in memory.
+ * date, from the stepper or the tour) and the Customers, Invoices and Promises the screens keep in memory.
  */
 function applyLive(world: World, row: LiveRow, deleted: boolean): World {
   if (row.$tableId === "workspaces") {
     return deleted || row.$id !== world.workspace.$id ? world : { ...world, workspace: row as unknown as WorkspaceRow };
+  }
+  if (row.$tableId === "customers") {
+    const customers = new Map(world.customers);
+    if (deleted) customers.delete(row.$id);
+    else customers.set(row.$id, row as unknown as CustomerRow);
+    return { ...world, customers };
   }
   if (row.$tableId === "invoices") {
     return { ...world, invoices: upsert(world.invoices, row as unknown as InvoiceRow, deleted) };
@@ -213,7 +219,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     setLiveEvents([]);
     setLiveInbox([]);
     setLiveReminders([]);
-    return watchRows(workspaceId, ["workspaces", "inbox", "events", "invoices", "promises", "reminders"], (row, deleted) => {
+    return watchRows(workspaceId, ["workspaces", "inbox", "events", "customers", "invoices", "promises", "reminders"], (row, deleted) => {
       if (row.$tableId === "inbox") {
         setLiveInbox((now) => upsert(now, row as unknown as InboxRow, deleted));
       } else if (row.$tableId === "reminders") {

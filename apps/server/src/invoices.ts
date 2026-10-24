@@ -5,7 +5,6 @@ import { Permission, Role } from "node-appwrite";
 import type { CustomerRow, EventRow, InvoiceLineRow, InvoiceRow } from "@tagada/appwrite";
 import {
   addDays,
-  checkGstin,
   financialYear,
   formatDate,
   invoiceNumber,
@@ -14,12 +13,11 @@ import {
   isLineUnit,
   lineMeasures,
   quantityMilli,
-  stateName,
   type GstRate,
   type Registration,
 } from "@tagada/money";
-import { isCustomerLang, type CustomerLang } from "@tagada/domain";
-import { workspaceIdFor, type OwnedRow, type WorldRows, type WorldStore } from "./demo.ts";
+import { newCustomerRow, parseCustomer } from "./customers.ts";
+import { workspaceIdFor, type OwnedRow, type StoredRow, type WorldRows, type WorldStore } from "./demo.ts";
 
 const PREFIX = "TBW";
 
@@ -48,7 +46,7 @@ export type IssuedInvoice = {
 export type IssueFailure = { ok: false; status: 400 | 409; error: string };
 export type IssueSuccess = { ok: true } & IssuedInvoice;
 
-type LineInput = {
+export type LineInput = {
   description: string;
   hsn: string;
   quantity: number;
@@ -57,16 +55,6 @@ type LineInput = {
   gstRatePercent: GstRate;
   /** Null for "nos", the default. */
   unit: string | null;
-};
-
-type NewCustomer = {
-  name: string;
-  /** Null for a Customer with no GST registration (B2C). */
-  gstin: string | null;
-  stateCode: string;
-  creditDays: number;
-  lang: CustomerLang;
-  address: string | null;
 };
 
 const fail = (status: 400 | 409, error: string): IssueFailure => ({ ok: false, status, error });
@@ -131,7 +119,7 @@ function parseLine(value: unknown): LineInput | null {
   return { description, hsn, quantity, ratePaise, discountPercent, gstRatePercent, unit: unit === "nos" ? null : unit };
 }
 
-function parseLines(value: unknown): LineInput[] | null {
+export function parseLines(value: unknown): LineInput[] | null {
   if (!Array.isArray(value) || value.length === 0 || value.length > 30) return null;
   const lines: LineInput[] = [];
   for (const item of value) {
@@ -142,28 +130,51 @@ function parseLines(value: unknown): LineInput[] | null {
   return lines;
 }
 
-function parseNewCustomer(value: unknown): NewCustomer | IssueFailure {
-  if (!isRecord(value)) return fail(400, "invalid_body");
-  const name = text(value.name)?.trim() ?? "";
-  const gstin = text(value.gstin)?.trim().toUpperCase() ?? "";
-  const stateCode = text(value.stateCode)?.trim() ?? "";
-  const creditDays = wholeNumber(value.creditDays);
-  const lang = text(value.lang);
-  const address = value.address === undefined || value.address === null ? null : text(value.address)?.trim();
-  if (!name || name.length > 128) return fail(400, "invalid_customer");
-  // A GSTIN is optional: a small shop or a household buyer has none. One that is given must check.
-  if (gstin && !checkGstin(gstin).ok) return fail(400, "invalid_gstin");
-  if (!/^[0-9]{2}$/.test(stateCode) || (gstin && stateCode !== gstin.slice(0, 2)) || !stateName(stateCode)) {
-    return fail(400, "invalid_customer");
-  }
-  if (creditDays === null || creditDays < 0 || creditDays > 365) return fail(400, "invalid_customer");
-  if (!lang || !isCustomerLang(lang)) return fail(400, "invalid_customer");
-  if (address === undefined || (address !== null && address.length > 256)) return fail(400, "invalid_customer");
-  return { name, gstin: gstin || null, stateCode, creditDays, lang, address };
-}
-
 function registrationOf(value: unknown): Registration | null {
   return value === "regular" || value === "composition" || value === "unregistered" ? value : null;
+}
+
+/**
+ * The totals for these lines on this workspace's registration, billed to a
+ * Customer in `customerState`. The same working on create and on edit.
+ */
+export function totalsFor(workspace: StoredRow, customerState: string, lines: readonly LineInput[]) {
+  const registration = registrationOf(workspace.registrationType);
+  const supplierState = text(workspace.stateCode);
+  if (!registration || !supplierState) return fail(409, "world_not_ready");
+  try {
+    return invoiceTotals({
+      registration,
+      supplierStateCode: supplierState,
+      placeOfSupplyStateCode: customerState,
+      aggregateTurnoverPaise: wholeNumber(workspace.aggregateTurnoverPaise) ?? 0,
+      lines: lines.map((line) => ({
+        quantity: line.quantity,
+        ratePaise: line.ratePaise,
+        discountPercent: line.discountPercent,
+        gstRatePercent: line.gstRatePercent,
+      })),
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "";
+    if (message.includes("another state")) return fail(400, "composition_interstate");
+    return fail(400, "invalid_line");
+  }
+}
+
+/** One Invoice's line rows. */
+export function lineRows(workspaceId: string, invoiceId: string, lines: readonly LineInput[], newId: () => string): InvoiceLineRow[] {
+  return lines.map((line) => ({
+    $id: newId(),
+    workspaceId,
+    invoiceId,
+    description: line.description,
+    hsn: line.hsn,
+    ratePaise: line.ratePaise,
+    ...lineMeasures(line),
+    // Written only when it is not "nos", so saves work before the column is added.
+    ...(line.unit ? { unit: line.unit } : {}),
+  }));
 }
 
 /**
@@ -187,11 +198,8 @@ export async function issueInvoice(
   const workspaceId = workspaceIdFor(userId);
   const [workspace] = await worlds.list("workspaces", workspaceId);
   if (!workspace) return fail(409, "world_not_ready");
-  const registration = registrationOf(workspace.registrationType);
-  const supplierState = text(workspace.stateCode);
   const today = text(workspace.today);
-  const turnover = wholeNumber(workspace.aggregateTurnoverPaise) ?? 0;
-  if (!registration || !supplierState || !today) return fail(409, "world_not_ready");
+  if (!registrationOf(workspace.registrationType) || !text(workspace.stateCode) || !today) return fail(409, "world_not_ready");
 
   const permissions = [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
   const owned = (row: { $id: string }): OwnedRow => ({
@@ -208,32 +216,12 @@ export async function issueInvoice(
   let created: OwnedRow | null = null;
 
   if (hasNew) {
-    const parsed = parseNewCustomer(body.customer);
-    if ("ok" in parsed) return parsed;
+    const parsed = parseCustomer(body.customer);
+    if ("ok" in parsed) return fail(400, parsed.error);
     customerId = ids.row();
     customerState = parsed.stateCode;
     creditDays = parsed.creditDays;
-    const row: CustomerRow = {
-      $id: customerId,
-      workspaceId,
-      name: parsed.name,
-      address: parsed.address,
-      gstin: parsed.gstin,
-      stateCode: parsed.stateCode,
-      place: stateName(parsed.stateCode),
-      phone: null,
-      email: null,
-      buyerType: "goods",
-      creditDays,
-      avgDelayDays: null,
-      grade: null,
-      gradeReason: null,
-      consentCalls: false,
-      consentAt: null,
-      lang: parsed.lang,
-      gender: null,
-    };
-    created = owned(row);
+    created = newCustomerRow(workspaceId, userId, customerId, parsed, today);
     customerOut = {
       $id: customerId,
       name: parsed.name,
@@ -262,25 +250,8 @@ export async function issueInvoice(
     };
   }
 
-  let totals;
-  try {
-    totals = invoiceTotals({
-      registration,
-      supplierStateCode: supplierState,
-      placeOfSupplyStateCode: customerState,
-      aggregateTurnoverPaise: turnover,
-      lines: lines.map((line) => ({
-        quantity: line.quantity,
-        ratePaise: line.ratePaise,
-        discountPercent: line.discountPercent,
-        gstRatePercent: line.gstRatePercent,
-      })),
-    });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : "";
-    if (message.includes("another state")) return fail(400, "composition_interstate");
-    return fail(400, "invalid_line");
-  }
+  const totals = totalsFor(workspace, customerState, lines);
+  if ("ok" in totals) return totals;
 
   const taken = (await worlds.list("invoices", workspaceId)).flatMap((row) => {
     const number = text(row.number);
@@ -323,17 +294,7 @@ export async function issueInvoice(
   if (!invoice) return fail(409, "number_taken");
   const { $id: invoiceId, number, payToken } = invoice;
 
-  const invoiceLines: InvoiceLineRow[] = lines.map((line) => ({
-    $id: ids.row(),
-    workspaceId,
-    invoiceId,
-    description: line.description,
-    hsn: line.hsn,
-    ratePaise: line.ratePaise,
-    ...lineMeasures(line),
-    // Written only when it is not "nos", so saves work before the column is added.
-    ...(line.unit ? { unit: line.unit } : {}),
-  }));
+  const invoiceLines = lineRows(workspaceId, invoiceId, lines, ids.row);
 
   const event: EventRow = {
     $id: ids.row(),

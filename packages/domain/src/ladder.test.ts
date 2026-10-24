@@ -27,6 +27,10 @@ const next = (over: Partial<LadderInvoice>, today: string, promises: PromiseFact
   nextAction({ invoice: { ...invoice, ...over }, promises, today, autoSendStages });
 
 describe("nextAction", () => {
+  it("never chases a cancelled Invoice", () => {
+    expect(next({ status: "cancelled" }, "2026-11-17")).toEqual({ kind: "wait", why: "cancelled" });
+  });
+
   it("counts whole IST days from the due date: the heads-up waits until 3 days before", () => {
     expect(next({}, "2026-11-06")).toEqual({ kind: "wait", why: "not_yet", on: "2026-11-07" });
     expect(next({}, "2026-11-07")).toEqual({ kind: "act", stage: 1, send: "auto", amountPaise: 11_800_000 });

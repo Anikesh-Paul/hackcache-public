@@ -121,6 +121,46 @@ export async function createInvoice(body: unknown): Promise<{ invoiceId: string 
   return { invoiceId: data.invoice.$id };
 }
 
+/** Adds a Customer (no `customerId`) or changes one. The server checks every field. */
+export async function saveCustomer(customerId: string | null, body: unknown): Promise<{ customerId: string }> {
+  const jwt = await sessionJwt();
+  const path = customerId ? `/api/customers/${encodeURIComponent(customerId)}` : "/api/customers";
+  const res = await fetch(`${SERVER_URL}${path}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${jwt}`, "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => null)) as { error?: string; customer?: { $id?: string } } | null;
+  if (!res.ok || !data?.customer?.$id) throw new SaveError(data?.error ?? "save_failed");
+  return { customerId: data.customer.$id };
+}
+
+/** A payment received by hand, recorded against an Invoice. The server checks it is no more than is owed. */
+export async function recordPayment(
+  invoiceId: string,
+  body: { amountPaise: number; date: string; mode: string; reference?: string },
+): Promise<void> {
+  await invoiceChange(invoiceId, "payment", body);
+}
+
+/** Cancels an Invoice with nothing paid against it. Its number stays used. */
+export async function cancelInvoice(invoiceId: string, reason: string): Promise<void> {
+  await invoiceChange(invoiceId, "cancel", { reason });
+}
+
+/** Corrects an unpaid Invoice's lines and due date. The server works the totals out again. */
+export async function editInvoice(invoiceId: string, body: { lines: unknown[]; dueDate: string }): Promise<void> {
+  await invoiceChange(invoiceId, "edit", body);
+}
+
+async function invoiceChange(invoiceId: string, action: "payment" | "cancel" | "edit", body: unknown): Promise<void> {
+  const { status, data } = await ownerApi<{ error?: string }>(`/api/invoices/${encodeURIComponent(invoiceId)}/${action}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (status !== 200) throw new SaveError(data?.error ?? "save_failed");
+}
+
 export type ImportReport = { already: number; added: number; summary: string };
 
 async function authed(path: string, body: unknown): Promise<unknown> {
@@ -266,10 +306,12 @@ export async function markReminderSent(body: { invoiceId: string; stage: number;
 }
 
 /** Where reminder emails go, and whether this server can send them at all. */
-export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean }> {
-  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean }>("/api/settings/email");
+export async function emailSetup(): Promise<{ demoInbox: string | null; emailReady: boolean; customerEmails: boolean }> {
+  const { status, data } = await ownerApi<{ demoInbox?: string | null; emailReady?: boolean; customerEmails?: boolean }>(
+    "/api/settings/email",
+  );
   if (status !== 200 || !data) throw new SaveError("email_setup_failed");
-  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true };
+  return { demoInbox: data.demoInbox ?? null, emailReady: data.emailReady === true, customerEmails: data.customerEmails === true };
 }
 
 /** Saves some Settings. A refusal names the field it could not use. */

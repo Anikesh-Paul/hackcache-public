@@ -13,6 +13,7 @@ const demo = {
     create: async () => "created" as const,
     get: async () => null,
     update: ok,
+    delete: ok,
     list: async () => [],
   },
   later: () => {},

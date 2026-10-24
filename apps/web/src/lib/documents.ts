@@ -39,12 +39,13 @@ export function promisesForDocument(byInvoice: ReadonlyMap<string, readonly Prom
 
 /** The Invoice this page was opened from, plus the Customer's other unpaid Invoices. The document keeps only what is past due. */
 export function invoicesForDocument(invoices: readonly InvoiceRow[], current: InvoiceRow): InvoiceRow[] {
-  if (current.status === "paid" || current.status === "draft") return [current];
+  if (current.status === "paid" || current.status === "cancelled" || current.status === "draft") return [current];
   const others = invoices.filter(
     (invoice) =>
       invoice.customerId === current.customerId &&
       invoice.$id !== current.$id &&
       invoice.status !== "paid" &&
+      invoice.status !== "cancelled" &&
       invoice.status !== "draft",
   );
   return [current, ...others];

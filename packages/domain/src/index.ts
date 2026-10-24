@@ -4,7 +4,7 @@ export type { CustomerLang } from "./language.ts";
 export { GRADE_WHY, grade, gradeCustomer, paymentHabit } from "./grade.ts";
 export type { CustomerGrade, GradeFacts, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
 
-export { INVOICE_FILTERS, invoiceStanding, isInvoiceFilter, matchesFilter } from "./invoice.ts";
+export { INVOICE_FILTERS, invoiceStanding, isClosed, isInvoiceFilter, matchesFilter } from "./invoice.ts";
 export type { InvoiceFacts, InvoiceFilter, InvoiceStanding, InvoiceState, PromiseFacts } from "./invoice.ts";
 
 export {
@@ -71,6 +71,7 @@ export {
   callDay,
   callGuard,
   checkOutcome,
+  indianMobile,
   munimFirstLine,
   planInWords,
   proposePlan,

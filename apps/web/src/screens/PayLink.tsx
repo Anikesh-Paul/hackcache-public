@@ -73,6 +73,8 @@ type Words = {
   disputedNote: (business: string) => string;
   paidTitle: string;
   paidThanks: string;
+  cancelledTitle: string;
+  cancelledNote: (business: string) => string;
   qr: string;
   foot: (business: string) => string;
   demoUpi: string;
@@ -141,6 +143,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     disputedNote: (business) => `${business} इसे देखेंगे। तब तक कोई अनुस्मारक नहीं भेजा जाएगा।`,
     paidTitle: "यह बिल पूरा भर दिया गया है",
     paidThanks: "धन्यवाद!",
+    cancelledTitle: "यह बिल रद्द कर दिया गया है",
+    cancelledNote: (business) => `इस पर कुछ नहीं देना है। कोई सवाल हो तो ${business} से बात करें।`,
     qr: "किसी भी UPI ऐप से स्कैन करें",
     foot: (business) => `यह संदेश ${business} ने Tagada से भेजा है।`,
     demoUpi: "डेमो UPI ID, इससे कोई पैसा नहीं जाता।",
@@ -208,6 +212,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     disputedNote: (business) => `${business} দেখবেন। ততদিন কোনো অনুস্মারক পাঠানো হবে না।`,
     paidTitle: "এই বিল পুরো মিটে গেছে",
     paidThanks: "ধন্যবাদ!",
+    cancelledTitle: "এই বিল বাতিল করা হয়েছে",
+    cancelledNote: (business) => `এর জন্য কিছু দিতে হবে না। কোনো প্রশ্ন থাকলে ${business}-এর সঙ্গে কথা বলুন।`,
     qr: "যেকোনো UPI অ্যাপ দিয়ে স্ক্যান করুন",
     foot: (business) => `${business} এই বার্তাটি Tagada দিয়ে পাঠিয়েছে।`,
     demoUpi: "ডেমো UPI ID, এতে কোনো টাকা যায় না।",
@@ -275,6 +281,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     disputedNote: (business) => `${business} will look into it. No reminders are sent meanwhile.`,
     paidTitle: "This bill is paid in full",
     paidThanks: "Thank you!",
+    cancelledTitle: "This bill was cancelled",
+    cancelledNote: (business) => `Nothing is due on it. If you have a question, talk to ${business}.`,
     qr: "Scan with any UPI app",
     foot: (business) => `Sent by ${business} using Tagada.`,
     demoUpi: "A demo UPI ID: no money moves.",
@@ -635,6 +643,12 @@ function Standing({ slip, lang, justDone }: { slip: PaySlip; lang: Lang; justDon
       return (
         <Note title={t.paidTitle} land={false}>
           {t.paidThanks}
+        </Note>
+      );
+    case "cancelled":
+      return (
+        <Note title={t.cancelledTitle} land={false}>
+          {t.cancelledNote(business)}
         </Note>
       );
   }
