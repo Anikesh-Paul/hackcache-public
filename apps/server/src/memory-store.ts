@@ -84,6 +84,9 @@ export function memoryFiles() {
       const mime = file.name.endsWith(".png") ? "image/png" : file.name.endsWith(".webp") ? "image/webp" : "image/jpeg";
       return { bytes: file.bytes, mime };
     },
+    async deleteScreenshot(fileId) {
+      screenshots.delete(fileId);
+    },
   };
   return { files, screenshots, audio };
 }

@@ -3,7 +3,7 @@ import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
-import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
+import { claimedUserId, deleteWorkspace, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
 import { assignCredit, confirmMatches, importStatement, keepAdvance } from "./bank.ts";
 import { addCustomer, editCustomer, type CustomerFailure, type CustomerSaved } from "./customers.ts";
 import { cancelInvoice, editInvoice, recordPayment, type ChangeResult } from "./invoice-changes.ts";
@@ -453,6 +453,19 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       return c.json(await resetDemo(demo, userId));
     } catch (e) {
       return failed(c, "/api/demo/reset", e);
+    }
+  });
+
+  // Delete my workspace: every row and stored file of the session's own world, then a fresh one.
+  app.post("/api/demo/delete", async (c) => {
+    const jwt = bearer(c);
+    if (!jwt) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const userId = await demo.userFromJwt(jwt);
+      if (!userId) return c.json({ error: "unauthorized" }, 401);
+      return c.json(await deleteWorkspace(demo, files, userId));
+    } catch (e) {
+      return failed(c, "/api/demo/delete", e);
     }
   });
 

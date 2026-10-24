@@ -4,6 +4,7 @@
 import { Permission, Role } from "node-appwrite";
 import type { DemoStarted } from "@tagada/appwrite";
 import { seedWorld, type World } from "@tagada/seed";
+import type { FileStore } from "./pay.ts";
 import type { PayTokens } from "./pay-token.ts";
 
 export type { DemoStarted };
@@ -125,5 +126,19 @@ export function claimedUserId(jwt: string): string | null {
 /** Deletes the visitor's world and seeds it again. Nobody else's rows are touched. */
 export async function resetDemo(deps: DemoDeps, userId: string): Promise<DemoStarted> {
   await deps.worlds.remove(workspaceIdFor(userId));
+  return seed(deps, userId);
+}
+
+/**
+ * Delete my workspace: every UPI screenshot its Customers sent, then every
+ * row, then a fresh world in its place. Only the visitor's own workspace.
+ */
+export async function deleteWorkspace(deps: DemoDeps, files: FileStore, userId: string): Promise<DemoStarted> {
+  const workspaceId = workspaceIdFor(userId);
+  // The files first: once the rows are gone, nothing says which screenshots were this workspace's.
+  const proofs = await deps.worlds.list("proof_checks", workspaceId);
+  const fileIds = [...new Set(proofs.map((row) => row.fileId).filter((id): id is string => typeof id === "string" && id !== ""))];
+  await Promise.all(fileIds.map((fileId) => files.deleteScreenshot(fileId)));
+  await deps.worlds.remove(workspaceId);
   return seed(deps, userId);
 }

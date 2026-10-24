@@ -3,6 +3,7 @@
 // the Plan rule bounds what the agent and the pay link may offer; the switches
 // choose which Ladder messages the daily run sends without asking.
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useNavigate } from "react-router";
 import { AUTO_SEND_SWITCHES, LADDER_STAGES, planRule } from "@tagada/domain";
 import { E_INVOICE_TURNOVER_PAISE, formatInr, parseAmountPaise } from "@tagada/money";
 import { useT } from "../i18n/index.ts";
@@ -63,6 +64,60 @@ function DemoInbox({ businessName }: { businessName: string }) {
         </span>
       )}
       <small className="text-ink-2">{t.settings.fromNote(businessName)}</small>
+    </div>
+  );
+}
+
+/** Delete my workspace (DPDP Act, 2023): a confirm step, then every row and file goes and a fresh world opens on Today. */
+function DeleteWorkspace() {
+  const t = useT();
+  const { deleteMine } = useWorldState();
+  const navigate = useNavigate();
+  const [step, setStep] = useState<"idle" | "confirm" | "deleting" | "failed">("idle");
+  const erase = async () => {
+    setStep("deleting");
+    try {
+      await deleteMine();
+      navigate("/app");
+    } catch (e) {
+      console.error("workspace delete failed", e);
+      setStep("failed");
+    }
+  };
+  return (
+    <div className="sect">
+      <Head title={t.settings.yourData} />
+      <Ln>
+        <div className="grid max-w-[560px] gap-3 text-sm">
+          <p className="text-ink-2">{t.settings.dataNote}</p>
+          {step === "idle" || step === "failed" ? (
+            <span className="flex flex-wrap items-center gap-3">
+              <button type="button" className="btn secondary" onClick={() => setStep("confirm")}>
+                {t.settings.deleteWorkspace}
+              </button>
+              {step === "failed" && (
+                <span role="alert" className="text-sindoor">
+                  {t.settings.notDeleted}
+                </span>
+              )}
+            </span>
+          ) : (
+            <div role="alertdialog" aria-labelledby="delete-confirm" className="grid gap-2">
+              <p id="delete-confirm" className="font-medium">
+                {t.settings.confirmDelete}
+              </p>
+              <span className="flex flex-wrap items-center gap-3">
+                <button type="button" className="btn primary" onClick={erase} disabled={step === "deleting"}>
+                  {step === "deleting" ? t.settings.deleting : t.settings.yesDelete}
+                </button>
+                <button type="button" className="btn secondary" onClick={() => setStep("idle")} disabled={step === "deleting"}>
+                  {t.settings.keep}
+                </button>
+              </span>
+            </div>
+          )}
+        </div>
+      </Ln>
     </div>
   );
 }
@@ -296,6 +351,7 @@ export function Settings() {
           </Ln>
         </div>
       </form>
+      <DeleteWorkspace />
     </Paper>
   );
 }

@@ -797,6 +797,15 @@ export const en = {
     save: "Save settings",
     saved: "Saved.",
     notSaved: "Not saved. Try again.",
+    yourData: "Your data",
+    dataNote:
+      "Your books are kept in Appwrite, in Singapore, readable by this browser's session alone. Deleting your workspace removes every Customer, Invoice, payment, call record, message and UPI screenshot in it, then opens a fresh copy of the demo books.",
+    deleteWorkspace: "Delete my workspace",
+    confirmDelete: "Delete everything in your workspace? This cannot be undone.",
+    yesDelete: "Yes, delete it",
+    keep: "Keep it",
+    deleting: "Deleting…",
+    notDeleted: "Your workspace could not be deleted. Try again.",
     problems: {
       businessName: "Give your business a name.",
       address: "The address is too long.",
