@@ -59,14 +59,26 @@ function fromStored(line: InvoiceLineRow): LineDraft {
   };
 }
 
-function parseLine(line: LineDraft): DraftLine | null {
-  const quantity = Number(line.qty);
-  const ratePaise = line.rate.trim() ? parseAmountPaise(line.rate) : null;
+type LineField = "description" | "hsn" | "qty" | "rate" | "discount";
+
+/** The fields of a line that would stop it saving, so the form can say which. */
+function lineIssues(line: LineDraft): Set<LineField> {
+  const issues = new Set<LineField>();
+  const quantity = line.qty.trim() === "" ? NaN : Number(line.qty);
   const discount = line.discount.trim() === "" ? 0 : Number(line.discount);
-  if (!line.description.trim() || !/^\d{4,8}$/.test(line.hsn.trim())) return null;
-  if (!Number.isInteger(quantity) || quantity < 1) return null;
-  if (ratePaise === null) return null;
-  if (!Number.isInteger(discount) || discount < 0 || discount > 100) return null;
+  if (!line.description.trim()) issues.add("description");
+  if (!/^\d{4,8}$/.test(line.hsn.trim())) issues.add("hsn");
+  if (!Number.isInteger(quantity) || quantity < 1) issues.add("qty");
+  if (!line.rate.trim() || parseAmountPaise(line.rate) === null) issues.add("rate");
+  if (!Number.isInteger(discount) || discount < 0 || discount > 100) issues.add("discount");
+  return issues;
+}
+
+function parseLine(line: LineDraft): DraftLine | null {
+  if (lineIssues(line).size > 0) return null;
+  const ratePaise = parseAmountPaise(line.rate) ?? 0;
+  const discount = line.discount.trim() === "" ? 0 : Number(line.discount);
+  const quantity = Number(line.qty);
   return {
     description: line.description.trim(),
     hsn: line.hsn.trim(),
@@ -106,19 +118,18 @@ function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
   };
 }
 
-function newCustomerReady(fresh: Fresh): boolean {
-  const credit = Number(fresh.creditDays);
-  const gstin = fresh.gstin.trim();
-  return (
-    fresh.name.trim().length > 0 &&
-    gstinMessage(gstin) === null &&
-    gstin.length > 0 &&
-    stateName(fresh.stateCode) !== null &&
-    fresh.stateCode === gstin.toUpperCase().slice(0, 2) &&
-    Number.isInteger(credit) &&
-    credit >= 0 &&
-    credit <= 365
-  );
+type CustomerIssue = "name" | "gstin" | "state" | "creditDays";
+
+/** What still stops a new Customer saving. The server asks the same of them. */
+function newCustomerIssues(fresh: Fresh): CustomerIssue[] {
+  const credit = fresh.creditDays.trim() === "" ? NaN : Number(fresh.creditDays);
+  const gstin = fresh.gstin.trim().toUpperCase();
+  const issues: CustomerIssue[] = [];
+  if (!fresh.name.trim()) issues.push("name");
+  if (!gstin || gstinMessage(gstin) !== null) issues.push("gstin");
+  if (stateName(fresh.stateCode) === null || (gstin.length >= 2 && fresh.stateCode !== gstin.slice(0, 2))) issues.push("state");
+  if (!Number.isInteger(credit) || credit < 0 || credit > 365) issues.push("creditDays");
+  return issues;
 }
 
 export function NewInvoice() {
@@ -162,12 +173,22 @@ export function NewInvoice() {
   const partial = lines.some((line) => touched(line) && !parseLine(line));
   const priced = priceDraft({ mode, workspace: world.workspace, customer: picked, lines: ready });
   const creditDays = picked?.creditDays ?? 30;
+  const customerIssues = customerId === "new" ? newCustomerIssues(fresh) : [];
   const canSave =
     priced?.saves === true &&
     !saving &&
     !partial &&
     ready.length > 0 &&
-    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : newCustomerReady(fresh));
+    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : customerIssues.length === 0);
+  // Why Save is off, in words, so a disabled button never leaves the Owner guessing.
+  const blockers: string[] = [];
+  if (mode === "regular" && !saving) {
+    if (!customerId) blockers.push(t.newInvoice.blockers.customer);
+    for (const issue of customerIssues) blockers.push(t.newInvoice.blockers[issue]);
+    if (!lines.some(touched)) blockers.push(t.newInvoice.blockers.line);
+  }
+  const lineHint = (line: LineDraft, field: LineField) =>
+    touched(line) && lineIssues(line).has(field) ? t.newInvoice.lineHints[field] : null;
   const gstinCheck = customerId === "new" && fresh.gstin.trim() ? gstinMessage(fresh.gstin) : null;
   const gstinProblem = gstinCheck === null ? null : gstinCheck === "check-digit" ? t.newInvoice.gstinCheck : t.newInvoice.gstinShape;
 
@@ -334,20 +355,20 @@ export function NewInvoice() {
             {lines.map((line, index) => (
               <fieldset key={line.key} className="grid gap-2 border-t border-rule pt-3">
                 <legend className="text-sm font-medium">{t.newInvoice.line(index + 1)}</legend>
-                <Field label={t.newInvoice.description}>
+                <Field label={t.newInvoice.description} hint={lineHint(line, "description")}>
                   <input className={control} value={line.description} onChange={(event) => edit(line.key, { description: event.target.value })} />
                 </Field>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label={t.newInvoice.hsn}>
+                  <Field label={t.newInvoice.hsn} hint={lineHint(line, "hsn")}>
                     <input className={control} inputMode="numeric" value={line.hsn} onChange={(event) => edit(line.key, { hsn: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.quantity}>
+                  <Field label={t.newInvoice.quantity} hint={lineHint(line, "qty")}>
                     <input className={control} inputMode="numeric" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.rate}>
+                  <Field label={t.newInvoice.rate} hint={lineHint(line, "rate")}>
                     <input className={control} inputMode="decimal" value={line.rate} onChange={(event) => edit(line.key, { rate: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.discount}>
+                  <Field label={t.newInvoice.discount} hint={lineHint(line, "discount")}>
                     <input
                       className={control}
                       inputMode="numeric"
@@ -389,6 +410,16 @@ export function NewInvoice() {
           </div>
 
           {partial && <p className="text-sm">{t.newInvoice.finishLines}</p>}
+          {blockers.length > 0 && (
+            <div className="text-sm">
+              <p>{t.newInvoice.toSave}</p>
+              <ul className="mt-1 list-disc pl-5">
+                {blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-sm text-sindoor">
               {error}
@@ -439,7 +470,7 @@ function Field({
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <div className="grid gap-1 text-sm">
+    <div className="grid content-start gap-1 text-sm">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
