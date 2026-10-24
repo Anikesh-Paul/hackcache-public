@@ -78,7 +78,8 @@ function useTabRow(pathname: string, lang: string) {
       const navBox = nav.getBoundingClientRect();
       const box = active.getBoundingClientRect();
       const fade = Number.parseFloat(getComputedStyle(nav).getPropertyValue("--tab-fade")) || 0;
-      if (box.left < navBox.left + 8) nav.scrollLeft -= navBox.left + 12 - box.left;
+      const gap = 12;
+      if (box.left < navBox.left + gap) nav.scrollLeft -= navBox.left + gap - box.left;
       else if (box.right > navBox.right - fade) nav.scrollLeft += box.right - (navBox.right - fade);
     };
     follow();
@@ -221,7 +222,6 @@ export function AppShell() {
             type="button"
             onClick={reset}
             disabled={state.status !== "ready" || resetting}
-            aria-label={t.reset}
             className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-md border border-cover-line px-3 text-[13px] text-on-cover disabled:opacity-60"
           >
             <RotateCcw size={16} aria-hidden />
@@ -239,7 +239,6 @@ export function AppShell() {
               key={tab.to}
               to={tab.to}
               end={tab.to === "/app"}
-              aria-label={tab[lang]}
               className={({ isActive }) =>
                 `flex min-h-11 items-center rounded-t-md px-4 text-sm whitespace-nowrap no-underline ${
                   isActive ? "bg-desk font-semibold text-ink" : "text-on-cover-2 hover:text-on-cover"

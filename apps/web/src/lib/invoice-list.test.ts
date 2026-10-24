@@ -1,8 +1,9 @@
+import type { InvoiceState } from "@tagada/domain";
 import { describe, expect, it } from "vitest";
 import { compareInvoiceList, type ListedInvoice } from "./invoice-list.ts";
 
 /** The list shows the due date, so that date is the order. Issue date must not decide it. */
-function row(state: string, dueDate: string, issueDate: string, number: string): ListedInvoice {
+function row(state: InvoiceState, dueDate: string, issueDate: string, number: string): ListedInvoice {
   return { standing: { state }, invoice: { dueDate, issueDate, number } };
 }
 

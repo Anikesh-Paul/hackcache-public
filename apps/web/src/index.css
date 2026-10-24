@@ -1603,6 +1603,7 @@ h3 {
   display: none;
 }
 .tab-row[data-more="true"] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - var(--tab-fade)), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - var(--tab-fade)), transparent);
 }
 
