@@ -9,7 +9,7 @@ import {
   callDay,
   callGuard,
   checkOutcome,
-  deductionWords,
+  deductionSpoken,
   planInWords,
   planRule,
   section43bh,
@@ -81,8 +81,8 @@ function variablesFor(book: Book, ctx: CallContext, callId: string): Record<stri
     rule_min_first_pct: String(rule.minFirstPct),
     rule_first_within_days: String(rule.firstWithinDays),
     rule_rest_within_days: String(rule.restWithinDays),
-    // Section 43B(h) in Hindi, or empty when the seller is not covered. Munim may say it once, if asked for more time.
-    deduction_line: deduction ? deductionWords("hi", deduction) : "",
+    // Section 43B(h) to say aloud, or empty when the seller is not covered. Munim may say it once, if asked for more time.
+    deduction_line: deduction ? deductionSpoken(deduction) : "",
     invoice_id: invoice.$id,
     workspace_id: workspace.$id,
     call_id: callId,

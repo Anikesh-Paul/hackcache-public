@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CUSTOMER_LANGS, REMINDER_TEMPLATES, reminderMessage, section43bh, type ReminderFacts } from "./index.ts";
+import { CUSTOMER_LANGS, REMINDER_TEMPLATES, deductionSpoken, reminderMessage, section43bh, type ReminderFacts } from "./index.ts";
 
 const gupta: Omit<ReminderFacts, "stage" | "lang"> = {
   businessName: "Tripura Bamboo Works",
@@ -95,6 +95,16 @@ describe("reminderMessage", () => {
       const later = section43bh({ udyamType: "micro", isTrader: false }, { issueDate: "2026-08-26", dueDate: "2026-09-25" }, "2027-04-02");
       const text = reminderMessage({ ...gupta, today: "2027-04-02", stage: 5, lang: "en", deduction: later }).text;
       expect(text).toContain("only in the year it is paid: paid by 31 Mar 2028, that is FY 27-28.");
+    });
+
+    it("gives Munim a line with the date in words and no digits but the section's own", () => {
+      const later = section43bh({ udyamType: "micro", isTrader: false }, { issueDate: "2026-08-26", dueDate: "2026-09-25" }, "2027-04-02");
+      for (const clock of [deduction!, later!]) {
+        const line = deductionSpoken(clock);
+        expect(line).toContain("धारा 43B(h)");
+        expect(line.replace("43B(h)", "")).not.toMatch(/[0-9०-९]/);
+      }
+      expect(deductionSpoken(deduction!)).toContain("इकतीस मार्च");
     });
 
     it("is left out when the seller is not covered", () => {
