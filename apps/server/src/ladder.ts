@@ -162,7 +162,8 @@ async function breakPromises(
     const promise = promiseFacts(row);
     const invoiceId = text(row.invoiceId) ?? "";
     const invoice = invoices.find((i) => i.$id === invoiceId);
-    const owed = invoice && { ...facts(invoice), paidPaise: sumPaise([facts(invoice).paidPaise, inBank.get(invoiceId) ?? 0]) };
+    const known = invoice && facts(invoice);
+    const owed = known && { ...known, paidPaise: sumPaise([known.paidPaise, inBank.get(invoiceId) ?? 0]) };
     if (invoice && owed && invoice.status !== "paid" && promiseBroken(promise, owed, today)) {
       const missed = promise.instalments.find((i) => i.date < today);
       const what = promise.instalments.length > 1 ? "The Plan's instalment of" : "The Promise of";
@@ -432,7 +433,8 @@ export async function stepDemoDate(worlds: WorldStore, runner: LadderRunner, wor
   const date = (body as { date?: unknown } | null)?.date;
   if (typeof date !== "string" || !isCivilDate(date)) return { ok: false as const, status: 400 as const, error: "invalid_date" };
   await worlds.update("workspaces", workspaceId, { today: date });
-  await refreshProofs(worlds, workspaceId);
+  // A screenshot left unchecked is checked again on the next import; the Ladder still runs.
+  await refreshProofs(worlds, workspaceId).catch((e: unknown) => console.error("proof re-check failed", e));
   return { ok: true as const, summary: await runner(workspaceId, date) };
 }
 

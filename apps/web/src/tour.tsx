@@ -85,7 +85,7 @@ function guptaCreditId(s: TourStart): string {
   return bankTxnId({ workspaceId: s.workspaceId, date: GUPTA_PROOF_DATE, amountPaise: FIRST.amountPaise, reference: GUPTA_PROOF_UTR });
 }
 
-/** The Owner's Confirm on Gupta ji's credit, if the visitor has not pressed it already. */
+/** The Owner's Confirm on Gupta ji's credit. A credit already confirmed is left as it is. */
 async function confirmGupta(s: TourState): Promise<Partial<TourState>> {
   await confirmBank({ ids: [guptaCreditId(s)] });
   return {};
@@ -242,16 +242,19 @@ function useRing(selector: string, on: boolean) {
     if (!on) return;
     let settled = false;
     let last = "";
+    let drawn = "";
     const measure = () => {
       const box = document.querySelector(selector)?.getBoundingClientRect();
       if (!box || box.width === 0 || box.height === 0) {
         settled = false;
         last = "";
+        drawn = "";
         setRect(null);
         return;
       }
       // Where it sits on the page, not in the window, so scrolling does not count as moving.
       const where = [box.top + window.scrollY, box.left, box.width, box.height].map(Math.round).join();
+      const seen = [box.top, box.left, box.width, box.height].map(Math.round).join();
       if (!settled) {
         if (where !== last) {
           last = where;
@@ -262,7 +265,11 @@ function useRing(selector: string, on: boolean) {
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
       }
-      setRect(box);
+      // A new box only when it moved, so the coach is not drawn again four times a second.
+      if (seen !== drawn) {
+        drawn = seen;
+        setRect(box);
+      }
     };
     measure();
     const timer = window.setInterval(measure, 250);
