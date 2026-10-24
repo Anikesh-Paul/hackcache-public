@@ -1,4 +1,4 @@
-import { CALL_CREDITS_PER_MINUTE, CALL_CREDIT_PAISE_PER_THOUSAND } from "./config.ts";
+import { CALL_CREDITS_PER_MINUTE, CALL_CREDIT_PAISE_PER_THOUSAND, EMAIL_PAISE_PER_THOUSAND } from "./config.ts";
 import { divRound, requireInt, toInt } from "./integer.ts";
 import { sumPaise } from "./ledger.ts";
 
@@ -26,6 +26,18 @@ export function callCredits(durationS: number): number {
 /** What these credits cost in paise, half up. */
 export function callCostPaise(credits: number): number {
   return toInt(divRound(count(credits, "credits") * BigInt(CALL_CREDIT_PAISE_PER_THOUSAND), 1000n), "cost");
+}
+
+/** What this many emails cost in paise, half up. */
+export function emailCostPaise(emails: number): number {
+  return toInt(divRound(count(emails, "emails") * BigInt(EMAIL_PAISE_PER_THOUSAND), 1000n), "cost");
+}
+
+/** What it cost to collect each ₹100, in paise, half up. Null when nothing was collected. */
+export function costPerHundredPaise(costPaise: number, collectedPaise: number): number | null {
+  const collected = count(collectedPaise, "collectedPaise");
+  if (collected === 0n) return null;
+  return toInt(divRound(count(costPaise, "costPaise") * 10_000n, collected), "cost");
 }
 
 /** What the AI calls cost, and what the Plans and Promises agreed on them secured: the ROI tile on Today. */

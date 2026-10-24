@@ -100,6 +100,13 @@ async function runTour(page: Page, { resume = false } = {}) {
   }
   await expect(tour.getByRole("heading", { name: "Salary covered ✓", exact: true })).toBeVisible();
   await expect(page.locator('[data-tour="headline"] h1')).toHaveText("Salary covered");
+  // What Tagada changed: Gupta ji's ₹60,000 brings days to get paid from 86 down to 74, and it was not expected this month.
+  const changed = page.getByRole("region", { name: "What Tagada changed" });
+  await expect(changed).toBeVisible();
+  await expect(changed.locator('[data-impact="dso"]')).toContainText("86 → 74 days");
+  await expect(changed.locator('[data-impact="forward"]')).toContainText("₹60,000");
+  await changed.locator('[data-impact="forward"]').getByRole("button", { name: "Why?" }).click();
+  await expect(changed).toContainText("In all, ₹60,000.");
   // The week's run sent its emails: no failed send.
   await tour.getByRole("link", { name: "Automation log" }).click();
   const log = page.getByRole("region", { name: "Automation log" });
