@@ -199,11 +199,14 @@ function tdsNote(bps: number, onService: boolean, buyerType: MatchInvoice["buyer
   return `Possible TDS of ${rate} of the taxable value. ${who} That rate is for professional or technical fees.`;
 }
 
-function unknown(): Match {
+/** `paidUp` is a Customer the narration names whose Invoices are all paid. */
+function unknown(paidUp?: MatchInvoice): Match {
   return {
     kind: "unknown",
     allocations: [],
-    note: "Unknown deposit: no Invoice number and no Customer name in this narration.",
+    note: paidUp
+      ? `Nothing is open for ${paidUp.customerName}, so this is not applied to an Invoice.`
+      : "Unknown deposit: no Invoice number and no Customer name in this narration.",
     tds: null,
   };
 }
@@ -222,7 +225,10 @@ export function matchCredit(credit: MatchCredit, invoices: readonly MatchInvoice
     .slice()
     .sort((a, b) => a.issueDate.localeCompare(b.issueDate) || a.id.localeCompare(b.id));
 
-  if (pool.length === 0 || !Number.isSafeInteger(credit.amountPaise) || credit.amountPaise <= 0) return unknown();
+  if (pool.length === 0) {
+    return unknown(namedInvoices(credit.narration, invoices)[0] ?? namedCustomer(credit.narration, invoices)[0]);
+  }
+  if (!Number.isSafeInteger(credit.amountPaise) || credit.amountPaise <= 0) return unknown();
 
   let left = credit.amountPaise;
   const allocations: MatchAllocation[] = [];
@@ -442,7 +448,11 @@ function lineTaxable(line: StoredLine): number {
   }).taxablePaise;
 }
 
-/** Open Invoices in the shape `matchCredit` reads. Line taxable values come from `money`. */
+/**
+ * Sent Invoices in the shape `matchCredit` reads. Line taxable values come from `money`.
+ * A paid Invoice is kept with nothing owed: it is never matched, but a credit that names
+ * its Customer can say so.
+ */
 export function invoicesForMatch(input: {
   customers: readonly { $id: string; name: string; buyerType: MatchInvoice["buyerType"] }[];
   invoices: readonly {
@@ -459,7 +469,7 @@ export function invoicesForMatch(input: {
 }): MatchInvoice[] {
   const customers = new Map(input.customers.map((customer) => [customer.$id, customer]));
   return input.invoices
-    .filter((invoice) => invoice.status !== "paid" && invoice.status !== "draft" && invoice.totalPaise > invoice.paidPaise)
+    .filter((invoice) => invoice.status !== "draft")
     .map((invoice) => {
       const customer = customers.get(invoice.customerId);
       return {
@@ -471,7 +481,7 @@ export function invoicesForMatch(input: {
         issueDate: invoice.issueDate,
         taxablePaise: invoice.taxablePaise,
         totalPaise: invoice.totalPaise,
-        paidPaise: invoice.paidPaise,
+        paidPaise: invoice.status === "paid" ? invoice.totalPaise : invoice.paidPaise,
         lines: input.lines
           .filter((line) => line.invoiceId === invoice.$id)
           .map((line) => ({ taxablePaise: lineTaxable(line), gstRateBp: line.gstRateBp, hsn: line.hsn })),

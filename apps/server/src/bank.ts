@@ -23,7 +23,9 @@ export type ImportResult =
   | { ok: true; already: number; added: number; summary: string }
   | { ok: false; status: 400; error: string; message: string };
 
-export type ConfirmResult = { ok: true; confirmed: number } | { ok: false; status: 400; error: string };
+export type ConfirmResult =
+  | { ok: true; confirmed: number; changed: number; message: string | null }
+  | { ok: false; status: 400; error: string };
 
 const text = (value: unknown): string | null => (typeof value === "string" ? value : null);
 const whole = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? value : 0);
@@ -202,6 +204,23 @@ async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<v
   }
 }
 
+function sameAllocations(a: readonly BankAllocation[], b: readonly BankAllocation[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (item, i) =>
+        item.invoiceId === b[i]?.invoiceId && item.amountPaise === b[i]?.amountPaise && (item.tdsPaise ?? 0) === (b[i]?.tdsPaise ?? 0),
+    )
+  );
+}
+
+function changedMessage(changed: number): string | null {
+  if (changed === 0) return null;
+  return changed === 1
+    ? "1 credit changed since it was imported. Check its new suggestion."
+    : `${changed} credits changed since they were imported. Check their new suggestions.`;
+}
+
 function choose(bank: StoredRow[], body: unknown): StoredRow[] {
   const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
   const suggested = bank.filter((row) => row.matchStatus === "suggested");
@@ -211,7 +230,12 @@ function choose(bank: StoredRow[], body: unknown): StoredRow[] {
   return suggested.filter((row) => wanted.has(row.$id) && row.matchKind !== "unknown");
 }
 
-/** Mark the chosen suggestions as Payments. Exact matches can be confirmed together. */
+/**
+ * Mark the chosen suggestions as Payments. Exact matches can be confirmed together.
+ * Each credit is matched again against what is open now, so a suggestion made
+ * before another payment never pays an Invoice twice or drops the rest of a credit:
+ * a credit whose match changed keeps its new suggestion and waits for the Owner.
+ */
 export async function confirmMatches(worlds: WorldStore, workspaceId: string, body: unknown): Promise<ConfirmResult> {
   const loaded = await books(worlds, workspaceId);
   if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
@@ -219,9 +243,26 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
   const { permissions, today } = ownerAccess(loaded.workspace, workspaceId);
   const invoices = new Map(loaded.invoices.map((row) => [row.$id, row]));
   const events: OwnedRow[] = [];
+  let confirmed = 0;
+  let changed = 0;
 
   for (const credit of chosen) {
-    for (const allocation of allocationsOf(credit.allocations)) {
+    // `invoices` holds these same rows, so a credit confirmed earlier in this loop is already counted.
+    const fresh = matchCredit(
+      {
+        date: text(credit.date) ?? "",
+        narration: text(credit.narration) ?? "",
+        reference: text(credit.utr) ?? "",
+        amountPaise: whole(credit.amountPaise),
+      },
+      matchRows(loaded.customers, loaded.invoices, loaded.lines),
+    );
+    if (fresh.kind !== credit.matchKind || !sameAllocations(fresh.allocations, allocationsOf(credit.allocations))) {
+      await worlds.update("bank_txns", credit.$id, storedMatch(fresh));
+      changed += 1;
+      continue;
+    }
+    for (const allocation of fresh.allocations) {
       const invoice = invoices.get(allocation.invoiceId);
       if (!invoice || invoice.status === "paid") continue;
       const applied = sumPaise([whole(invoice.paidPaise), allocation.amountPaise, allocation.tdsPaise ?? 0]);
@@ -248,7 +289,8 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
       });
     }
     await worlds.update("bank_txns", credit.$id, { matchStatus: "confirmed" });
+    confirmed += 1;
   }
   if (events.length > 0) await worlds.write({ events });
-  return { ok: true, confirmed: chosen.length };
+  return { ok: true, confirmed, changed, message: changedMessage(changed) };
 }

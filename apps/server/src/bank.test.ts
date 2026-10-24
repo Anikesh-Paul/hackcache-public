@@ -56,6 +56,18 @@ function screenshot(amountText = GUPTA_PROOF_AMOUNT_TEXT, utr = GUPTA_PROOF_UTR)
   return app.request(`/api/pay/${gupta().payToken}/screenshot`, { method: "POST", body: form });
 }
 
+const whole = (value: unknown) => (typeof value === "number" ? value : 0);
+const invoice = (id: string) => db.table("invoices").find((row) => row.$id === id);
+const SEN_A = "609877770001";
+const SEN_B = "609877770002";
+const GUPTA_A = "609866660001";
+const GUPTA_B = "609866660002";
+const CHANGED_ONE = "1 credit changed since it was imported. Check its new suggestion.";
+const senCsv = (...utrs: string[]) =>
+  `date,narration,utr,amount
+${utrs.map((utr) => `2026-11-02,UPI SEN HANDICRAFTS,${utr},"₹20,160.00"
+`).join("")}`;
+
 const post = (path: string, body: unknown) =>
   app.request(path, { method: "POST", headers: { ...jwt, "content-type": "application/json" }, body: JSON.stringify(body) });
 
@@ -80,7 +92,7 @@ describe("bank import and proof check", () => {
     const credit = txns().find((row) => row.utr === GUPTA_PROOF_UTR);
     expect(credit).toMatchObject({ matchStatus: "suggested", matchKind: "part", amountPaise: 6_000_000 });
     const confirmed = await post("/api/bank/confirm", { ids: [credit?.$id] });
-    expect(await confirmed.json()).toEqual({ ok: true, confirmed: 1 });
+    expect(await confirmed.json()).toEqual({ ok: true, confirmed: 1, changed: 0, message: null });
     expect(gupta()).toMatchObject({ status: "part", paidPaise: 6_000_000 });
     expect(txns().find((row) => row.$id === credit?.$id)?.matchStatus).toBe("confirmed");
     expect(JSON.stringify(db.rows())).not.toMatch(/fake/i);
@@ -124,6 +136,64 @@ describe("bank import and proof check", () => {
     expect(txns().find((row) => String(row.narration).includes("HOTEL"))?.matchStatus).toBe("suggested");
     expect(txns().find((row) => row.matchKind === "unknown")?.matchStatus).toBe("unmatched");
     expect(gupta().status).toBe("sent");
+  });
+
+  it("pays Sen's Invoice once when two credits in one import both cover it, and suggests the other again", async () => {
+    const sen = openInvoice("Sen Handicrafts");
+    expect(whole(sen.totalPaise) - whole(sen.paidPaise)).toBe(2_016_000);
+    await post("/api/bank/import", { csv: senCsv(SEN_A, SEN_B) });
+    const ids = [SEN_A, SEN_B].map((utr) => txns().find((row) => row.utr === utr)?.$id);
+    expect(ids.map((id) => txns().find((row) => row.$id === id)?.matchKind)).toEqual(["exact", "exact"]);
+
+    const res = await post("/api/bank/confirm", { ids });
+    expect(await res.json()).toEqual({ ok: true, confirmed: 1, changed: 1, message: CHANGED_ONE });
+    expect(invoice(sen.$id)).toMatchObject({ status: "paid", paidPaise: sen.totalPaise });
+    expect(db.table("events").filter((row) => row.type === "payment" && row.invoiceId === sen.$id)).toHaveLength(1);
+    const mine = txns().filter((row) => ids.includes(row.$id));
+    expect(mine.filter((row) => row.matchStatus === "confirmed")).toHaveLength(1);
+    expect(mine.find((row) => row.matchStatus !== "confirmed")).toMatchObject({
+      matchStatus: "unmatched",
+      matchKind: "unknown",
+      amountPaise: 2_016_000,
+    });
+  });
+
+  it("does not mark a credit confirmed when its Invoice was paid in between", async () => {
+    const sen = openInvoice("Sen Handicrafts");
+    await post("/api/bank/import", { csv: senCsv(SEN_A) });
+    const mine = txns().find((row) => row.utr === SEN_A);
+    const seeded = txns().find((row) => row.matchKind === "exact" && row.$id !== mine?.$id);
+    expect(await (await post("/api/bank/confirm", { ids: [seeded?.$id] })).json()).toMatchObject({ confirmed: 1, changed: 0 });
+
+    const res = await post("/api/bank/confirm", { ids: [mine?.$id] });
+    expect(await res.json()).toEqual({ ok: true, confirmed: 0, changed: 1, message: CHANGED_ONE });
+    expect(txns().find((row) => row.$id === mine?.$id)).toMatchObject({ matchStatus: "unmatched", matchKind: "unknown" });
+    expect(invoice(sen.$id)).toMatchObject({ status: "paid", paidPaise: sen.totalPaise });
+  });
+
+  it("applies only what is still owed when a part payment was confirmed after the suggestion", async () => {
+    const id = gupta().$id;
+    await post("/api/bank/import", {
+      csv: `date,narration,utr,amount
+2026-11-02,UPI GUPTA TRADERS,${GUPTA_A},"₹60,000.00"
+2026-11-02,UPI GUPTA TRADERS,${GUPTA_B},"₹80,000.00"
+`,
+    });
+    const [first, second] = [GUPTA_A, GUPTA_B].map((utr) => txns().find((row) => row.utr === utr));
+    expect([first?.matchKind, second?.matchKind]).toEqual(["part", "part"]);
+    await post("/api/bank/confirm", { ids: [first?.$id] });
+    expect(invoice(id)).toMatchObject({ status: "part", paidPaise: 6_000_000 });
+
+    const stale = await post("/api/bank/confirm", { ids: [second?.$id] });
+    expect(await stale.json()).toEqual({ ok: true, confirmed: 0, changed: 1, message: CHANGED_ONE });
+    expect(invoice(id)).toMatchObject({ status: "part", paidPaise: 6_000_000 });
+    const fresh = txns().find((row) => row.$id === second?.$id);
+    expect(fresh).toMatchObject({ matchStatus: "suggested", matchKind: "overpay" });
+    expect(JSON.parse(String(fresh?.allocations))).toEqual([{ invoiceId: id, amountPaise: 5_800_000 }]);
+
+    const again = await post("/api/bank/confirm", { ids: [second?.$id] });
+    expect(await again.json()).toEqual({ ok: true, confirmed: 1, changed: 0, message: null });
+    expect(invoice(id)).toMatchObject({ status: "paid", paidPaise: 11_800_000 });
   });
 
   it("imports a CSV a second time, in another order, as already imported", async () => {

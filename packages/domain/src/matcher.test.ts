@@ -4,6 +4,7 @@ import {
   bankTxnId,
   importCount,
   importSummary,
+  invoicesForMatch,
   matchCredit,
   matcherBrief,
   parseStatement,
@@ -59,6 +60,34 @@ describe("matchCredit", () => {
       expect(match.kind, narration).toBe("exact");
       expect(match.allocations.map((a) => a.invoiceId)).toEqual(["i12"]);
     }
+  });
+
+  it("says the named Customer has nothing open, not that the narration names no one, when their Invoices are paid", () => {
+    const paid = { ...INV_12, paidPaise: INV_12.totalPaise };
+    for (const narration of ["UPI BARUA STORES", "NEFT INV/26-27/0012"]) {
+      const match = matchCredit(credit(narration, 500_000), [paid]);
+      expect(match.kind, narration).toBe("unknown");
+      expect(match.note, narration).toBe("Nothing is open for Barua Stores, so this is not applied to an Invoice.");
+    }
+    expect(matchCredit(credit("UPI SOMEONE", 500_000), [paid]).note).toBe(
+      "Unknown deposit: no Invoice number and no Customer name in this narration.",
+    );
+  });
+
+  it("keeps a paid Invoice from the books with nothing owed, so it is named but never matched", () => {
+    const row = { $id: "i12", number: "INV/26-27/0012", customerId: "c1", issueDate: "2026-09-14", taxablePaise: 500_000, totalPaise: 500_000 };
+    const books = invoicesForMatch({
+      customers: [{ $id: "c1", name: "Barua Stores", buyerType: "goods" }],
+      invoices: [
+        // A covered Invoice can be paid with paise short of the total: the rest was kept back as TDS.
+        { ...row, paidPaise: 499_500, status: "paid" },
+        { ...row, $id: "i13", number: "INV/26-27/0013", paidPaise: 0, status: "draft" },
+      ],
+      lines: [],
+    });
+    expect(books.map((invoice) => [invoice.id, invoice.paidPaise])).toEqual([["i12", 500_000]]);
+    const match = matchCredit(credit("NEFT BARUA STORES", 500), books);
+    expect(match).toMatchObject({ kind: "unknown", allocations: [], note: "Nothing is open for Barua Stores, so this is not applied to an Invoice." });
   });
 
   it("does not treat a different series prefix as the same Invoice", () => {

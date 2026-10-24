@@ -43,6 +43,12 @@ function allocations(row: BankTxnRow): BankAllocation[] {
   }
 }
 
+/** What Confirm did, and what it left for the Owner to check. */
+function confirmedNotice(done: string | null, changed: string | null): string {
+  if (done && changed) return `${done} ${changed}`;
+  return done ?? changed ?? "Nothing to confirm.";
+}
+
 /** /app/bank: import a statement, read the suggestion, confirm it. */
 export function Bank() {
   const world = useWorld();
@@ -141,8 +147,8 @@ export function Bank() {
           disabled={busy || exact.length === 0}
           onClick={() =>
             void run(async () => {
-              const n = await confirmBank({ allExact: true });
-              return n === 0 ? "Nothing to confirm." : `Confirmed ${n} exact.`;
+              const { confirmed: n, message } = await confirmBank({ allExact: true });
+              return confirmedNotice(n === 0 ? null : `Confirmed ${n} exact.`, message);
             })
           }
         >
@@ -236,8 +242,8 @@ export function Bank() {
                       disabled={busy}
                       onClick={() =>
                         void run(async () => {
-                          const n = await confirmBank({ ids: [row.$id] });
-                          return n === 0 ? "Nothing to confirm." : "Confirmed.";
+                          const { confirmed: n, message } = await confirmBank({ ids: [row.$id] });
+                          return confirmedNotice(n === 0 ? null : "Confirmed.", message);
                         })
                       }
                     >
