@@ -144,11 +144,14 @@ export async function importBank(body: { sample?: true; csv?: string }): Promise
   return { already: data.already, added: data.added, summary: data.summary };
 }
 
-/** Confirm suggestions. `allExact` confirms every Exact credit and nothing else. */
-export async function confirmBank(body: { ids?: string[]; allExact?: boolean }): Promise<number> {
-  const data = (await authed("/api/bank/confirm", body)) as { confirmed?: number } | null;
+/**
+ * Confirm suggestions. `allExact` confirms every Exact credit and nothing else.
+ * `message` says when a credit's suggestion changed since import and was not confirmed.
+ */
+export async function confirmBank(body: { ids?: string[]; allExact?: boolean }): Promise<{ confirmed: number; message: string | null }> {
+  const data = (await authed("/api/bank/confirm", body)) as { confirmed?: number; message?: unknown } | null;
   if (!data || typeof data.confirmed !== "number") throw new SaveError("confirm_failed");
-  return data.confirmed;
+  return { confirmed: data.confirmed, message: typeof data.message === "string" ? data.message : null };
 }
 
 export type LiveRow = { $id: string; $tableId: string; workspaceId: string } & Record<string, unknown>;
