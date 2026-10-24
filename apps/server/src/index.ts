@@ -6,7 +6,7 @@ import { payTokens } from "./pay-token.ts";
 import { geminiGloss } from "./gloss.ts";
 import { geminiProof } from "./proof-read.ts";
 import { elevenLabsAgent, elevenLabsVoice } from "./voice.ts";
-import { resendMailer } from "./email.ts";
+import { mailsCustomers, resendMailer } from "./email.ts";
 import { renderRunner } from "./workflows.ts";
 
 const admin = adminClient();
@@ -31,6 +31,7 @@ const app = createApp({
   ladder: {
     mailer: resendMailer(process.env.RESEND_API_KEY, process.env.EMAIL_FROM_DOMAIN),
     demoInbox: process.env.DEMO_INBOX_EMAIL || null,
+    mailCustomers: mailsCustomers(process.env.RESEND_API_KEY, process.env.EMAIL_FROM_DOMAIN),
     webOrigin: process.env.WEB_ORIGIN ?? "",
     // On Render the stepper runs the same dailyLadder workflow as the cron; locally, the same code in this process.
     runner: process.env.RENDER ? renderRunner() : undefined,

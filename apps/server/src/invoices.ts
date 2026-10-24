@@ -5,7 +5,6 @@ import { Permission, Role } from "node-appwrite";
 import type { CustomerRow, EventRow, InvoiceLineRow, InvoiceRow } from "@tagada/appwrite";
 import {
   addDays,
-  checkGstin,
   financialYear,
   formatDate,
   invoiceNumber,
@@ -14,11 +13,10 @@ import {
   isLineUnit,
   lineMeasures,
   quantityMilli,
-  stateName,
   type GstRate,
   type Registration,
 } from "@tagada/money";
-import { isCustomerLang, type CustomerLang } from "@tagada/domain";
+import { newCustomerRow, parseCustomer } from "./customers.ts";
 import { workspaceIdFor, type OwnedRow, type WorldRows, type WorldStore } from "./demo.ts";
 
 const PREFIX = "TBW";
@@ -57,16 +55,6 @@ type LineInput = {
   gstRatePercent: GstRate;
   /** Null for "nos", the default. */
   unit: string | null;
-};
-
-type NewCustomer = {
-  name: string;
-  /** Null for a Customer with no GST registration (B2C). */
-  gstin: string | null;
-  stateCode: string;
-  creditDays: number;
-  lang: CustomerLang;
-  address: string | null;
 };
 
 const fail = (status: 400 | 409, error: string): IssueFailure => ({ ok: false, status, error });
@@ -142,26 +130,6 @@ function parseLines(value: unknown): LineInput[] | null {
   return lines;
 }
 
-function parseNewCustomer(value: unknown): NewCustomer | IssueFailure {
-  if (!isRecord(value)) return fail(400, "invalid_body");
-  const name = text(value.name)?.trim() ?? "";
-  const gstin = text(value.gstin)?.trim().toUpperCase() ?? "";
-  const stateCode = text(value.stateCode)?.trim() ?? "";
-  const creditDays = wholeNumber(value.creditDays);
-  const lang = text(value.lang);
-  const address = value.address === undefined || value.address === null ? null : text(value.address)?.trim();
-  if (!name || name.length > 128) return fail(400, "invalid_customer");
-  // A GSTIN is optional: a small shop or a household buyer has none. One that is given must check.
-  if (gstin && !checkGstin(gstin).ok) return fail(400, "invalid_gstin");
-  if (!/^[0-9]{2}$/.test(stateCode) || (gstin && stateCode !== gstin.slice(0, 2)) || !stateName(stateCode)) {
-    return fail(400, "invalid_customer");
-  }
-  if (creditDays === null || creditDays < 0 || creditDays > 365) return fail(400, "invalid_customer");
-  if (!lang || !isCustomerLang(lang)) return fail(400, "invalid_customer");
-  if (address === undefined || (address !== null && address.length > 256)) return fail(400, "invalid_customer");
-  return { name, gstin: gstin || null, stateCode, creditDays, lang, address };
-}
-
 function registrationOf(value: unknown): Registration | null {
   return value === "regular" || value === "composition" || value === "unregistered" ? value : null;
 }
@@ -208,32 +176,12 @@ export async function issueInvoice(
   let created: OwnedRow | null = null;
 
   if (hasNew) {
-    const parsed = parseNewCustomer(body.customer);
-    if ("ok" in parsed) return parsed;
+    const parsed = parseCustomer(body.customer);
+    if ("ok" in parsed) return fail(400, parsed.error);
     customerId = ids.row();
     customerState = parsed.stateCode;
     creditDays = parsed.creditDays;
-    const row: CustomerRow = {
-      $id: customerId,
-      workspaceId,
-      name: parsed.name,
-      address: parsed.address,
-      gstin: parsed.gstin,
-      stateCode: parsed.stateCode,
-      place: stateName(parsed.stateCode),
-      phone: null,
-      email: null,
-      buyerType: "goods",
-      creditDays,
-      avgDelayDays: null,
-      grade: null,
-      gradeReason: null,
-      consentCalls: false,
-      consentAt: null,
-      lang: parsed.lang,
-      gender: null,
-    };
-    created = owned(row);
+    created = newCustomerRow(workspaceId, userId, customerId, parsed, today);
     customerOut = {
       $id: customerId,
       name: parsed.name,

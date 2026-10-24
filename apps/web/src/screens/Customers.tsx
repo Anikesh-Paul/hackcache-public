@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router";
+import { UserPlus } from "lucide-react";
 import { formatInr } from "@tagada/money";
 import { amountOwed, gradeFor } from "../lib/customer-grade.ts";
 import { useT } from "../i18n/index.ts";
@@ -18,7 +19,12 @@ export function Customers() {
   return (
     <Paper label={t.customers.title}>
       <Ln>
-        <h1 className="text-[28px] leading-tight">{t.customers.title}</h1>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-[28px] leading-tight">{t.customers.title}</h1>
+          <Link to="/app/customers/new" className="btn primary">
+            <UserPlus aria-hidden /> {t.customerForm.add}
+          </Link>
+        </div>
         <p className="mt-1 text-sm text-ink-2">
           {t.customers.intro(customers.length)}{" "}
           <button type="button" className="linkbtn" aria-expanded={why} onClick={() => setWhy((open) => !open)}>

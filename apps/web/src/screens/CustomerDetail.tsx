@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
+import { Pencil } from "lucide-react";
 import type { CallRow, ReminderRow } from "@tagada/appwrite";
 import { formatInr } from "@tagada/money";
 import { amountOwed, gradeFor } from "../lib/customer-grade.ts";
@@ -71,7 +72,12 @@ export function CustomerDetail() {
             <p className="text-[13px] text-ink-2">
               <Link to="/app/customers">{t.customers.title}</Link> / {customer.place}
             </p>
-            <h1 className="mt-1 text-[30px] leading-tight sm:text-[34px]">{customer.name}</h1>
+            <div className="mt-1 flex flex-wrap items-end gap-x-4 gap-y-2">
+              <h1 className="text-[30px] leading-tight sm:text-[34px]">{customer.name}</h1>
+              <Link to={`/app/customers/${customer.$id}/edit`} className="btn secondary">
+                <Pencil aria-hidden /> {t.customerForm.edit}
+              </Link>
+            </div>
             <p className="mt-2 max-w-[62ch] text-sm">
               {grade
                 ? t.customers.grade(grade.grade, grade.facts)
@@ -87,6 +93,20 @@ export function CustomerDetail() {
               {t.customers.credit(customer.creditDays ?? 0)}
               <br />
               {t.customer.language(LANGUAGES.find((language) => language.id === customer.lang)?.name ?? t.customer.notSet)}
+              {customer.email && (
+                <>
+                  <br />
+                  {t.customer.email(customer.email)}
+                </>
+              )}
+              {customer.phone && (
+                <>
+                  <br />
+                  {t.customer.phone(customer.phone)}
+                </>
+              )}
+              <br />
+              {customer.consentCalls ? t.customer.callsAllowed : t.customer.callsNotAllowed}
               {grade?.avgDelayDays != null && (
                 <>
                   <br />
