@@ -4,7 +4,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Permission, Role } from "node-appwrite";
 import type { EventActor, InboxKind, PayInstalment, PaySlip } from "@tagada/appwrite";
-import { differencePaise, hindiDate, hindiRupees } from "@tagada/money";
+import { differencePaise, formatInr, hindiDate, hindiRupees } from "@tagada/money";
 import {
   PROOF_LABEL,
   checkProof,
@@ -36,8 +36,9 @@ export type FileStore = {
   readScreenshot(fileId: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
 };
 
-/** Text to speech: MP3 bytes. */
-export type Voice = { speak(text: string): Promise<Uint8Array> };
+/** Text to speech: MP3 bytes. `language` is the ElevenLabs language code. */
+export type SpeakLanguage = "hi" | "bn" | "en";
+export type Voice = { speak(text: string, language?: SpeakLanguage): Promise<Uint8Array> };
 
 export type PayDeps = { worlds: WorldStore; files: FileStore; voice: Voice; proof?: ProofReader | null };
 
@@ -433,6 +434,55 @@ export function raiseDispute(worlds: WorldStore, ref: Ref, body: unknown, actor:
   });
 }
 
+const BN_MONTHS = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
+
+function bengaliDate(iso: string): string {
+  const [, month, day] = iso.split("-").map(Number);
+  const name = BN_MONTHS[(month ?? 1) - 1] ?? "";
+  return `${day} ${name}`;
+}
+
+/** What the read-aloud button says, in the page's language. Hindi amounts use Hindi words. */
+export function spokenSlip(slip: PaySlip, language: SpeakLanguage): string {
+  if (language === "bn") return spokenBengali(slip);
+  if (language === "en") return spokenEnglish(slip);
+  return spokenHindi(slip);
+}
+
+function spokenBengali(slip: PaySlip): string {
+  const hello = `নমস্কার, ${slip.customer.name}। ${slip.from.businessName}-এর বার্তা।`;
+  const money = (paise: number) => `${formatInr(paise)} টাকা`;
+  if (slip.state === "paid") return `${hello} আপনার বিল পুরো মিটে গেছে। ধন্যবাদ।`;
+  if (slip.state === "paid_claim") return `${hello} ধন্যবাদ। ব্যাংকে নিশ্চিত হলেই আপনাকে জানাব।`;
+  if (slip.state === "disputed") return `${hello} আপনার কথা পৌঁছেছে। উত্তর আসা পর্যন্ত কোনো অনুস্মারক পাঠানো হবে না।`;
+  if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
+    const lines = slip.plan.map((i) => `${money(i.amountPaise)}, ${bengaliDate(i.date)}-এর মধ্যে`).join("। ");
+    return `${hello} আপনার কিস্তি: ${lines}।`;
+  }
+  const due = slip.invoice.daysLate > 0 ? "ছিল" : "আছে";
+  return (
+    `${hello} বিলের ${money(slip.invoice.balancePaise)} বাকি ${due}। ` +
+    `শেষ তারিখ ${bengaliDate(slip.invoice.dueDate)}। ` +
+    "UPI দিয়ে দিতে, কিস্তি বেছে নিতে বা বিলের ভুল জানাতে নিচের বোতাম চাপুন।"
+  );
+}
+
+function spokenEnglish(slip: PaySlip): string {
+  const hello = `Namaste, ${slip.customer.name}. A message from ${slip.from.businessName}.`;
+  if (slip.state === "paid") return `${hello} This bill is paid in full. Thank you.`;
+  if (slip.state === "paid_claim") return `${hello} Thank you. We'll let you know as soon as the bank confirms it.`;
+  if (slip.state === "disputed") return `${hello} Your message has reached them. No reminders are sent meanwhile.`;
+  if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
+    const lines = slip.plan.map((i) => `${formatInr(i.amountPaise)} by ${i.date}`).join(". ");
+    return `${hello} Your instalments: ${lines}.`;
+  }
+  return (
+    `${hello} ${formatInr(slip.invoice.balancePaise)} is still due on this Invoice. ` +
+    `The last date is ${slip.invoice.dueDate}. ` +
+    "Use the buttons below to pay by UPI, pick instalments, or tell us what is wrong with the bill."
+  );
+}
+
 /** What the read-aloud button says: the slip in spoken Hindi, amounts and dates in words. */
 export function spokenHindi(slip: PaySlip): string {
   const hello = `नमस्ते, ${slip.customer.name}। ${slip.from.businessName} का संदेश।`;
@@ -452,17 +502,17 @@ export function spokenHindi(slip: PaySlip): string {
 }
 
 /** The Hindi read-aloud clip, spoken once per wording and then played from Storage. */
-export async function readAloud(deps: PayDeps, ref: Ref): Promise<Uint8Array | null> {
+export async function readAloud(deps: PayDeps, ref: Ref, language: SpeakLanguage = "hi"): Promise<Uint8Array | null> {
   const book = await open(deps.worlds, ref);
   if (!book) return null;
-  const words = spokenHindi(slipOf(book));
-  const fileId = `a${createHash("sha256").update(words).digest("hex").slice(0, 32)}`;
+  const words = spokenSlip(slipOf(book), language);
+  const fileId = `a${createHash("sha256").update(`${language}:${words}`).digest("hex").slice(0, 32)}`;
   const stored = await deps.files.audio(fileId).catch((e: unknown) => {
     console.error("read-aloud clip not read", e);
     return null;
   });
   if (stored) return stored;
-  const bytes = await deps.voice.speak(words);
+  const bytes = await deps.voice.speak(words, language);
   // Storing is only a saving: the Customer hears the clip either way.
   await deps.files.saveAudio(fileId, bytes).catch((e: unknown) => console.error("read-aloud clip not stored", e));
   return bytes;

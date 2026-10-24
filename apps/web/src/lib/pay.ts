@@ -46,5 +46,6 @@ export const pay = {
     form.append("file", file);
     return call(token, "/screenshot", { method: "POST", body: form });
   },
-  audioUrl: (token: string) => `${SERVER_URL}/api/pay/${encodeURIComponent(token)}/audio`,
+  audioUrl: (token: string, lang: "hi" | "bn" | "en") =>
+    `${SERVER_URL}/api/pay/${encodeURIComponent(token)}/audio?lang=${lang}`,
 };

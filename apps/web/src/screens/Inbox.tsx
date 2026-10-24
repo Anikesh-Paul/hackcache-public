@@ -8,6 +8,8 @@ import { markInboxRead } from "../lib/appwrite.ts";
 import { decidePromise } from "../lib/call.ts";
 import { istDay } from "../lib/pricing.ts";
 import { useInbox, usePaymentHistory, useWorld, type World } from "../lib/world.tsx";
+import { ownerCopy } from "../i18n/owner.ts";
+import { useLang } from "../lib/prefs.ts";
 import { Head, Ln, Paper } from "../ui.tsx";
 
 const KINDS: Record<InboxKind, { icon: typeof Flag; word: string; tone: "ok" | "warn" | "short" | "plain" }> = {
@@ -50,6 +52,8 @@ function promiseIdOf(event: EventRow | undefined): string | null {
 
 export function InboxLine({ item, fresh }: { item: InboxItem; fresh: boolean }) {
   const kind = KINDS[item.row.kind];
+  const { lang } = useLang();
+  const t = ownerCopy(lang);
   const promiseId = item.row.kind === "needs_decision" ? promiseIdOf(item.event) : null;
   const [busy, setBusy] = useState<"approve" | "decline" | "read" | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -96,37 +100,37 @@ export function InboxLine({ item, fresh }: { item: InboxItem; fresh: boolean }) 
       <span className="mt-2 flex flex-wrap gap-2">
         {(item.row.kind === "paid_claim" || item.row.kind === "proof_uploaded") && (
           <Link to="/app/bank" className="btn secondary">
-            Open in Bank
+            {t.openInBank}
           </Link>
         )}
         {item.row.kind === "dispute" && item.invoiceId && (
           <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
-            Open Invoice
+            {t.openInvoice}
           </Link>
         )}
         {item.row.kind === "plan_accepted" && item.invoiceId && (
           <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
-            Open Invoice
+            {t.openInvoice}
           </Link>
         )}
         {item.row.kind === "needs_decision" && promiseId && (
           <>
             <button type="button" className="btn primary" disabled={busy !== null} onClick={() => void act("approve")}>
-              Approve
+              {t.approve}
             </button>
             <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => void act("decline")}>
-              Decline
+              {t.decline}
             </button>
           </>
         )}
         {item.row.kind === "needs_decision" && !promiseId && item.invoiceId && (
           <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
-            Open Invoice
+            {t.openInvoice}
           </Link>
         )}
         {fresh && (
           <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => void mark()}>
-            Mark as read
+            {t.markRead}
           </button>
         )}
       </span>

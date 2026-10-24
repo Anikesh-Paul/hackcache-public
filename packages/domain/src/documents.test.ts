@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { amountInWords, hindiRupees } from "@tagada/money";
 import {
   LETTER_TITLE,
   caseText,
@@ -268,6 +269,46 @@ describe("ODR case file", () => {
     expect(empty.transcriptExcerpt).toBeNull();
     expect(caseText(empty)).toContain("No call transcript is stored for these Invoices yet.");
     expect(empty.reminderNote).toBe("No Reminders are stored for these Invoices yet.");
+  });
+});
+
+describe("documents in the Customer's language", () => {
+  const input = {
+    seller,
+    customer: guptaCustomer,
+    invoices: [guptaInvoice],
+    invoiceId: "i18",
+    today: TODAY,
+    payUrl: "https://tagada.example/pay/abc",
+    reminders: [] as DocumentReminder[],
+    calls: [] as DocumentCall[],
+  };
+
+  it("prints Gupta's letter in Hindi, with the amount in Hindi words", () => {
+    const letter = demandLetter({ ...input, lang: "hi" });
+    expect(letter.title).toBe("भुगतान मांग पत्र");
+    expect(letter.disclaimer).toBe("यह जीएसटी या कानूनी नोटिस नहीं है।");
+    expect(letter.outstandingWords).toBe(hindiRupees(11_800_000));
+    expect(letter.headings.outstanding).toBe("बकाया");
+    const text = letterText(letter);
+    expect(text).not.toMatch(/\bfake\b/i);
+    expect(text).not.toMatch(/\bdebtor\b/i);
+    expect(text).not.toMatch(/90 days/i);
+    expect(text.match(/कानूनी नोटिस/g)).toEqual(["कानूनी नोटिस"]);
+  });
+
+  it("prints Roy's letter in Bengali, with the amount in English words", () => {
+    const letter = demandLetter({ ...input, customer: { ...guptaCustomer, name: "Roy Furnishings" }, lang: "bn" });
+    expect(letter.title).toBe("বকেয়া পরিশোধের চিঠি");
+    expect(letter.outstandingWords).toBe(amountInWords(11_800_000));
+    expect(letter.disclaimer).toBe("এটি কোনো জিএসটি বা আইনি নোটিশ নয়।");
+    const file = odrCaseFile({ ...input, customer: { ...guptaCustomer, name: "Roy Furnishings" }, lang: "bn" });
+    expect(file.title).toBe("ওডিআর কেস ফাইল");
+    expect(caseText(file)).not.toMatch(/90 days/i);
+  });
+
+  it("an English copy is the English letter", () => {
+    expect(demandLetter({ ...input, lang: "en" }).title).toBe(LETTER_TITLE);
   });
 });
 

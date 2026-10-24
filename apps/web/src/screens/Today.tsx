@@ -5,12 +5,13 @@ import type { CallRow } from "@tagada/appwrite";
 import { callReturn, formatDate, formatInr } from "@tagada/money";
 import {
   CHASE_WHY,
-  salaryDayIn,
   type AgeingBucket,
   type ExpectedReceipt,
   type Outflow,
   type TodayBook,
 } from "@tagada/domain";
+import { ownerCopy, salaryHeadline } from "../i18n/owner.ts";
+import { useLang } from "../lib/prefs.ts";
 import { ForecastChart, ForecastTable, PayPackets, SalaryFigure } from "../books.tsx";
 import { useTodayBook } from "../lib/today.ts";
 import { useInbox, usePaymentHistory, useWorkspaceRows, useWorld } from "../lib/world.tsx";
@@ -63,6 +64,7 @@ function WhyButton({ open, onClick, children = "Why?" }: { open: boolean; onClic
 }
 
 function Headline({ book, today }: { book: TodayBook; today: string }) {
+  const { lang } = useLang();
   const [why, setWhy] = useState(false);
   const salary = book.salary;
   if (!salary) {
@@ -90,7 +92,7 @@ function Headline({ book, today }: { book: TodayBook; today: string }) {
         </div>
         <div className="p">
           <h1 className="text-[28px] leading-tight">
-            {short ? salaryDayIn(salary.daysAway) : "Salary covered"}
+            {salaryHeadline(salary.daysAway, !short, lang)}
           </h1>
           <p className="text-sm text-ink-2">
             {formatDate(salary.date)}: salaries of {formatInr(salary.salaryPaise)}.
@@ -293,14 +295,15 @@ function Ageing({ buckets, total }: { buckets: readonly AgeingBucket[]; total: n
 
 function Forecast({ book }: { book: TodayBook }) {
   const [table, setTable] = useState(false);
+  const { lang } = useLang();
+  const t = ownerCopy(lang);
   return (
     <div className="sect">
       <Head title="Next 13 weeks" a="cash at week end" />
       <Ln>
         {book.newSales.weeklyPaise > 0 && (
           <p className="mb-1 text-[13px] text-ink-2">
-            From {formatDate(book.newSales.fromDate, { weekday: false })}, with{" "}
-            {formatInr(book.newSales.weeklyPaise)} a week of expected new sales, from your last 3 months.
+            {t.expectedSales(formatDate(book.newSales.fromDate, { weekday: false }), formatInr(book.newSales.weeklyPaise))}
           </p>
         )}
         <ForecastChart weeks={book.weeks} />
@@ -431,6 +434,7 @@ function DaysToGetPaid({ book }: { book: TodayBook }) {
 /** What the AI calls cost against what the Plans and Promises agreed on them secured. */
 function CallReturn() {
   const world = useWorld();
+  const { lang } = useLang();
   const calls = useWorkspaceRows<CallRow>("calls");
   const [why, setWhy] = useState(false);
   if (!Array.isArray(calls)) return null;
@@ -442,7 +446,7 @@ function CallReturn() {
   });
   return (
     <div className="sect">
-      <Head title="AI calls" />
+      <Head title={ownerCopy(lang).aiCalls} />
       <Ln>
         <p className="text-[17px] leading-snug">
           Cost <b>{formatInr(roi.costPaise)}</b>, secured <b>{formatInr(roi.securedPaise)}</b>.

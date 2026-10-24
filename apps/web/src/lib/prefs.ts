@@ -51,10 +51,13 @@ export function useTheme() {
   return { theme, toggle };
 }
 
-export type Lang = "en" | "hi";
+export type Lang = "en" | "hi" | "bn";
 
 export function useLang() {
-  const [lang, setLang] = useState<Lang>(() => (read("tagada.lang") === "hi" ? "hi" : "en"));
+  const [lang, setLang] = useState<Lang>(() => {
+    const saved = read("tagada.lang");
+    return saved === "hi" || saved === "bn" ? saved : "en";
+  });
   const choose = useCallback((next: Lang) => {
     write("tagada.lang", next);
     setLang(next);

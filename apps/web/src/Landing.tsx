@@ -8,6 +8,8 @@ import { useTour } from "./tour.tsx";
 import { PayLinkQr } from "./pay-qr.tsx";
 import { CallPlayer } from "./sample-call.tsx";
 import { Badge } from "./ui.tsx";
+import { ownerCopy } from "./i18n/owner.ts";
+import { useLang } from "./lib/prefs.ts";
 
 /** How long the cover takes to turn; the door lands on its screen just after. */
 const TURN_MS = 1100;
@@ -26,6 +28,8 @@ const DOORS: Door[] = [
  * instant. On phones the pitch and the doors come first; the book follows.
  */
 export function Landing() {
+  const { lang } = useLang();
+  const copy = ownerCopy(lang);
   const state = useWorldState();
   const tour = useTour();
   const navigate = useNavigate();
@@ -83,7 +87,7 @@ export function Landing() {
   // The tour can start from a fresh copy; the call needs Gupta ji's open Invoice.
   const needsWorld = (door: Door) => (door.key === "tour" && !world) || (door.key === "call" && !hero);
   const what = (door: Door) =>
-    door.key === "tour" && moved ? "Eight steps, from a fresh copy of the books" : door.what;
+    door.key === "tour" ? (moved ? copy.eightStepsFresh : copy.eightSteps) : door.what;
 
   return (
     <main className={`landing ${opening !== null ? "opening" : ""}`}>

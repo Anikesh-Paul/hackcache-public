@@ -145,7 +145,7 @@ export function Settings() {
         setProblem({ field: result.field });
         return;
       }
-      if (form.lang === "en" || form.lang === "hi") choose(form.lang);
+      if (form.lang === "en" || form.lang === "hi" || form.lang === "bn") choose(form.lang);
       await reload();
       setSaved(true);
     } catch (e) {
@@ -291,7 +291,15 @@ export function Settings() {
               <legend className="sr-only">Your language</legend>
               {LANGUAGES.map((l) => (
                 <label key={l.id} className="choice" lang={l.id}>
-                  <input type="radio" name="lang" checked={form.lang === l.id} onChange={() => set({ lang: l.id })} />
+                  <input
+                    type="radio"
+                    name="lang"
+                    checked={form.lang === l.id}
+                    onChange={() => {
+                      set({ lang: l.id });
+                      choose(l.id);
+                    }}
+                  />
                   <span>{l.name}</span>
                 </label>
               ))}

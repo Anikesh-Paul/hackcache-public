@@ -198,7 +198,9 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
   app.get(
     "/api/pay/:token/audio",
     pay("/api/pay/audio", async (ref, c) => {
-      const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref);
+      const asked = c.req.query("lang");
+      const language = asked === "bn" || asked === "en" || asked === "hi" ? asked : "hi";
+      const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref, language);
       if (!clip) return c.json({ error: "invalid_link" }, 404);
       return c.body(new Uint8Array(clip), 200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=3600" });
     }),
@@ -328,9 +330,14 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     const fileId = c.req.param("fileId") ?? "";
     const proofs = await demo.worlds.list("proof_checks", workspaceId);
     if (!proofs.some((row) => row.fileId === fileId)) return c.json({ error: "not_found" }, 404);
-    const file = await files.readScreenshot(fileId);
-    if (!file) return c.json({ error: "not_found" }, 404);
-    return c.body(new Uint8Array(file.bytes), 200, { "content-type": file.mime, "cache-control": "private, max-age=3600" });
+    try {
+      const file = await files.readScreenshot(fileId);
+      if (!file) return c.json({ error: "not_found" }, 404);
+      return c.body(new Uint8Array(file.bytes), 200, { "content-type": file.mime, "cache-control": "private, max-age=3600" });
+    } catch (e) {
+      console.error("/api/screenshots failed", e);
+      return c.json({ error: "screenshot_unavailable" }, 500);
+    }
   });
 
   // The Ladder. The header's ‹ › stepper moves the Demo date and runs the same workflow the cron does.

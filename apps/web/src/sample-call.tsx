@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 import { munimFirstLine, planInWords } from "@tagada/domain";
 import { formatInr, hindiRupees } from "@tagada/money";
 import { GUPTA_PLAN } from "@tagada/seed";
+import { ownerCopy } from "./i18n/owner.ts";
+import { useLang } from "./lib/prefs.ts";
 
 /**
  * The recorded call: Hindi audio (MP3) and English captions (WebVTT, one cue
@@ -36,12 +38,14 @@ export const SAMPLE: { who: string; hi: string; en: string }[] = [
 ];
 
 /** The written sample behind a toggle. */
-export function SampleCall({ label = "Read a sample call" }: { label?: string }) {
+export function SampleCall({ label }: { label?: string }) {
+  const copy = ownerCopy(useLang().lang);
+  const shown = label ?? copy.sampleCall;
   const [open, setOpen] = useState(false);
   return (
     <div className="mt-2">
       <button type="button" className="linkbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        {open ? "Hide the sample call" : label}
+        {open ? copy.hideSample : shown}
       </button>
       {open && (
         <ol className="tour-sample">
