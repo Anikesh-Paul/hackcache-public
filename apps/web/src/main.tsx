@@ -1,7 +1,9 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { Outlet, RouterProvider, createBrowserRouter } from "react-router";
-import { Shell, Placeholder, Landing } from "./Shell.tsx";
+import { Shell, Placeholder } from "./Shell.tsx";
+import { Landing } from "./Landing.tsx";
+import { TourRoot } from "./tour.tsx";
 import { AppShell, WorldGate } from "./AppShell.tsx";
 import { WorldProvider } from "./lib/world.tsx";
 import { Proof } from "./Proof.tsx";
@@ -33,67 +35,73 @@ function Owner() {
 
 const router = createBrowserRouter([
   {
-    element: <Owner />,
+    // The guided tour sits over every page, so it can follow the visitor to the pay link and back.
+    element: <TourRoot />,
     children: [
       {
-        element: <AppShell />,
+        element: <Owner />,
         children: [
-          { path: "/app", element: <Today /> },
-          { path: "/app/automation", element: <Automation /> },
-          { path: "/app/settings", element: <Settings /> },
-          { path: "/app/invoices/new", element: <NewInvoice /> },
-          { path: "/app/invoices", element: <Invoices /> },
-          { path: "/app/invoices/:id/duplicate", element: <DuplicatePreview /> },
-          { path: "/app/invoices/:id", element: <InvoiceDetail /> },
-          { path: "/app/customers", element: <Customers /> },
-          { path: "/app/customers/:id", element: <CustomerDetail /> },
-          { path: "/app/inbox", element: <Inbox /> },
-          { path: "/app/bank", element: <Bank /> },
-        ],
-      },
-      {
-        path: "/print/invoice/:id",
-        element: (
-          <WorldGate>
-            <PrintInvoice />
-          </WorldGate>
-        ),
-      },
-      {
-        path: "/print/letter/:id",
-        element: (
-          <WorldGate>
-            <PrintLetter />
-          </WorldGate>
-        ),
-      },
-      {
-        path: "/print/case/:id",
-        element: (
-          <WorldGate>
-            <PrintCase />
-          </WorldGate>
-        ),
-      },
-      {
-        element: <Shell />,
-        children: [
+          {
+            element: <AppShell />,
+            children: [
+              { path: "/app", element: <Today /> },
+              { path: "/app/automation", element: <Automation /> },
+              { path: "/app/settings", element: <Settings /> },
+              { path: "/app/invoices/new", element: <NewInvoice /> },
+              { path: "/app/invoices", element: <Invoices /> },
+              { path: "/app/invoices/:id/duplicate", element: <DuplicatePreview /> },
+              { path: "/app/invoices/:id", element: <InvoiceDetail /> },
+              { path: "/app/customers", element: <Customers /> },
+              { path: "/app/customers/:id", element: <CustomerDetail /> },
+              { path: "/app/inbox", element: <Inbox /> },
+              { path: "/app/bank", element: <Bank /> },
+            ],
+          },
+          {
+            path: "/print/invoice/:id",
+            element: (
+              <WorldGate>
+                <PrintInvoice />
+              </WorldGate>
+            ),
+          },
+          {
+            path: "/print/letter/:id",
+            element: (
+              <WorldGate>
+                <PrintLetter />
+              </WorldGate>
+            ),
+          },
+          {
+            path: "/print/case/:id",
+            element: (
+              <WorldGate>
+                <PrintCase />
+              </WorldGate>
+            ),
+          },
           // The landing page opens the Demo world silently, so the books are ready on the first click.
           { path: "/", element: <Landing /> },
-          // Not under the Owner's tabs: the call screen highlights none of them.
-          { path: "/call/:invoiceId", element: <CallScreen /> },
+          {
+            element: <Shell />,
+            children: [
+              // Not under the Owner's tabs: the call screen highlights none of them.
+              { path: "/call/:invoiceId", element: <CallScreen /> },
+            ],
+          },
         ],
       },
-    ],
-  },
-  // The Customer side never touches the Owner's session, or Appwrite: only the server, with the pay token.
-  { path: "/pay/:token", element: <PayLink /> },
-  {
-    // /proof never touches the Owner's session either.
-    element: <Shell />,
-    children: [
-      { path: "/proof", element: <Proof /> },
-      { path: "*", element: <Placeholder name="Page not found" notFound /> },
+      // The Customer side never touches the Owner's session, or Appwrite: only the server, with the pay token.
+      { path: "/pay/:token", element: <PayLink /> },
+      {
+        // /proof never touches the Owner's session either.
+        element: <Shell />,
+        children: [
+          { path: "/proof", element: <Proof /> },
+          { path: "*", element: <Placeholder name="Page not found" notFound /> },
+        ],
+      },
     ],
   },
 ]);

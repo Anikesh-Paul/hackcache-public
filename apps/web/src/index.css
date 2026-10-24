@@ -1173,6 +1173,394 @@ h3 {
       display: none;
     }
   }
+
+  /* ---------- Landing: the closed khata ---------- */
+  .landing {
+    min-height: 100dvh;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 440px);
+    gap: 64px;
+    align-items: center;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 48px 28px 96px;
+  }
+  .l-copy {
+    transition:
+      opacity 0.5s ease-out,
+      filter 0.5s ease-out;
+  }
+  .landing.opening .l-copy {
+    opacity: 0.15;
+    filter: blur(2px);
+  }
+  .l-copy h1 {
+    font-size: clamp(32px, 4.4vw, 54px);
+    line-height: 1.06;
+    letter-spacing: -0.035em;
+    max-width: 16ch;
+  }
+  .l-copy h1 em {
+    font-style: normal;
+    color: var(--sindoor);
+  }
+  .l-copy .src {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .l-copy .what {
+    margin-top: 20px;
+    max-width: 40ch;
+    font-size: 19px;
+    line-height: 1.5;
+  }
+  .doors {
+    margin-top: 28px;
+    border-top: 1px solid var(--ink);
+  }
+  .door {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 14px;
+    align-items: center;
+    width: 100%;
+    min-height: 64px;
+    padding: 14px 4px 14px 0;
+    border-bottom: 1px solid var(--rule);
+    text-align: left;
+    transition:
+      background-color 0.15s,
+      padding 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .door:not(:disabled):hover {
+    background: color-mix(in srgb, var(--turmeric-soft) 55%, transparent);
+    padding-left: 6px;
+  }
+  .door:disabled {
+    opacity: 0.55;
+  }
+  .door .rib {
+    width: 18px;
+    height: 34px;
+    justify-self: center;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  }
+  .door b {
+    display: block;
+    font-size: 18px;
+    font-weight: 600;
+  }
+  .door small {
+    display: block;
+    color: var(--ink-2);
+    font-size: 14px;
+  }
+  .door .ar {
+    color: var(--ink-2);
+  }
+  .l-foot {
+    margin-top: 22px;
+    display: grid;
+    gap: 6px;
+    font-size: 13.5px;
+    color: var(--ink-2);
+  }
+  .l-foot .ready {
+    color: var(--bamboo-ink);
+    font-weight: 500;
+  }
+  .l-foot .ready svg {
+    display: inline;
+    vertical-align: -3px;
+  }
+
+  /* The book's cloth and foil are the same in both themes: it is an object on the desk. */
+  .khata-book {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    aspect-ratio: 3 / 4;
+    justify-self: center;
+    perspective: 2200px;
+  }
+  .khata-book .pg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 34px 26px 26px 88px;
+    border-radius: 3px 8px 8px 3px;
+    background-color: var(--paper);
+    background-image: linear-gradient(
+      to right,
+      transparent 66px,
+      var(--rule-strong) 66px 67px,
+      transparent 67px 70px,
+      var(--rule-strong) 70px 71px,
+      transparent 71px
+    );
+    box-shadow:
+      0 1px 0 var(--rule-strong),
+      0 3px 0 var(--paper),
+      0 4px 0 var(--rule-strong),
+      0 6px 0 var(--paper),
+      0 7px 0 var(--rule-strong),
+      0 30px 50px -24px rgba(31, 42, 36, 0.5);
+  }
+  .khata-book .pg .d {
+    font-size: 13px;
+    color: var(--ink-2);
+  }
+  .khata-book .pg .o {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  .khata-book .pg .lines {
+    margin-top: 10px;
+    display: grid;
+    gap: 14px;
+  }
+  .khata-book .pg .lines i {
+    display: block;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--rule);
+  }
+  .khata-book .cov {
+    position: absolute;
+    inset: 0;
+    transform-origin: left center;
+    transform-style: preserve-3d;
+    transition: transform 1.05s cubic-bezier(0.65, 0.02, 0.25, 1);
+  }
+  .khata-book.open .cov {
+    transform: rotateY(-162deg);
+  }
+  .khata-book .cov .f,
+  .khata-book .cov .b {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    border-radius: 4px 10px 10px 4px;
+  }
+  .khata-book .cov .b {
+    transform: rotateY(180deg);
+    background: #e9e1cf;
+    box-shadow: inset 0 0 0 10px #22302a;
+  }
+  .khata-book .cov .f {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 64px 28px 30px 60px;
+    text-align: center;
+    color: #efeadf;
+    background-color: #22302a;
+    background-image:
+      repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 3px),
+      repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px 3px);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+      inset -6px 0 14px rgba(0, 0, 0, 0.35),
+      0 30px 50px -24px rgba(0, 0, 0, 0.55);
+  }
+  .khata-book .cov .f::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 36px;
+    border-radius: 4px 0 0 4px;
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.08);
+  }
+  .khata-book .cov .f::after {
+    content: "";
+    position: absolute;
+    left: 44px;
+    top: 14px;
+    bottom: 14px;
+    border-left: 1.5px dashed rgba(239, 234, 223, 0.25);
+  }
+  .khata-book .title {
+    font-family: "IBM Plex Sans Devanagari", sans-serif;
+    font-weight: 700;
+    font-size: 86px;
+    line-height: 1;
+    color: #d9a441;
+    text-shadow:
+      0 1px 0 rgba(0, 0, 0, 0.55),
+      0 -1px 0 rgba(255, 235, 190, 0.18);
+  }
+  .khata-book .sub {
+    margin-top: 12px;
+    font-size: 16px;
+    color: #c9c2b2;
+  }
+  .khata-book .tag {
+    margin-top: 4px;
+    font-size: 15px;
+    color: #d9a441;
+  }
+  .khata-book .plate {
+    margin-top: auto;
+    width: 74%;
+    padding: 12px 14px 10px;
+    border-radius: 3px;
+    background: #f4eee0;
+    background-image: repeating-linear-gradient(to bottom, transparent 0 21px, #dcd3bf 21px 22px);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    color: #1f2a24;
+    text-align: left;
+    font-size: 14px;
+    line-height: 22px;
+  }
+  .khata-book .plate b {
+    font-weight: 600;
+  }
+  .khata-book .ribbons {
+    position: absolute;
+    left: 76px;
+    top: calc(100% - 6px);
+    z-index: -1;
+    display: flex;
+    gap: 10px;
+  }
+  .khata-book .ribbons i {
+    width: 14px;
+    height: 54px;
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+    transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .khata-book.pull-0 .ribbons i:nth-child(1),
+  .khata-book.pull-1 .ribbons i:nth-child(2),
+  .khata-book.pull-2 .ribbons i:nth-child(3) {
+    height: 74px;
+  }
+  /* Phones and tablets: the pitch and the doors first, the book a small accent after them. */
+  @media (max-width: 960px) {
+    .landing {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 56px;
+      padding: 28px 20px 110px;
+    }
+    .khata-book {
+      max-width: 240px;
+    }
+    .khata-book .title {
+      font-size: 56px;
+    }
+    .khata-book .cov .f {
+      padding: 40px 18px 22px 52px;
+    }
+    .khata-book .plate {
+      width: 88%;
+      font-size: 12.5px;
+    }
+    .khata-book .pg {
+      padding-left: 80px;
+    }
+  }
+  @media (max-width: 600px) {
+    .landing {
+      padding: 20px 16px 96px;
+    }
+    .door b {
+      font-size: 16.5px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .khata-book .cov,
+    .khata-book .ribbons i,
+    .l-copy,
+    .door {
+      transition: none;
+    }
+  }
+
+  /* ---------- Guided tour ---------- */
+  .tour {
+    position: fixed;
+    z-index: 40;
+    right: 16px;
+    bottom: 16px;
+    width: min(400px, calc(100vw - 32px));
+    max-height: min(70dvh, 460px);
+    overflow-y: auto;
+    padding: 14px 16px 16px;
+    border: 1px solid var(--rule-strong);
+    border-top: 3px solid var(--bamboo);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    box-shadow: 0 18px 48px -16px rgba(31, 42, 36, 0.45);
+  }
+  .tour-x {
+    margin: -8px -8px 0 auto;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    color: var(--ink-2);
+  }
+  .tour-x:hover {
+    color: var(--ink);
+  }
+  .tour-dots {
+    display: flex;
+    gap: 6px;
+  }
+  .tour-dots i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 1.5px solid var(--rule-strong);
+  }
+  .tour-dots i.done {
+    background: var(--rule-strong);
+  }
+  .tour-dots i.on {
+    background: var(--bamboo);
+    border-color: var(--bamboo);
+  }
+  .tour-sample {
+    margin-top: 6px;
+    display: grid;
+    gap: 6px;
+    font-size: 13.5px;
+  }
+  .tour-ring {
+    position: fixed;
+    z-index: 39;
+    pointer-events: none;
+    border: 2px solid var(--bamboo);
+    border-radius: 8px;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--bamboo) 22%, transparent);
+    transition:
+      top 0.25s ease-out,
+      left 0.25s ease-out,
+      width 0.25s ease-out,
+      height 0.25s ease-out;
+  }
+  @media (max-width: 639px) {
+    .tour {
+      right: 8px;
+      left: 8px;
+      bottom: 8px;
+      width: auto;
+      max-height: 52dvh;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-ring {
+      transition: none;
+    }
+  }
 }
 
 /* A4 print pages: no app chrome, black on white. */

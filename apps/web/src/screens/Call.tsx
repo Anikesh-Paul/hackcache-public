@@ -209,7 +209,7 @@ function Setup(props: {
   return (
     <>
       <Ln m="Before the call">
-        <ul className="guard">
+        <ul className="guard" data-tour="guard">
           {items.map((item) => (
             <li key={item.text} className={item.ok ? "" : "no"}>
               {item.ok ? <Check aria-label="Yes" /> : <X aria-label="No" />}
@@ -253,7 +253,7 @@ function Setup(props: {
           </p>
         ) : (
           <>
-            <button type="button" className="btn primary px-4 py-3 text-[15px]" onClick={onStart}>
+            <button type="button" className="btn primary px-4 py-3 text-[15px]" onClick={onStart} data-tour="start">
               <Phone aria-hidden /> Start call
             </button>
             <small className="mt-2 block text-ink-2">
@@ -266,7 +266,8 @@ function Setup(props: {
   );
 }
 
-const SAMPLE: { who: string; hi: string; en: string }[] = [
+/** A written sample of the call, for anyone without a microphone. Not a recording. */
+export const SAMPLE: { who: string; hi: string; en: string }[] = [
   { who: "Munim", hi: "नमस्ते गुप्ता जी, मैं Munim, Tripura Bamboo Works की AI सहायक बोल रही हूँ।", en: "Hello Gupta ji, I'm Munim, Tripura Bamboo Works' AI assistant." },
   { who: "Gupta ji", hi: "शुक्रवार को चालीस हज़ार दे सकता हूँ, बाकी अगले महीने।", en: "I can pay ₹40,000 on Friday, the rest next month." },
   { who: "Rule check", hi: "", en: "₹40,000 by Fri 6 Nov: below your 50% rule (₹59,000), so the agent will counter" },
