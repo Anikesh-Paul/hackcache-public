@@ -204,6 +204,28 @@ describe("POST /api/invoices", () => {
     expect(named("Corner Shop").gstin).toBeNull();
   });
 
+  it("takes a due date the Owner chose, from today to a year on; without one, it is the Customer's credit days", async () => {
+    await seed();
+    const gupta = named("Gupta Traders").$id;
+    const chosen = await postInvoice({ customerId: gupta, lines: [chair], dueDate: "2026-11-20" });
+    expect(chosen.status).toBe(200);
+    const body = (await chosen.json()) as { invoice: { $id: string; dueDate: string } };
+    expect(body.invoice.dueDate).toBe("2026-11-20");
+    const sent = db.table("events").find((e) => e.invoiceId === body.invoice.$id && e.type === "sent");
+    expect(sent?.summary).toBe("Invoice sent; 18 days' credit, due Fri 20 Nov");
+
+    const usual = (await (await postInvoice({ customerId: gupta, lines: [chair] })).json()) as { invoice: { dueDate: string } };
+    expect(usual.invoice.dueDate).toBe("2026-12-02");
+
+    const before = db.table("invoices").length;
+    for (const dueDate of ["2026-11-01", "2027-11-03", "20 Nov", 5]) {
+      const res = await postInvoice({ customerId: gupta, lines: [chair], dueDate });
+      expect(res.status, String(dueDate)).toBe(400);
+      expect(await res.json()).toEqual({ error: "invalid_due_date" });
+    }
+    expect(db.table("invoices")).toHaveLength(before);
+  });
+
   it("saves a part quantity, and refuses one with more than three decimals", async () => {
     await seed();
     const gupta = named("Gupta Traders").$id;
