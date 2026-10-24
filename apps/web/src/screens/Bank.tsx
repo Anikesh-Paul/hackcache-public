@@ -131,71 +131,85 @@ export function Bank() {
         </p>
       </Ln>
 
-      <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn primary"
-          disabled={busy}
-          onClick={() => void run(async () => (await importBank({ sample: true })).summary)}
-        >
-          Import sample statement
-        </button>
-        <button
-          type="button"
-          className="btn secondary"
-          disabled={busy || exact.length === 0}
-          onClick={() =>
-            void run(async () => {
-              const { confirmed: n, message } = await confirmBank({ allExact: true });
-              return confirmedNotice(n === 0 ? null : `Confirmed ${n} exact.`, message);
-            })
-          }
-        >
-          Confirm all exact
-        </button>
-      </div>
-      {notice && (
-        <p className="mt-3 text-sm" aria-live="polite">
-          {notice}
-        </p>
-      )}
+      <Ln>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn primary"
+            disabled={busy}
+            onClick={() => void run(async () => (await importBank({ sample: true })).summary)}
+          >
+            Import sample statement
+          </button>
+          <button
+            type="button"
+            className="btn secondary"
+            disabled={busy || exact.length === 0}
+            onClick={() =>
+              void run(async () => {
+                const { confirmed: n, message } = await confirmBank({ allExact: true });
+                return confirmedNotice(n === 0 ? null : `Confirmed ${n} exact.`, message);
+              })
+            }
+          >
+            Confirm all exact
+          </button>
+        </div>
+        {notice && (
+          <p className="mt-3 text-sm" aria-live="polite">
+            {notice}
+          </p>
+        )}
 
-      <label
-        className={`mt-4 block cursor-pointer rounded-md border border-dashed px-4 py-4 text-sm ${over ? "border-ink" : "border-rule-strong"}`}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={onDrop}
-      >
-        <span className="block">Drop a CSV here, or choose a file.</span>
-        <span className="mt-1 block text-ink-2">
-          Columns: date, narration, utr, amount. A sample file is{" "}
-          <a href="/bank-statement.csv" download>
-            bank-statement.csv
-          </a>
-          .
-        </span>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          disabled={busy}
-          aria-label="Bank statement CSV"
-          className="mt-2 block min-h-11 text-sm"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            event.target.value = "";
-            if (file) void takeFile(file);
+        <label
+          className={`mt-4 block cursor-pointer rounded-md border border-dashed px-4 py-4 text-sm ${over ? "border-ink" : "border-rule-strong"}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setOver(true);
           }}
-        />
-      </label>
+          onDragLeave={() => setOver(false)}
+          onDrop={onDrop}
+        >
+          <span className="block">Drop a CSV here, or choose a file.</span>
+          <span className="mt-1 block text-ink-2">
+            Columns: date, narration, utr, amount. A sample file is{" "}
+            <a href="/bank-statement.csv" download>
+              bank-statement.csv
+            </a>
+            .
+          </span>
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            disabled={busy}
+            aria-label="Bank statement CSV"
+            className="mt-2 block min-h-11 text-sm"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void takeFile(file);
+            }}
+          />
+        </label>
+      </Ln>
 
       <div className="sect mt-6">
         <Head title="Credits" m="date" a="amount" />
-        {credits === null && <p className="px-4 py-4 text-sm text-ink-2">Reading the statement…</p>}
-        {credits === "failed" && <p className="px-4 py-4 text-sm">The statement could not be read.</p>}
-        {Array.isArray(credits) && rows.length === 0 && <p className="px-4 py-4 text-sm text-ink-2">No credits yet.</p>}
+        {credits === null && (
+          <Ln>
+            <p className="py-4 text-sm text-ink-2">Reading the statement…</p>
+          </Ln>
+        )}
+        {credits === "failed" && (
+          <Ln>
+            <p className="py-4 text-sm">The statement could not be read.</p>
+          </Ln>
+        )}
+        {Array.isArray(credits) && rows.length === 0 && (
+          <Ln>
+            <p className="py-4 text-sm text-ink-2">No credits yet.</p>
+          </Ln>
+        )}
         <ul className="entries">
           {rows.map((row) => {
             const kind = row.matchKind ?? "unknown";
