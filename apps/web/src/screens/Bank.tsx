@@ -5,10 +5,9 @@ import { Check, CircleDot, CircleHelp, Copy, Flag, Scale } from "lucide-react";
 import type { BankAllocation, BankTxnRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
   invoicesForMatch,
-  matchCredit,
-  matchForCustomer,
   overpayPaise,
   proofBankLine,
+  rematchCredit,
   type MatchKind,
   type ProofResultKind,
 } from "@tagada/domain";
@@ -93,9 +92,7 @@ export function Bank() {
       if (row.matchStatus === "confirmed") continue;
       const credit = { date: row.date, narration: row.narration, reference: row.utr ?? "", amountPaise: row.amountPaise };
       const assigned = row.assignedCustomerId ? world.customers.get(row.assignedCustomerId) : undefined;
-      const match = assigned
-        ? matchForCustomer(credit, open, { id: assigned.$id, name: assigned.name })
-        : matchCredit(credit, open);
+      const match = rematchCredit(credit, open, assigned ? { id: assigned.$id, name: assigned.name } : null);
       out.set(row.$id, { kind: match.kind, note: match.note });
     }
     return out;

@@ -18,6 +18,11 @@ export function useT(): Copy {
   return COPY[useLang().lang];
 }
 
+/** A Reminder's name by its stage: the Reminder's own name, else its Ladder stage's. */
+export function reminderName(t: Copy, stage: number): string {
+  return t.ladder.reminderNames[stage - 1] ?? t.ladder.stages[stage - 1]?.name ?? t.ladder.reminder;
+}
+
 /** The salary headline: "Salary day in 8 days", or "Salary covered". */
 export function salaryHeadline(daysAway: number | null, covered: boolean, t: Copy): string {
   if (covered || daysAway === null) return t.salary.covered;

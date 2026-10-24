@@ -89,6 +89,7 @@ export {
   matchCredit,
   matchForCustomer,
   matcherBrief,
+  rematchCredit,
   overpayPaise,
   parseStatement,
 } from "./matcher.ts";

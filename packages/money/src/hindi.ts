@@ -14,7 +14,7 @@ const HI = (
 
 const HI_DAYS = "रविवार सोमवार मंगलवार बुधवार गुरुवार शुक्रवार शनिवार".split(" ");
 
-const HI_MONTHS = "जनवरी फ़रवरी मार्च अप्रैल मई जून जुलाई अगस्त सितंबर अक्टूबर नवंबर दिसंबर".split(" ");
+export const HI_MONTHS = "जनवरी फ़रवरी मार्च अप्रैल मई जून जुलाई अगस्त सितंबर अक्टूबर नवंबर दिसंबर".split(" ");
 
 const SCALES: readonly (readonly [bigint, string])[] = [
   [1_00_00_000n, "करोड़"],
@@ -64,14 +64,6 @@ export function hindiRupees(paise: number): string {
  * Weekday and date in Hindi, for an ISO date. An unusable string is returned
  * unchanged, as the call prototype did.
  */
-/** "6 नवंबर": digits, for lists of dates where words would be heavy. */
-export function hindiShortDate(iso: string): string {
-  const date = parseCivilDate(iso);
-  const monthName = date ? HI_MONTHS[date.month - 1] : undefined;
-  if (!date || monthName === undefined) return iso;
-  return `${date.day} ${monthName}`;
-}
-
 export function hindiDate(iso: string): string {
   const date = parseCivilDate(iso);
   const day = weekday(iso);

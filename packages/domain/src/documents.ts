@@ -13,8 +13,8 @@ import {
   formatInr,
   formatRateBps,
   bengaliDate,
+  formatDateIn,
   hindiDate,
-  hindiShortDate,
   sumPaise,
   upiPayUri,
 } from "@tagada/money";
@@ -180,9 +180,7 @@ function dated(iso: string, lang: DocLang): string {
 
 /** A date in a list of workings: short, in the letter's language. */
 function shortDated(iso: string, lang: DocLang): string {
-  if (lang === "hi") return hindiShortDate(iso);
-  if (lang === "bn") return bengaliDate(iso);
-  return formatDate(iso, { weekday: false });
+  return formatDateIn(iso, lang, { weekday: false });
 }
 
 function restLine(

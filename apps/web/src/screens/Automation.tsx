@@ -10,7 +10,7 @@ import { isRepeatRefused } from "@tagada/domain";
 import { istDay, istTime } from "../lib/pricing.ts";
 import { usePaymentHistory, useReminders, useWorkspaceRows, useWorld, type World } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
-import { useT, type Copy } from "../i18n/index.ts";
+import { reminderName, useT, type Copy } from "../i18n/index.ts";
 
 const SHOWN_RUNS = 8;
 
@@ -23,15 +23,13 @@ function story(t: Copy, r: ReminderRow): string {
   return t.automation.status[r.status];
 }
 
-const stageName = (t: Copy, stage: number) => t.ladder.reminderNames[stage - 1] ?? t.ladder.stages[stage - 1]?.name ?? "";
-
 function ReminderLine({ r, world }: { r: ReminderRow; world: World }) {
   const invoice = world.invoices.find((i) => i.$id === r.invoiceId);
   const t = useT();
   return (
     <Ln m={r.sentDate ? t.date(r.sentDate, { weekday: false }) : ""} className="ruler">
       <span className="block">
-        {t.automation.reminderFor(stageName(t, r.stage), world.customers.get(r.customerId)?.name ?? t.common.aCustomer)}
+        {t.automation.reminderFor(reminderName(t, r.stage), world.customers.get(r.customerId)?.name ?? t.common.aCustomer)}
         {invoice && (
           <>
             , <Link to={`/app/invoices/${invoice.$id}`} className="mono">{invoice.number}</Link>
