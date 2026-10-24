@@ -11,6 +11,7 @@ import {
   invoiceNumber,
   invoiceTotals,
   isGstRate,
+  isLineUnit,
   lineMeasures,
   quantityMilli,
   stateName,
@@ -54,6 +55,8 @@ type LineInput = {
   ratePaise: number;
   discountPercent: number;
   gstRatePercent: GstRate;
+  /** Null for "nos", the default. */
+  unit: string | null;
 };
 
 type NewCustomer = {
@@ -123,7 +126,9 @@ function parseLine(value: unknown): LineInput | null {
   if (ratePaise === null || ratePaise < 0) return null;
   if (discountPercent === null || discountPercent < 0 || discountPercent > 100) return null;
   if (gstRatePercent === null || !isGstRate(gstRatePercent)) return null;
-  return { description, hsn, quantity, ratePaise, discountPercent, gstRatePercent };
+  const unit = value.unit === undefined || value.unit === null ? "nos" : value.unit;
+  if (!isLineUnit(unit)) return null;
+  return { description, hsn, quantity, ratePaise, discountPercent, gstRatePercent, unit: unit === "nos" ? null : unit };
 }
 
 function parseLines(value: unknown): LineInput[] | null {
@@ -326,6 +331,8 @@ export async function issueInvoice(
     hsn: line.hsn,
     ratePaise: line.ratePaise,
     ...lineMeasures(line),
+    // Written only when it is not "nos", so saves work before the column is added.
+    ...(line.unit ? { unit: line.unit } : {}),
   }));
 
   const event: EventRow = {

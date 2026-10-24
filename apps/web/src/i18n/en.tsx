@@ -394,6 +394,7 @@ export const en = {
     description: "Description",
     hsn: "HSN or SAC",
     quantity: "Quantity",
+    unit: "Unit",
     rate: "Rate (₹)",
     discount: "Discount %",
     gstRate: "GST rate",

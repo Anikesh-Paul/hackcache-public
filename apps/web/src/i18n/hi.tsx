@@ -384,6 +384,7 @@ export const hi: Copy = {
     description: "विवरण",
     hsn: "HSN या SAC",
     quantity: "मात्रा",
+    unit: "इकाई",
     rate: "दर (₹)",
     discount: "छूट %",
     gstRate: "GST दर",

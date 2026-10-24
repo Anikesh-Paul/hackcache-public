@@ -6,12 +6,14 @@ export {
   E_INVOICE_TURNOVER_PAISE,
   GST_RATES,
   LADDER_STAGE_DAYS,
+  LINE_UNITS,
   SECTION16_RATE_BEFORE_BPS,
   SECTION16_RATE_CHANGE,
   SECTION16_RATE_FROM_BPS,
   isGstRate,
+  isLineUnit,
 } from "./config.ts";
-export type { GstRate } from "./config.ts";
+export type { GstRate, LineUnit } from "./config.ts";
 
 export { callCostPaise, callCredits, callReturn, paiseFromRupees, rupeesFromPaise } from "./call-cost.ts";
 

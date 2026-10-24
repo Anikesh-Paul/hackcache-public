@@ -75,6 +75,8 @@ export type InvoiceLineRow = Row<{
   hsn: string | null;
   /** Quantity × 1000. */
   qtyMilli: number;
+  /** One of `LINE_UNITS`; null or missing is "nos", numbers of pieces. */
+  unit?: string | null;
   ratePaise: number;
   /** Discount in basis points: 1000 is 10%. */
   discountBp: number;
