@@ -16,7 +16,9 @@ import {
   hindiRupees,
   invoiceNumber,
   invoiceTotals,
+  lineMeasures,
   needsEInvoice,
+  quantityMilli,
   type GstRate,
   parseAmountPaise,
   runProofCases,
@@ -181,6 +183,22 @@ describe("GST", () => {
 
   it("refuses money that is not an integer number of paise", () => {
     expect(() => bill([{ quantity: 1, ratePaise: 10.5, gstRatePercent: 0 }])).toThrow(/integer/);
+  });
+
+  it("prices a part quantity: 2.5 kg at ₹333.33 is ₹833.33 taxable, rounded to the paisa", () => {
+    const priced = bill([{ quantity: 2.5, ratePaise: 33_333, gstRatePercent: 5 }]);
+    expect(priced.taxablePaise).toBe(83_333);
+    expect(priced.cgstPaise).toBe(2_083);
+    expect(priced.sgstPaise).toBe(2_083);
+    expect(priced.totalPaise).toBe(87_500);
+    expect(lineMeasures({ quantity: 0.75, discountPercent: 0, gstRatePercent: 5 }).qtyMilli).toBe(750);
+  });
+
+  it("refuses a quantity of 0, below 0, or with more than three decimals", () => {
+    expect(() => bill([{ quantity: 0, ratePaise: 100, gstRatePercent: 0 }])).toThrow(/more than 0/);
+    expect(() => bill([{ quantity: -1, ratePaise: 100, gstRatePercent: 0 }])).toThrow(/more than 0/);
+    expect(() => bill([{ quantity: 1.2345, ratePaise: 100, gstRatePercent: 0 }])).toThrow(/three decimals/);
+    expect(quantityMilli(0.1 + 0.2)).toBe(300n);
   });
 });
 
