@@ -140,7 +140,7 @@ export function Landing() {
               </span>
             ) : state.status === "error" ? (
               <>
-                {state.message}{" "}
+                {state.failed === "reset" ? t.shell.resetFailed : t.shell.openFailed}{" "}
                 <button type="button" className="linkbtn" onClick={state.retry}>
                   Try again
                 </button>

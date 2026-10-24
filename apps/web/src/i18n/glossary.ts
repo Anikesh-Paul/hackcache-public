@@ -21,7 +21,7 @@ export const GLOSSARY: Record<Term, Record<Lang, string>> = {
   Customer: { en: "Customer", hi: "ग्राहक", bn: "গ্রাহক" },
   Invoice: { en: "Invoice", hi: "बिल", bn: "বিল" },
   Promise: { en: "Promise", hi: "वादा", bn: "প্রতিশ্রুতি" },
-  Plan: { en: "Plan", hi: "किस्त योजना", bn: "কিস্তির পরিকল্পনা" },
+  Plan: { en: "Plan", hi: "किश्त योजना", bn: "কিস্তির পরিকল্পনা" },
   Reminder: { en: "Reminder", hi: "अनुस्मारक", bn: "অনুস্মারক" },
   Ladder: { en: "Ladder", hi: "अनुस्मारक सीढ़ी", bn: "অনুস্মারকের সিঁড়ি" },
   "Payment Demand Letter": { en: "Payment Demand Letter", hi: "बकाया भुगतान के लिए पत्र", bn: "বকেয়া পরিশোধের চিঠি" },
@@ -35,7 +35,7 @@ export const GLOSSARY: Record<Term, Record<Lang, string>> = {
 
 /** Words a reviewer found standing in for a glossary term. None may appear in any table. */
 export const WRONG: Record<Exclude<Lang, "en">, readonly string[]> = {
-  hi: ["यात्रा", "भुगतान मांग पत्र", "हल्की याद", "की याद", "याद के लिए", "विश्राम", "विरुद्ध", "समय से आगे"],
+  hi: ["यात्रा", "भुगतान मांग पत्र", "हल्की याद", "की याद", "याद के लिए", "विश्राम", "विरुद्ध", "समय से आगे", "किस्त", "कोई याद"],
   bn: ["ভ্রমণ", "মনে করানো", "বিরতি", "বিরুদ্ধে", " মই "],
 };
 

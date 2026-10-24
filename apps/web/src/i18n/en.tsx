@@ -2,7 +2,7 @@
 // same keys; a test fails if one is missing. Product words follow glossary.ts.
 // Customer names, business names, UTRs, GSTINs and UPI IDs stay as they are.
 import type { ReactNode } from "react";
-import type { CallBlock, ChaseWhy, GradeFacts, Instalment, MatchKind, ProofResultKind } from "@tagada/domain";
+import type { CallBlock, ChaseWhy, GradeFacts, Instalment, MatchKind, PlanIssue, ProofResultKind } from "@tagada/domain";
 import { formatDate, formatInr } from "@tagada/money";
 import type { FollowUpState } from "../lib/follow-ups.ts";
 import type { Lang } from "../lib/prefs.ts";
@@ -84,6 +84,8 @@ export const en = {
     simulated: "Simulated",
     simulatedNote: "The bank feed, the UPI ID and the history before today.",
     opening: "Opening your books…",
+    openFailed: "Your Demo world could not be opened.",
+    resetFailed: "The demo could not be reset.",
   },
   status: {
     paid: "Paid",
@@ -719,6 +721,11 @@ export const en = {
     notSaved: "That did not save. Try again.",
     plan: (plan: readonly Instalment[]) =>
       plan.map((i) => `${formatInr(i.amountPaise)} by ${formatDate(i.date)}`).join(", then "),
+    /** Why an offer is outside the Plan rule. */
+    issue: (i: PlanIssue) =>
+      i.kind === "first_short"
+        ? `The first instalment, ${formatInr(i.amountPaise)}, is below your ${i.pct}% rule (${formatInr(i.minPaise)}).`
+        : `The ${i.kind === "first_late" ? "first" : "last"} instalment is due on ${formatDate(i.date)}, after your ${i.days} days (${formatDate(i.by)}).`,
   },
   sample: {
     read: "Read a sample call",

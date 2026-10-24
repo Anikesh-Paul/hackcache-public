@@ -76,6 +76,8 @@ export const bn: Copy = {
     simulated: "নমুনা",
     simulatedNote: "ব্যাংক ফিড, UPI ID আর আজকের আগের ইতিহাস।",
     opening: "আপনার খাতা খুলছে…",
+    openFailed: "আপনার ডেমো খোলা গেল না।",
+    resetFailed: "ডেমো নতুন করে শুরু করা গেল না।",
   },
   status: {
     paid: "মেটানো হয়েছে",
@@ -710,6 +712,10 @@ export const bn: Copy = {
     declinedNote: "নামঞ্জুর হয়েছে। অনুস্মারকের সিঁড়ি চলতে থাকবে।",
     notSaved: "সেভ হয়নি। আবার চেষ্টা করুন।",
     plan: (plan) => plan.map((i) => `${formatInr(i.amountPaise)}, ${date(i.date)}-এর মধ্যে`).join(", তারপর "),
+    issue: (i) =>
+      i.kind === "first_short"
+        ? `প্রথম কিস্তি, ${formatInr(i.amountPaise)}, আপনার ${i.pct}% নিয়মের (${formatInr(i.minPaise)}) চেয়ে কম।`
+        : `${i.kind === "first_late" ? "প্রথম" : "শেষ"} কিস্তির তারিখ ${date(i.date)}, আপনার ${i.days} দিনের (${date(i.by)}) পরে।`,
   },
   sample: {
     read: "একটি নমুনা কল পড়ুন",

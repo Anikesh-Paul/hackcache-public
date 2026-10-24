@@ -29,7 +29,7 @@ describe("stored history in the Owner's language", () => {
       "হালকা অনুস্মারক ইমেলে পাঠানো হয়েছে",
     );
     expect(eventText(COPY.hi, event("plan_accepted", "Chose a Plan", { promiseId: "p1" }), [promise])).toBe(
-      "भुगतान लिंक पर किस्त योजना चुनी: ₹60,000, शुक्र 6 नवंबर तक, फिर ₹58,000, बुध 2 दिसंबर तक। अनुस्मारक सीढ़ी रुकी है।",
+      "भुगतान लिंक पर किश्त योजना चुनी: ₹60,000, शुक्र 6 नवंबर तक, फिर ₹58,000, बुध 2 दिसंबर तक। अनुस्मारक सीढ़ी रुकी है।",
     );
     expect(eventText(COPY.bn, event("dispute", 'Raised a Dispute: "Two chairs broken". The Ladder is paused.'), [])).toContain(
       '"Two chairs broken"',
