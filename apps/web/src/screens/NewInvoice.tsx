@@ -173,7 +173,10 @@ export function NewInvoice() {
   const partial = lines.some((line) => touched(line) && !parseLine(line));
   const priced = priceDraft({ mode, workspace: world.workspace, customer: picked, lines: ready });
   const creditDays = picked?.creditDays ?? 30;
-  const dueOk = !editing || (dueDate >= editing.issueDate && dueDate <= addDays(editing.issueDate, 365));
+  // The Customer's credit days set the due date until the Owner picks one.
+  const issueDate = editing?.issueDate ?? world.workspace.today;
+  const shownDue = dueDate || addDays(issueDate, creditDays);
+  const dueOk = shownDue >= issueDate && shownDue <= addDays(issueDate, 365);
   const freshIssues = customerId === "new" ? customerIssues(fresh) : [];
   const canSave =
     priced?.saves === true &&
@@ -208,13 +211,13 @@ export function NewInvoice() {
         : { customerId, lines: ready };
     try {
       if (editing) {
-        await editInvoice(editing.$id, { lines: ready, dueDate });
+        await editInvoice(editing.$id, { lines: ready, dueDate: shownDue });
         // Read again, so the Invoice's lines are the new ones.
         await reload();
         navigate(`/app/invoices/${editing.$id}`);
         return;
       }
-      const { invoiceId } = await createInvoice(body);
+      const { invoiceId } = await createInvoice(dueDate ? { ...body, dueDate } : body);
       await reload();
       navigate(`/app/invoices/${invoiceId}${trying ? "?try" : ""}`);
     } catch (e) {
@@ -334,18 +337,17 @@ export function NewInvoice() {
             </div>
           )}
 
-          {editing && (
-            <Field label={t.newInvoice.dueDate} hint={dueOk ? null : t.newInvoice.blockers.dueDate}>
-              <input
-                className={control}
-                type="date"
-                min={editing.issueDate}
-                max={addDays(editing.issueDate, 365)}
-                value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
-              />
-            </Field>
-          )}
+          <Field label={t.newInvoice.dueDate} hint={dueOk ? null : t.newInvoice.blockers.dueDate}>
+            <input
+              className={control}
+              type="date"
+              min={issueDate}
+              max={addDays(issueDate, 365)}
+              value={shownDue}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+          </Field>
+          {!editing && !dueDate && <p className="-mt-3 text-sm text-ink-2">{t.newInvoice.dueFromCredit(creditDays)}</p>}
 
           <div className="grid gap-3">
             {lines.map((line, index) => (
@@ -457,7 +459,7 @@ export function NewInvoice() {
             priced={priced.totals}
             number={editing?.number ?? null}
             issueDate={editing?.issueDate ?? world.workspace.today}
-            dueDate={editing ? dueDate || editing.dueDate : addDays(world.workspace.today, creditDays)}
+            dueDate={shownDue}
           />
         ) : (
           <Paper label={t.newInvoice.printPreview}>
