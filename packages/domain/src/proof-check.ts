@@ -55,6 +55,16 @@ export function proofFromModel(value: unknown): ProofExtract | null {
   };
 }
 
+/**
+ * The bank line a screenshot was checked against: the credit with the same UTR,
+ * whether or not the amount agrees. Null when that UTR is not in the statement.
+ */
+export function proofBankLine<T extends ProofCredit>(extracted: Pick<ProofExtract, "utr">, credits: readonly T[]): T | null {
+  if (!utrOk(extracted.utr)) return null;
+  const utr = normalUtr(extracted.utr);
+  return credits.find((credit) => normalUtr(credit.utr ?? "") === utr) ?? null;
+}
+
 /** Spaces and hyphens are not part of a UTR. "6098 1234 5678" is the same as "609812345678". */
 export function normalUtr(utr: string): string {
   return utr.trim().toUpperCase().replace(/[\s-]/g, "");

@@ -154,6 +154,30 @@ export async function confirmBank(body: { ids?: string[]; allExact?: boolean }):
   return { confirmed: data.confirmed, message: typeof data.message === "string" ? data.message : null };
 }
 
+/** Name the Customer for an unknown deposit. The matcher suggests; Confirm pays it. */
+export async function assignCredit(id: string, customerId: string): Promise<{ kind: string; note: string }> {
+  const data = (await authed("/api/bank/assign", { id, customerId })) as { kind?: unknown; note?: unknown } | null;
+  if (!data || typeof data.kind !== "string" || typeof data.note !== "string") throw new SaveError("assign_failed");
+  return { kind: data.kind, note: data.note };
+}
+
+/** Keep what an overpayment did not apply to an Invoice, as an advance for that Customer. */
+export async function keepAdvance(id: string): Promise<{ amountPaise: number; customerName: string }> {
+  const data = (await authed("/api/bank/advance", { id })) as { amountPaise?: unknown; customerName?: unknown } | null;
+  if (!data || typeof data.amountPaise !== "number" || typeof data.customerName !== "string") throw new SaveError("advance_failed");
+  return { amountPaise: data.amountPaise, customerName: data.customerName };
+}
+
+/** The Owner's copy of a UPI screenshot, as an object URL. The caller revokes it. */
+export async function loadScreenshot(fileId: string): Promise<string> {
+  const jwt = await sessionJwt();
+  const res = await fetch(`${SERVER_URL}/api/screenshots/${encodeURIComponent(fileId)}`, {
+    headers: { authorization: `Bearer ${jwt}` },
+  });
+  if (!res.ok) throw new SaveError("screenshot_failed");
+  return URL.createObjectURL(await res.blob());
+}
+
 export type LiveRow = { $id: string; $tableId: string; workspaceId: string } & Record<string, unknown>;
 
 /**

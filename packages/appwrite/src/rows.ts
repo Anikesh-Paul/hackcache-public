@@ -112,6 +112,8 @@ export type BankTxnRow = Row<{
   matchKind: "exact" | "part" | "multi" | "overpay" | "unknown" | "tds" | null;
   /** JSON: BankAllocation[] */
   allocations: string | null;
+  /** Set when the Owner assigns an unknown deposit to a Customer. */
+  assignedCustomerId?: string | null;
 }>;
 
 /** One Invoice's share of a Bank credit. `tdsPaise` is what the Customer kept back as TDS. */

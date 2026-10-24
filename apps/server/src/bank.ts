@@ -9,6 +9,8 @@ import {
   importCount,
   importSummary,
   matchCredit,
+  matchForCustomer,
+  overpayPaise,
   parseStatement,
   proofFromModel,
   type Match,
@@ -111,6 +113,23 @@ function storedMatch(match: Match): { matchStatus: "unmatched" | "suggested"; ma
     return { matchStatus: "unmatched", matchKind: "unknown", allocations: null };
   }
   return { matchStatus: "suggested", matchKind: match.kind, allocations: JSON.stringify(match.allocations) };
+}
+
+/**
+ * The match for a stored credit, as Confirm will check it. A credit the Owner
+ * assigned is matched against that Customer only.
+ */
+function rematch(credit: StoredRow, loaded: Awaited<ReturnType<typeof books>>, customerId: string | null): Match {
+  const input = {
+    date: text(credit.date) ?? "",
+    narration: text(credit.narration) ?? "",
+    reference: text(credit.utr) ?? "",
+    amountPaise: whole(credit.amountPaise),
+  };
+  const rows = matchRows(loaded.customers, loaded.invoices, loaded.lines);
+  const customer = customerId ? loaded.customers.find((row) => row.$id === customerId) : undefined;
+  if (!customer) return matchCredit(input, rows);
+  return matchForCustomer(input, rows, { id: customer.$id, name: text(customer.name) ?? "" });
 }
 
 /** Import statement 2, or a CSV the Owner dropped. The same line a second time adds nothing. */
@@ -226,15 +245,7 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
 
   for (const credit of chosen) {
     // `invoices` holds these same rows, so a credit confirmed earlier in this loop is already counted.
-    const fresh = matchCredit(
-      {
-        date: text(credit.date) ?? "",
-        narration: text(credit.narration) ?? "",
-        reference: text(credit.utr) ?? "",
-        amountPaise: whole(credit.amountPaise),
-      },
-      matchRows(loaded.customers, loaded.invoices, loaded.lines),
-    );
+    const fresh = rematch(credit, loaded, text(credit.assignedCustomerId));
     if (fresh.kind !== credit.matchKind || !sameAllocations(fresh.allocations, allocationsOf(credit.allocations))) {
       await worlds.update("bank_txns", credit.$id, storedMatch(fresh));
       changed += 1;
@@ -271,4 +282,78 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
   }
   if (events.length > 0) await worlds.write({ events });
   return { ok: true, confirmed, changed, message: changedMessage(changed) };
+}
+
+export type AssignResult =
+  | { ok: true; kind: MatchKind; note: string }
+  | { ok: false; status: 400 | 404; error: string };
+
+/** The Owner names the Customer for an unknown deposit. The matcher then suggests, and Confirm pays it. */
+export async function assignCredit(worlds: WorldStore, workspaceId: string, body: unknown): Promise<AssignResult> {
+  const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const id = text(input.id);
+  const customerId = text(input.customerId);
+  if (!id || !customerId) return { ok: false, status: 400, error: "invalid_body" };
+  const loaded = await books(worlds, workspaceId);
+  if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
+  const credit = loaded.bank.find((row) => row.$id === id);
+  const customer = loaded.customers.find((row) => row.$id === customerId);
+  if (!credit || !customer) return { ok: false, status: 404, error: "not_found" };
+  if (credit.matchStatus === "confirmed") return { ok: false, status: 400, error: "already_confirmed" };
+  const match = rematch(credit, loaded, customerId);
+  await worlds.update("bank_txns", credit.$id, { assignedCustomerId: customerId, ...storedMatch(match) });
+  return { ok: true, kind: match.kind, note: match.note };
+}
+
+export type AdvanceResult =
+  | { ok: true; amountPaise: number; customerName: string; already: boolean }
+  | { ok: false; status: 400 | 404; error: string };
+
+/** Record the part of an overpayment that was not applied to an Invoice, once, as an advance. */
+export async function keepAdvance(worlds: WorldStore, workspaceId: string, body: unknown): Promise<AdvanceResult> {
+  const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const id = text(input.id);
+  if (!id) return { ok: false, status: 400, error: "invalid_body" };
+  const loaded = await books(worlds, workspaceId);
+  if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
+  const credit = loaded.bank.find((row) => row.$id === id);
+  if (!credit) return { ok: false, status: 404, error: "not_found" };
+  if (credit.matchStatus !== "confirmed") return { ok: false, status: 400, error: "not_confirmed" };
+  const shares = allocationsOf(credit.allocations);
+  const extra = overpayPaise(whole(credit.amountPaise), shares);
+  const invoiceId = shares[0]?.invoiceId;
+  if (extra <= 0 || !invoiceId) return { ok: false, status: 400, error: "no_advance" };
+  const invoice = loaded.invoices.find((row) => row.$id === invoiceId);
+  const customer = loaded.customers.find((row) => row.$id === invoice?.customerId);
+  const customerName = text(customer?.name) ?? "Customer";
+  const events = await worlds.list("events", workspaceId);
+  const already = events.some((event) => event.type === "advance" && advanceFor(event.payload) === id);
+  if (already) return { ok: true, amountPaise: extra, customerName, already: true };
+  const { permissions, today } = ownerAccess(loaded.workspace, workspaceId);
+  await worlds.write({
+    events: [
+      {
+        $id: newId("v"),
+        workspaceId,
+        $permissions: permissions,
+        invoiceId,
+        at: stamp(today),
+        type: "advance",
+        actor: "owner",
+        summary: `${formatInr(extra)} kept as an advance for ${customerName}.`,
+        payload: JSON.stringify({ amountPaise: extra, bankTxnId: id }),
+      },
+    ],
+  });
+  return { ok: true, amountPaise: extra, customerName, already: false };
+}
+
+function advanceFor(payload: unknown): string | null {
+  if (typeof payload !== "string") return null;
+  try {
+    const bankTxnId = (JSON.parse(payload) as { bankTxnId?: unknown }).bankTxnId;
+    return typeof bankTxnId === "string" ? bankTxnId : null;
+  } catch {
+    return null;
+  }
 }

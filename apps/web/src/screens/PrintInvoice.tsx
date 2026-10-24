@@ -7,6 +7,7 @@ import { Ln, Paper } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PrintBar } from "./PrintBar.tsx";
 import { TaxInvoice } from "./TaxInvoice.tsx";
+import { useT } from "../i18n/index.ts";
 
 /** /print/invoice/:id: the saved Invoice on A4, priced by `money`. */
 export function PrintInvoice() {
@@ -15,13 +16,14 @@ export function PrintInvoice() {
   const invoice = world.invoices.find((i) => i.$id === id);
   const lines = useInvoiceRows<InvoiceLineRow>("invoice_lines", invoice?.$id);
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
+  const t = useT();
   if (!invoice || !customer) return <NotFound what="Invoice" />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
       <PrintBar invoiceId={invoice.$id} />
       {lines === "failed" ? (
-        <p className="text-center">The lines could not be loaded. Reload the page to try again.</p>
+        <p className="text-center">{t.invoice.linesFailed}</p>
       ) : lines ? (
         <div className="on-paper">
           <TaxInvoice
@@ -35,7 +37,7 @@ export function PrintInvoice() {
           />
         </div>
       ) : (
-        <p className="text-center text-ink-2">Loading the Invoice…</p>
+        <p className="text-center text-ink-2">{t.print.invoiceLoading}</p>
       )}
     </div>
   );
@@ -48,32 +50,30 @@ export function DuplicatePreview() {
   const invoice = world.invoices.find((i) => i.$id === id);
   const lines = useInvoiceRows<InvoiceLineRow>("invoice_lines", invoice?.$id);
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
+  const t = useT();
   if (!invoice || !customer) return <NotFound what="Invoice" />;
   const today = world.workspace.today;
   const credit = customer.creditDays ?? 30;
 
   return (
     <div className="grid gap-4">
-      <Paper label="Duplicate this invoice">
+      <Paper label={t.duplicate.title}>
         <Ln>
           <p className="text-[13px] text-ink-2">
             <Link to={`/app/invoices/${invoice.$id}`}>
               {customer.name}, <span className="mono">{invoice.number}</span>
             </Link>{" "}
-            / duplicate
+            / {t.duplicate.crumb}
           </p>
-          <h1 className="mt-1 text-[28px] leading-tight">Duplicate this invoice</h1>
-          <p className="mt-2 max-w-[60ch]">
-            A preview of the same lines for {customer.name}, dated today with {credit} days' credit. Nothing is saved
-            until you open it in the new-invoice form.
-          </p>
+          <h1 className="mt-1 text-[28px] leading-tight">{t.duplicate.title}</h1>
+          <p className="mt-2 max-w-[60ch]">{t.duplicate.preview(customer.name, credit)}</p>
           <Link to={`/app/invoices/new?from=${invoice.$id}`} className="btn primary mt-4">
-            Open in the new invoice form
+            {t.duplicate.open}
           </Link>
         </Ln>
       </Paper>
       {lines === "failed" ? (
-        <p className="text-center">The lines could not be loaded. Reload the page to try again.</p>
+        <p className="text-center">{t.invoice.linesFailed}</p>
       ) : lines ? (
         <TaxInvoice
           workspace={world.workspace}
@@ -85,7 +85,7 @@ export function DuplicatePreview() {
           dueDate={addDays(today, credit)}
         />
       ) : (
-        <p className="text-center text-ink-2">Loading the lines…</p>
+        <p className="text-center text-ink-2">{t.invoice.linesLoading}</p>
       )}
     </div>
   );

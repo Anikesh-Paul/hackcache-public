@@ -2,7 +2,7 @@ export { CUSTOMER_LANGS, isCustomerLang } from "./language.ts";
 export type { CustomerLang } from "./language.ts";
 
 export { GRADE_WHY, grade, gradeCustomer, paymentHabit } from "./grade.ts";
-export type { CustomerGrade, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
+export type { CustomerGrade, GradeFacts, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
 
 export { INVOICE_FILTERS, invoiceStanding, isInvoiceFilter, matchesFilter } from "./invoice.ts";
 export type { InvoiceFacts, InvoiceFilter, InvoiceStanding, InvoiceState, PromiseFacts } from "./invoice.ts";
@@ -49,6 +49,7 @@ export type {
   NewSales,
   CashItem,
   ChaseRow,
+  ChaseWhy,
   Counted,
   DaysToGetPaid,
   ExpectedReceipt,
@@ -86,10 +87,13 @@ export {
   importSummary,
   invoicesForMatch,
   matchCredit,
+  matchForCustomer,
   matcherBrief,
+  overpayPaise,
   parseStatement,
 } from "./matcher.ts";
 export type {
+  AssignedCustomer,
   Match,
   MatchAllocation,
   MatchCredit,
@@ -100,7 +104,7 @@ export type {
   ParsedStatement,
 } from "./matcher.ts";
 
-export { PROOF_LABEL, checkProof, proofFromModel } from "./proof-check.ts";
+export { PROOF_LABEL, checkProof, proofBankLine, proofFromModel } from "./proof-check.ts";
 export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";
 
 export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";
@@ -137,3 +141,4 @@ export type {
 } from "./documents.ts";
 
 export { runDomainCases } from "./proof-cases.ts";
+export { DOC_PHRASES, docPhrases, type DocLang, type DocPhrases } from "./doc-copy.ts";

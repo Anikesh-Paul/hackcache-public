@@ -2,8 +2,9 @@
 // them, and so will the call screen; give either a new book (say, with an
 // approved Plan) and it animates from the old figures to the new ones.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { formatDate, formatInr, formatInrShort, nearestPaise, sumPaise } from "@tagada/money";
+import { formatInr, formatInrShort, nearestPaise, sumPaise } from "@tagada/money";
 import { payPackets, type ForecastWeek, type SalaryDay } from "@tagada/domain";
+import { useT, type Copy } from "./i18n/index.ts";
 
 /** 8 artisans and 1 accountant. */
 export const PAY_PACKETS = 9;
@@ -48,12 +49,13 @@ export function SalaryFigure({ cashAfterPaise }: { cashAfterPaise: number }) {
   // Mid-flip frames show whole rupees; the last frame is the exact figure.
   const shown = v === cashAfterPaise ? cashAfterPaise : nearestPaise(Math.round(v), 100);
   const short = shown < 0;
+  const t = useT();
   return (
     <>
       <span className={`figure dbl ${short ? "text-sindoor" : "text-bamboo-ink"}`}>
         {formatInr(short ? -shown : shown)}
       </span>
-      <small className="mt-1 block text-[13px] text-ink-2">{short ? "short on salary day" : "spare after salaries"}</small>
+      <small className="mt-1 block text-[13px] text-ink-2">{short ? t.packets.figureShort : t.packets.figureSpare}</small>
     </>
   );
 }
@@ -63,9 +65,10 @@ export function PayPackets({ salary }: { salary: Pick<SalaryDay, "salaryPaise" |
   const packets = payPackets(salary, PAY_PACKETS);
   const covered = packets.full === packets.count;
   const partial = packets.fills.some((f) => f > 0 && f < 1);
+  const t = useT();
   return (
     <div>
-      <div className="packets" role="img" aria-label={`${packets.full} of ${packets.count} pay packets full`}>
+      <div className="packets" role="img" aria-label={t.packets.aria(packets.full, packets.count)}>
         {packets.fills.map((fill, i) => (
           <span key={i} className={`pk ${fill >= 1 ? "full" : fill <= 0 ? "empty" : ""}`}>
             <span className="fill" style={{ height: `${fill * 100}%`, transitionDelay: `${i * 70}ms` }} />
@@ -78,37 +81,31 @@ export function PayPackets({ salary }: { salary: Pick<SalaryDay, "salaryPaise" |
       <p className="mt-2 text-sm">
         {covered ? (
           <>
-            <b>All {packets.count} pay packets are full</b>
-            {salary.cashAfterPaise > 0 && <>, with {formatInr(salary.cashAfterPaise)} to spare</>}.
+            <b>{t.packets.allFull(packets.count)}</b>
+            {salary.cashAfterPaise > 0 && t.packets.toSpare(formatInr(salary.cashAfterPaise))}.
           </>
         ) : (
           <>
-            {formatInr(packets.fundedPaise)} fills{" "}
-            <b>
-              {packets.full} of {packets.count} pay packets
-            </b>
-            {partial && <> and part of the {ordinal(packets.full + 1)}</>}.
+            {t.packets.fills(formatInr(packets.fundedPaise))}{" "}
+            <b>{t.packets.someFull(packets.full, packets.count)}</b>
+            {partial && t.packets.partOf(packets.full + 1)}.
           </>
         )}{" "}
-        <span className="text-ink-2">About {formatInr(packets.aboutEachPaise)} each.</span>
+        <span className="text-ink-2">{t.packets.each(formatInr(packets.aboutEachPaise))}</span>
       </p>
     </div>
   );
 }
 
-function ordinal(n: number): string {
-  const words = ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"];
-  return words[n - 1] ?? `${n}th`;
-}
-
-function weekSays(week: ForecastWeek): string {
-  const cash = week.closePaise < 0 ? `${formatInr(-week.closePaise)} short` : formatInr(week.closePaise);
-  return `Week of ${formatDate(week.start, { weekday: false })}${week.salary ? ", salaries" : ""}: ${cash}`;
+function weekSays(t: Copy, week: ForecastWeek): string {
+  const cash = week.closePaise < 0 ? t.forecast.shortAmount(formatInr(-week.closePaise)) : formatInr(week.closePaise);
+  return t.forecast.weekSays(t.date(week.start, { weekday: false }), week.salary, cash);
 }
 
 /** Cash at the end of each week as ledger bars: short weeks hang below the ground line. */
 export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
   const box = useRef<HTMLDivElement>(null);
+  const t = useT();
   const [width, setWidth] = useState(640);
   useLayoutEffect(() => {
     const el = box.current;
@@ -158,7 +155,7 @@ export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
   for (const i of order) {
     const v = closes[i] ?? 0;
     if (v >= 0) continue;
-    const text = `${formatInrShort(-Math.round(v))}${weeks[i]!.salary ? " short" : ""}`;
+    const text = `${formatInrShort(-Math.round(v))}${weeks[i]!.salary ? t.forecast.shortMark : ""}`;
     const cx = left + slot * i + slot / 2;
     const half = (text.length * 7) / 2 + 3;
     const box = { from: Math.max(0, cx - half), to: Math.min(width, cx + half), y: y(v) };
@@ -166,7 +163,7 @@ export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
     taken.push(box);
     shortLabels.set(i, text);
   }
-  const label = `Cash at the end of each of the next ${weeks.length} weeks. ${weeks.map(weekSays).join("; ")}.`;
+  const label = t.forecast.chartLabel(weeks.length, weeks.map((week) => weekSays(t, week)).join("; "));
 
   return (
     <div ref={box} className="chartwrap">
@@ -183,7 +180,7 @@ export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
                 <>
                   <line x1={cx} x2={cx} y1={top - 8} y2={h - bottom} className="salary-mark" />
                   <text x={cx} y={top - 12} textAnchor="middle" className="chart-note">
-                    salary
+                    {t.forecast.salaryMark}
                   </text>
                 </>
               )}
@@ -212,7 +209,7 @@ export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
               )}
               {i % labelEvery === 0 && (
                 <text {...place(cx, 22)} y={h - 6} className="chart-axis">
-                  {formatDate(week.start, { weekday: false })}
+                  {t.date(week.start, { weekday: false })}
                 </text>
               )}
             </g>
@@ -228,15 +225,16 @@ export function ForecastChart({ weeks }: { weeks: readonly ForecastWeek[] }) {
 
 /** The same numbers as the chart, week by week: its readable alternative. */
 export function ForecastTable({ weeks }: { weeks: readonly ForecastWeek[] }) {
+  const t = useT();
   return (
     <table className="khata">
-      <caption className="sr-only">Cash forecast, week by week</caption>
+      <caption className="sr-only">{t.forecast.caption}</caption>
       <thead>
         <tr>
-          <th scope="col">Week of</th>
-          <th scope="col">Coming in</th>
-          <th scope="col">Going out</th>
-          <th scope="col">Cash at week end</th>
+          <th scope="col">{t.forecast.weekOf}</th>
+          <th scope="col">{t.forecast.comingIn}</th>
+          <th scope="col">{t.forecast.goingOut}</th>
+          <th scope="col">{t.forecast.cashAtWeekEnd}</th>
         </tr>
       </thead>
       <tbody>
@@ -245,16 +243,16 @@ export function ForecastTable({ weeks }: { weeks: readonly ForecastWeek[] }) {
           return (
             <tr key={week.start} className={week.closePaise < 0 ? "neg" : ""}>
               <th scope="row">
-                {formatDate(week.start, { weekday: false })}
-                {week.salary && <small> salaries</small>}
+                {t.date(week.start, { weekday: false })}
+                {week.salary && <small>{t.forecast.salaries}</small>}
               </th>
-              <td data-label="Coming in">
+              <td data-label={t.forecast.comingIn}>
                 {inPaise ? formatInr(inPaise) : "—"}
-                {week.newSalesPaise > 0 && <small> with {formatInr(week.newSalesPaise)} expected new sales</small>}
+                {week.newSalesPaise > 0 && <small>{t.forecast.newSales(formatInr(week.newSalesPaise))}</small>}
               </td>
-              <td data-label="Going out">{week.outPaise ? `−${formatInr(week.outPaise)}` : "—"}</td>
-              <td data-label="Cash at week end" className="close">
-                {week.closePaise < 0 ? `${formatInr(-week.closePaise)} short` : formatInr(week.closePaise)}
+              <td data-label={t.forecast.goingOut}>{week.outPaise ? `−${formatInr(week.outPaise)}` : "—"}</td>
+              <td data-label={t.forecast.cashAtWeekEnd} className="close">
+                {week.closePaise < 0 ? t.forecast.shortAmount(formatInr(-week.closePaise)) : formatInr(week.closePaise)}
               </td>
             </tr>
           );

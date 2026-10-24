@@ -1,64 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router";
 import { Bell, ChevronLeft, ChevronRight, Moon, RotateCcw, Sun } from "lucide-react";
-import { addDays, formatDate } from "@tagada/money";
-import { runLadder, type LadderRun } from "./lib/appwrite.ts";
-import { useLang, useTheme, type Lang } from "./lib/prefs.ts";
+import { addDays } from "@tagada/money";
+import { runLadder } from "./lib/appwrite.ts";
+import { useLang, useTheme } from "./lib/prefs.ts";
+import { useT } from "./i18n/index.ts";
 import { useInbox, useWorldState } from "./lib/world.tsx";
 import { Badge } from "./ui.tsx";
 
-const WORDS = {
-  en: {
-    demoDate: "Demo date",
-    prevDay: "Previous day: run the Ladder for it",
-    nextDay: "Next day: run the Ladder for it",
-    running: (date: string) => `Running the daily Ladder for ${date}…`,
-    ran: (date: string, r: LadderRun) =>
-      `The daily Ladder ran for ${date}: ${plural(r.sent, "email")} sent` +
-      (r.retried ? ` (${r.retried} after a retry)` : "") +
-      (r.failed ? `, ${r.failed} failed` : "") +
-      (r.skippedDuplicate ? `, ${r.skippedDuplicate} already sent, skipped` : "") +
-      (r.skippedInBank ? `, ${r.skippedInBank} not chased: money in the bank, waiting for you to confirm` : "") +
-      `, ${r.ready} ready for you.`,
-    runFailed: "The daily Ladder could not run. The Demo date may not have moved; try again.",
-    log: "Automation log",
-    reset: "Reset demo",
-    inbox: (n: number) => (n === 0 ? "Inbox, nothing new" : `Inbox, ${n} new`),
-    confirmReset: "Reset the demo? Anything you changed is deleted and the starting story comes back.",
-  },
-  hi: {
-    demoDate: "डेमो तारीख",
-    prevDay: "पिछला दिन: उस दिन की सीढ़ी चलाएँ",
-    nextDay: "अगला दिन: उस दिन की सीढ़ी चलाएँ",
-    running: (date: string) => `${date} की रोज़ की सीढ़ी चल रही है…`,
-    ran: (date: string, r: LadderRun) =>
-      `${date} की रोज़ की सीढ़ी चली: ${r.sent} ईमेल गए` +
-      (r.retried ? ` (${r.retried} दोबारा कोशिश के बाद)` : "") +
-      (r.failed ? `, ${r.failed} नहीं गए` : "") +
-      (r.skippedDuplicate ? `, ${r.skippedDuplicate} पहले ही जा चुके थे` : "") +
-      (r.skippedInBank ? `, ${r.skippedInBank} नहीं भेजे: पैसा बैंक में आ चुका है, आपकी पुष्टि बाकी है` : "") +
-      `, ${r.ready} आपके भेजने के लिए तैयार।`,
-    runFailed: "रोज़ की सीढ़ी नहीं चल पाई। फिर से कोशिश करें।",
-    log: "ऑटोमेशन लॉग",
-    reset: "डेमो फिर से",
-    inbox: (n: number) => (n === 0 ? "इनबॉक्स, कुछ नया नहीं" : `इनबॉक्स, ${n} नए`),
-    confirmReset: "डेमो फिर से शुरू करें? आपके बदलाव हट जाएंगे और शुरुआती कहानी लौट आएगी।",
-  },
-} satisfies Record<Lang, unknown>;
-
-function plural(n: number, word: string): string {
-  return `${n} ${word}${n === 1 ? "" : "s"}`;
-}
-
 const TABS = [
-  { to: "/app", en: "Today", hi: "आज" },
-  { to: "/app/invoices", en: "Invoices", hi: "बिल" },
-  { to: "/app/customers", en: "Customers", hi: "ग्राहक" },
-  { to: "/app/bank", en: "Bank", hi: "बैंक" },
-  { to: "/app/inbox", en: "Inbox", hi: "इनबॉक्स" },
-  { to: "/app/automation", en: "Automation", hi: "ऑटोमेशन" },
-  { to: "/app/settings", en: "Settings", hi: "सेटिंग्स" },
-];
+  { to: "/app", key: "today" },
+  { to: "/app/invoices", key: "invoices" },
+  { to: "/app/customers", key: "customers" },
+  { to: "/app/bank", key: "bank" },
+  { to: "/app/inbox", key: "inbox" },
+  { to: "/app/automation", key: "automation" },
+  { to: "/app/settings", key: "settings" },
+] as const;
 
 /** Keeps the active tab in view, and says when more tabs sit past the right edge. */
 function useTabRow(pathname: string, lang: string) {
@@ -108,13 +66,13 @@ export function AppShell() {
   const [resetting, setResetting] = useState(false);
   const [stepping, setStepping] = useState(false);
   const [note, setNote] = useState<{ text: string; failed?: boolean } | null>(null);
-  const t = WORDS[lang];
+  const t = useT();
   const inbox = useInbox();
   const unread = Array.isArray(inbox) ? inbox.filter((row) => !row.read).length : 0;
   const workspace = state.status === "ready" ? state.world.workspace : null;
 
   const reset = async () => {
-    if (!window.confirm(t.confirmReset)) return;
+    if (!window.confirm(t.shell.confirmReset)) return;
     setResetting(true);
     await state.reset();
     setResetting(false);
@@ -125,14 +83,14 @@ export function AppShell() {
     if (!workspace) return;
     const date = addDays(workspace.today, days);
     setStepping(true);
-    setNote({ text: t.running(formatDate(date)) });
+    setNote({ text: t.shell.running(t.date(date)) });
     try {
       const run = await runLadder(date);
       await state.reload();
-      setNote({ text: t.ran(formatDate(date), run) });
+      setNote({ text: t.shell.ran(t.date(date), run) });
     } catch (e) {
       console.error("ladder run failed", e);
-      setNote({ text: t.runFailed, failed: true });
+      setNote({ text: t.shell.runFailed, failed: true });
       await state.reload().catch(() => {});
     } finally {
       setStepping(false);
@@ -156,33 +114,39 @@ export function AppShell() {
           )}
           <span className="flex-1" />
           {workspace && (
-            <div className="flex items-center" title="Every screen uses this date, not the clock">
+            <div className="flex items-center" title={t.shell.dateTitle}>
               <button
                 type="button"
                 disabled={stepping}
                 onClick={() => step(-1)}
-                aria-label={t.prevDay}
+                aria-label={t.shell.prevDay}
                 className="grid size-11 place-items-center rounded-md text-on-cover-2 hover:text-on-cover disabled:opacity-50"
               >
                 <ChevronLeft size={18} aria-hidden />
               </button>
               <span className="rounded border-[1.5px] border-on-cover-2 px-2.5 py-0.5 text-center leading-tight">
-                <small className="block text-xs text-on-cover-2">{t.demoDate}</small>
-                <span className="text-sm font-semibold">{formatDate(workspace.today)}</span>
+                <small className="block text-xs text-on-cover-2">{t.shell.demoDate}</small>
+                <span className="text-sm font-semibold">{t.date(workspace.today)}</span>
               </span>
               <button
                 type="button"
                 disabled={stepping}
                 onClick={() => step(1)}
-                aria-label={t.nextDay}
+                aria-label={t.shell.nextDay}
                 className="grid size-11 place-items-center rounded-md text-on-cover-2 hover:text-on-cover disabled:opacity-50"
               >
                 <ChevronRight size={18} aria-hidden />
               </button>
             </div>
           )}
-          <div role="group" aria-label="Language" className="flex overflow-hidden rounded-md border border-cover-line">
-            {(["en", "hi"] as const).map((l) => (
+          <div role="group" aria-label={t.shell.language} className="flex overflow-hidden rounded-md border border-cover-line">
+            {(
+              [
+                ["en", "EN"],
+                ["hi", "हिं"],
+                ["bn", "বাং"],
+              ] as const
+            ).map(([l, name]) => (
               <button
                 key={l}
                 type="button"
@@ -191,21 +155,21 @@ export function AppShell() {
                 onClick={() => choose(l)}
                 className={`min-h-11 min-w-11 px-3 text-[13px] ${lang === l ? "bg-on-cover text-cover" : "text-on-cover-2"}`}
               >
-                {l === "en" ? "EN" : "हिं"}
+                {name}
               </button>
             ))}
           </div>
           <button
             type="button"
             onClick={toggle}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? t.shell.light : t.shell.dark}
             className="grid size-11 place-items-center rounded-md border border-cover-line text-on-cover"
           >
             {theme === "dark" ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}
           </button>
           <Link
             to="/app/inbox"
-            aria-label={t.inbox(unread)}
+            aria-label={t.shell.inbox(unread)}
             className="relative grid size-11 place-items-center rounded-md border border-cover-line text-on-cover"
           >
             <Bell size={17} aria-hidden />
@@ -225,12 +189,12 @@ export function AppShell() {
             className="inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-md border border-cover-line px-3 text-[13px] text-on-cover disabled:opacity-60"
           >
             <RotateCcw size={16} aria-hidden />
-            <span className="max-sm:sr-only">{t.reset}</span>
+            <span className="max-sm:sr-only">{t.shell.reset}</span>
           </button>
         </div>
         <nav
           ref={tabs.ref}
-          aria-label="Main"
+          aria-label={t.shell.main}
           data-more={tabs.more ? "true" : "false"}
           className="tab-row mx-auto flex max-w-[1240px] gap-1 overflow-x-auto px-4 pt-3 sm:px-7"
         >
@@ -245,7 +209,7 @@ export function AppShell() {
                 }`
               }
             >
-              <span lang={lang}>{tab[lang]}</span>
+              <span lang={lang}>{t.shell.tabs[tab.key]}</span>
             </NavLink>
           ))}
         </nav>
@@ -255,7 +219,7 @@ export function AppShell() {
           {note && (
             <span className={note.failed ? "text-sindoor" : "text-ink-2"}>
               {note.text}{" "}
-              {!note.failed && !stepping && <Link to="/app/automation">{t.log}</Link>}
+              {!note.failed && !stepping && <Link to="/app/automation">{t.shell.log}</Link>}
             </span>
           )}
         </p>
@@ -263,8 +227,8 @@ export function AppShell() {
           <Outlet />
         </WorldGate>
         <p className="no-print mt-8 flex flex-wrap items-center gap-2 text-[13px] text-ink-2">
-          <Badge kind="real">Real</Badge> GST and interest maths, and your own private copy of the books.
-          <Badge kind="sim">Simulated</Badge> The bank feed, the UPI ID and the history before today.
+          <Badge kind="real">{t.shell.real}</Badge> {t.shell.realNote}
+          <Badge kind="sim">{t.shell.simulated}</Badge> {t.shell.simulatedNote}
         </p>
       </main>
     </div>
@@ -274,6 +238,7 @@ export function AppShell() {
 /** Shows the page once the Demo world is open, and says so while it opens. */
 export function WorldGate({ children }: { children: React.ReactNode }) {
   const state = useWorldState();
+  const t = useT();
   if (state.status === "ready") return <>{children}</>;
   return (
     <div className="leaf shadow-[var(--sheet-shadow)]" role="status" aria-live="polite">
@@ -281,12 +246,12 @@ export function WorldGate({ children }: { children: React.ReactNode }) {
         <div className="m" />
         <div className="p">
           {state.status === "loading" ? (
-            <p className="text-ink-2">Opening your books…</p>
+            <p className="text-ink-2">{t.shell.opening}</p>
           ) : (
             <>
               <p>{state.message}</p>
               <button type="button" className="btn secondary mt-3" onClick={state.retry}>
-                Try again
+                {t.common.tryAgain}
               </button>
             </>
           )}

@@ -14,6 +14,8 @@ export type ProofResult = {
   expected: string;
   actual: string;
   pass: boolean;
+  /** Test file in the public repo that locks this case. */
+  source: string;
 };
 
 type ProofCase = {
@@ -268,6 +270,7 @@ export function runProofCases(): ProofResult[] {
       expected: item.expected,
       actual,
       pass: actual === item.expected,
+      source: "packages/money/src/money.test.ts",
     };
   });
 }

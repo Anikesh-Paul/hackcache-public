@@ -1,16 +1,33 @@
 import { Link } from "react-router";
 import { AlertTriangle, ArrowLeft, Printer } from "lucide-react";
+import { useT } from "../i18n/index.ts";
 
 /** Screen-only controls. Print CSS hides `.no-print`, so the A4 page has no app chrome. */
-export function PrintBar({ invoiceId, canPrint = true }: { invoiceId: string; canPrint?: boolean }) {
+export function PrintBar({
+  invoiceId,
+  canPrint = true,
+  englishCopy,
+  onEnglishCopy,
+}: {
+  invoiceId: string;
+  canPrint?: boolean;
+  englishCopy?: boolean;
+  onEnglishCopy?: () => void;
+}) {
+  const t = useT().print;
   return (
     <div className="no-print mx-auto mb-4 flex max-w-[210mm] flex-wrap gap-2">
       <Link to={`/app/invoices/${invoiceId}`} className="btn secondary">
-        <ArrowLeft aria-hidden /> Back to the Invoice
+        <ArrowLeft aria-hidden /> {t.back}
       </Link>
       {canPrint && (
         <button type="button" className="btn primary" onClick={() => window.print()}>
-          <Printer aria-hidden /> Print or save as PDF
+          <Printer aria-hidden /> {t.print}
+        </button>
+      )}
+      {onEnglishCopy && (
+        <button type="button" className="btn secondary" aria-pressed={englishCopy} onClick={onEnglishCopy}>
+          {englishCopy ? t.customer : t.english}
         </button>
       )}
     </div>
@@ -30,10 +47,20 @@ export function PlanBanner({ text }: { text: string | null }) {
 }
 
 /** "Nothing is past due for …", in place of a page with nothing to demand. */
-export function NothingDue({ invoiceId, text }: { invoiceId: string; text: string }) {
+export function NothingDue({
+  invoiceId,
+  text,
+  englishCopy,
+  onEnglishCopy,
+}: {
+  invoiceId: string;
+  text: string;
+  englishCopy?: boolean;
+  onEnglishCopy?: () => void;
+}) {
   return (
     <div className="px-3 py-4 sm:px-6">
-      <PrintBar invoiceId={invoiceId} canPrint={false} />
+      <PrintBar invoiceId={invoiceId} canPrint={false} englishCopy={englishCopy} onEnglishCopy={onEnglishCopy} />
       <p role="status" className="mx-auto max-w-[210mm] text-center text-ink-2">
         {text}
       </p>

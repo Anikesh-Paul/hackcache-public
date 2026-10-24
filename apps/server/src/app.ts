@@ -4,7 +4,7 @@ import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
 import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
-import { confirmMatches, importStatement } from "./bank.ts";
+import { assignCredit, confirmMatches, importStatement, keepAdvance } from "./bank.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
   CALL_LIMITS,
@@ -198,7 +198,9 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
   app.get(
     "/api/pay/:token/audio",
     pay("/api/pay/audio", async (ref, c) => {
-      const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref);
+      const asked = c.req.query("lang");
+      const language = asked === "bn" || asked === "en" || asked === "hi" ? asked : "hi";
+      const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref, language);
       if (!clip) return c.json({ error: "invalid_link" }, 404);
       return c.body(new Uint8Array(clip), 200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=3600" });
     }),
@@ -298,6 +300,43 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     } catch (e) {
       console.error("/api/bank/confirm failed", e);
       return c.json({ error: "bank_unavailable" }, 500);
+    }
+  });
+  app.post("/api/bank/assign", async (c) => {
+    const workspaceId = await workspaceOf(c);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const result = await assignCredit(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json(result) : c.json({ error: result.error }, result.status);
+    } catch (e) {
+      console.error("/api/bank/assign failed", e);
+      return c.json({ error: "bank_unavailable" }, 500);
+    }
+  });
+  app.post("/api/bank/advance", async (c) => {
+    const workspaceId = await workspaceOf(c);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    try {
+      const result = await keepAdvance(demo.worlds, workspaceId, await json(c));
+      return result.ok ? c.json(result) : c.json({ error: result.error }, result.status);
+    } catch (e) {
+      console.error("/api/bank/advance failed", e);
+      return c.json({ error: "bank_unavailable" }, 500);
+    }
+  });
+  app.get("/api/screenshots/:fileId", async (c) => {
+    const workspaceId = await workspaceOf(c);
+    if (!workspaceId) return c.json({ error: "unauthorized" }, 401);
+    const fileId = c.req.param("fileId") ?? "";
+    const proofs = await demo.worlds.list("proof_checks", workspaceId);
+    if (!proofs.some((row) => row.fileId === fileId)) return c.json({ error: "not_found" }, 404);
+    try {
+      const file = await files.readScreenshot(fileId);
+      if (!file) return c.json({ error: "not_found" }, 404);
+      return c.body(new Uint8Array(file.bytes), 200, { "content-type": file.mime, "cache-control": "private, max-age=3600" });
+    } catch (e) {
+      console.error("/api/screenshots failed", e);
+      return c.json({ error: "screenshot_unavailable" }, 500);
     }
   });
 
