@@ -115,7 +115,7 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
                   <td className="py-1.5 pr-2">{n + 1}</td>
                   <td className="py-1.5 pr-2">{line.description}</td>
                   <td className="mono py-1.5 pr-2">{line.hsn ?? ""}</td>
-                  <td className="py-1.5 pr-2 text-right">{line.qtyMilli / 1000} nos</td>
+                  <td className="py-1.5 pr-2 text-right">{line.qtyMilli / 1000} {line.unit ?? "nos"}</td>
                   <td className="py-1.5 pr-2 text-right">{formatInr(line.ratePaise)}</td>
                   <td className="py-1.5 pr-2 text-right">
                     {line.discountBp > 0 ? `${line.discountBp / 100}%, ${formatInr(p?.discountPaise ?? 0)}` : "–"}
@@ -144,14 +144,15 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
       </div>
 
       <section className="mt-3 flex flex-wrap items-start justify-between gap-6 break-inside-avoid">
-        <div className="min-w-0 flex-1">
+        {/* Wide enough for the UPI block: below that the totals wrap under it instead of overlapping it. */}
+        <div className="min-w-0 flex-[1_1_17rem]">
           <p className="text-xs text-ink-2">Amount in words</p>
           <p className="font-medium">{priced.amountInWords}</p>
           {priced.eInvoiceNote && <p className="mt-2 text-xs">e-invoicing: {priced.eInvoiceNote}.</p>}
           {upi && (
             <div className="mt-4 flex items-center gap-3">
               <UpiQr uri={upi} label={`UPI QR code to pay ${formatInr(priced.totalPaise)}`} />
-              <div className="text-xs">
+              <div className="min-w-0 text-xs">
                 <p className="font-medium">Scan to pay {formatInr(priced.totalPaise)} by UPI</p>
                 <p className="mono">{workspace.upiVpa}</p>
                 <p className="mt-1 no-print">
@@ -161,7 +162,7 @@ export function TaxInvoice({ workspace, customer, lines, priced, number, issueDa
             </div>
           )}
         </div>
-        <table className="w-full max-w-[300px] text-[13px]">
+        <table className="ml-auto w-[300px] max-w-full shrink-0 text-[13px]">
           <tbody>
             <Row label={chargesGst ? "Taxable value" : "Amount"} paise={priced.taxablePaise} />
             {chargesGst &&

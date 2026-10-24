@@ -1,5 +1,13 @@
 import type { CustomerRow, InvoiceLineRow, WorkspaceRow } from "@tagada/appwrite";
-import { checkGstin, gstinCheckDigit, invoiceTotals, lineMeasures, type GstRate, type InvoiceTotals } from "@tagada/money";
+import {
+  checkGstin,
+  gstinCheckDigit,
+  invoiceTotals,
+  lineMeasures,
+  type GstRate,
+  type InvoiceTotals,
+  type LineUnit,
+} from "@tagada/money";
 
 export type PreviewAs = "regular" | "composition" | "unregistered";
 
@@ -10,6 +18,8 @@ export type DraftLine = {
   ratePaise: number;
   discountPercent: number;
   gstRatePercent: GstRate;
+  /** Missing is "nos". */
+  unit?: LineUnit;
 };
 
 export type PricedDraft = {
@@ -119,6 +129,7 @@ export function priceDraft(input: {
     hsn: line.hsn,
     ratePaise: line.ratePaise,
     ...lineMeasures(line),
+    unit: line.unit && line.unit !== "nos" ? line.unit : null,
   }));
 
   return { saves, sampleCustomer: sampleCustomerNeeded, workspace, customer, lines, totals };

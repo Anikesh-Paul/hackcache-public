@@ -189,6 +189,44 @@ describe("POST /api/invoices", () => {
     expect(body.invoice.dueDate).toBe("2026-11-17");
   });
 
+  it("creates a Customer with no GSTIN, but still needs their state", async () => {
+    await seed();
+    const shop = { name: "Corner Shop", stateCode: "16", creditDays: 7, lang: "bn" };
+    const noState = await postInvoice({ customer: { ...shop, stateCode: "" }, lines: [chair] });
+    expect(noState.status).toBe(400);
+    expect(await noState.json()).toEqual({ error: "invalid_customer" });
+
+    const saved = await postInvoice({ customer: { ...shop, gstin: "" }, lines: [chair] });
+    expect(saved.status).toBe(200);
+    const body = (await saved.json()) as { invoice: { cgstPaise: number }; customer: Record<string, unknown> };
+    expect(body.customer).toMatchObject({ name: "Corner Shop", gstin: null, stateCode: "16" });
+    expect(body.invoice.cgstPaise).toBe(81_000);
+    expect(named("Corner Shop").gstin).toBeNull();
+  });
+
+  it("saves a part quantity, and refuses one with more than three decimals", async () => {
+    await seed();
+    const gupta = named("Gupta Traders").$id;
+    const cane = { description: "Cane, by the kg", hsn: "1401", quantity: 2.5, ratePaise: 33_333, discountPercent: 0, gstRatePercent: 5 };
+    const saved = await postInvoice({ customerId: gupta, lines: [cane] });
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ invoice: { taxablePaise: 83_333, igstPaise: 4_167, totalPaise: 87_500 } });
+    expect(db.rows().find((row) => row.description === "Cane, by the kg")?.qtyMilli).toBe(2_500);
+
+    const kg = await postInvoice({ customerId: gupta, lines: [{ ...cane, description: "Cane, kg", unit: "kg" }, { ...chair, unit: "nos" }] });
+    expect(kg.status).toBe(200);
+    expect(db.rows().find((row) => row.description === "Cane, kg")?.unit).toBe("kg");
+    // "nos" is the default and is not written, so rows read the same as before the column existed.
+    const chairs = db.rows().filter((row) => row.description === chair.description && row.qtyMilli === 1_000);
+    expect(chairs.at(-1)).not.toHaveProperty("unit");
+    const badUnit = await postInvoice({ customerId: gupta, lines: [{ ...cane, unit: "tonnes" }] });
+    expect(await badUnit.json()).toEqual({ error: "invalid_line" });
+
+    const refused = await postInvoice({ customerId: gupta, lines: [{ ...cane, quantity: 2.0005 }] });
+    expect(refused.status).toBe(400);
+    expect(await refused.json()).toEqual({ error: "invalid_line" });
+  });
+
   it("rejects a GST rate that is not configured", async () => {
     await seed();
     const before = db.rows().length;

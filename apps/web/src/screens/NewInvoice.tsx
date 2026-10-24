@@ -3,13 +3,17 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
   GST_RATES,
+  LINE_UNITS,
   addDays,
   formatAmountInput,
   indianStates,
   isGstRate,
+  isLineUnit,
   parseAmountPaise,
+  quantityMilli,
   stateName,
   type GstRate,
+  type LineUnit,
 } from "@tagada/money";
 import { SaveError, createInvoice } from "../lib/appwrite.ts";
 import { LANGUAGES, type LanguageId } from "../lib/languages.ts";
@@ -35,6 +39,7 @@ type LineDraft = {
   description: string;
   hsn: string;
   qty: string;
+  unit: LineUnit;
   rate: string;
   discount: string;
   gst: GstRate;
@@ -42,8 +47,22 @@ type LineDraft = {
 
 const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper px-3 text-ink";
 
+/** Bamboo and cane basketwork, what this Demo business mostly sells. The Owner can type another. */
+const DEFAULT_HSN = "4602";
+
 function blankLine(): LineDraft {
-  return { key: crypto.randomUUID(), description: "", hsn: "", qty: "1", rate: "", discount: "0", gst: 5 };
+  return { key: crypto.randomUUID(), description: "", hsn: DEFAULT_HSN, qty: "1", unit: "nos", rate: "", discount: "0", gst: 5 };
+}
+
+/** 2.5 or 0.75 are fine; at most three decimals, above 0. */
+function validQuantity(text: string): boolean {
+  const value = text.trim();
+  if (!/^\d*\.?\d+$/.test(value)) return false;
+  try {
+    return quantityMilli(Number(value)) >= 1n;
+  } catch {
+    return false;
+  }
 }
 
 function fromStored(line: InvoiceLineRow): LineDraft {
@@ -53,20 +72,32 @@ function fromStored(line: InvoiceLineRow): LineDraft {
     description: line.description,
     hsn: line.hsn ?? "",
     qty: String(line.qtyMilli / 1000),
+    unit: isLineUnit(line.unit) ? line.unit : "nos",
     rate: formatAmountInput(line.ratePaise),
     discount: String(line.discountBp / 100),
     gst: isGstRate(rate) ? rate : 5,
   };
 }
 
-function parseLine(line: LineDraft): DraftLine | null {
-  const quantity = Number(line.qty);
-  const ratePaise = line.rate.trim() ? parseAmountPaise(line.rate) : null;
+type LineField = "description" | "hsn" | "qty" | "rate" | "discount";
+
+/** The fields of a line that would stop it saving, so the form can say which. */
+function lineIssues(line: LineDraft): Set<LineField> {
+  const issues = new Set<LineField>();
   const discount = line.discount.trim() === "" ? 0 : Number(line.discount);
-  if (!line.description.trim() || !/^\d{4,8}$/.test(line.hsn.trim())) return null;
-  if (!Number.isInteger(quantity) || quantity < 1) return null;
-  if (ratePaise === null) return null;
-  if (!Number.isInteger(discount) || discount < 0 || discount > 100) return null;
+  if (!line.description.trim()) issues.add("description");
+  if (!/^\d{4,8}$/.test(line.hsn.trim())) issues.add("hsn");
+  if (!validQuantity(line.qty)) issues.add("qty");
+  if (!line.rate.trim() || parseAmountPaise(line.rate) === null) issues.add("rate");
+  if (!Number.isInteger(discount) || discount < 0 || discount > 100) issues.add("discount");
+  return issues;
+}
+
+function parseLine(line: LineDraft): DraftLine | null {
+  if (lineIssues(line).size > 0) return null;
+  const ratePaise = parseAmountPaise(line.rate) ?? 0;
+  const discount = line.discount.trim() === "" ? 0 : Number(line.discount);
+  const quantity = Number(line.qty);
   return {
     description: line.description.trim(),
     hsn: line.hsn.trim(),
@@ -74,11 +105,13 @@ function parseLine(line: LineDraft): DraftLine | null {
     ratePaise,
     discountPercent: discount,
     gstRatePercent: line.gst,
+    unit: line.unit,
   };
 }
 
+/** A line counts as started once it has a description or a rate; the HSN comes filled in. */
 function touched(line: LineDraft): boolean {
-  return Boolean(line.description.trim() || line.hsn.trim() || line.rate.trim());
+  return Boolean(line.description.trim() || line.rate.trim());
 }
 
 function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
@@ -106,19 +139,19 @@ function freshCustomer(fresh: Fresh, workspaceId: string): CustomerRow | null {
   };
 }
 
-function newCustomerReady(fresh: Fresh): boolean {
-  const credit = Number(fresh.creditDays);
-  const gstin = fresh.gstin.trim();
-  return (
-    fresh.name.trim().length > 0 &&
-    gstinMessage(gstin) === null &&
-    gstin.length > 0 &&
-    stateName(fresh.stateCode) !== null &&
-    fresh.stateCode === gstin.toUpperCase().slice(0, 2) &&
-    Number.isInteger(credit) &&
-    credit >= 0 &&
-    credit <= 365
-  );
+type CustomerIssue = "name" | "gstin" | "state" | "creditDays";
+
+/** What still stops a new Customer saving. The server asks the same of them. */
+function newCustomerIssues(fresh: Fresh): CustomerIssue[] {
+  const credit = fresh.creditDays.trim() === "" ? NaN : Number(fresh.creditDays);
+  const gstin = fresh.gstin.trim().toUpperCase();
+  const issues: CustomerIssue[] = [];
+  if (!fresh.name.trim()) issues.push("name");
+  // A GSTIN is optional (a shop or household buyer has none), but one that is typed must check.
+  if (gstin && gstinMessage(gstin) !== null) issues.push("gstin");
+  if (stateName(fresh.stateCode) === null || (gstin.length >= 2 && fresh.stateCode !== gstin.slice(0, 2))) issues.push("state");
+  if (!Number.isInteger(credit) || credit < 0 || credit > 365) issues.push("creditDays");
+  return issues;
 }
 
 export function NewInvoice() {
@@ -128,6 +161,8 @@ export function NewInvoice() {
   const t = useT();
   const [params] = useSearchParams();
   const fromId = params.get("from") ?? undefined;
+  // Came from the landing page's "Make your own invoice": walk the judge through it.
+  const trying = params.has("try");
   const source = fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined;
   const sourceLines = useInvoiceRows<InvoiceLineRow>("invoice_lines", source?.$id);
   const applied = useRef(false);
@@ -162,12 +197,22 @@ export function NewInvoice() {
   const partial = lines.some((line) => touched(line) && !parseLine(line));
   const priced = priceDraft({ mode, workspace: world.workspace, customer: picked, lines: ready });
   const creditDays = picked?.creditDays ?? 30;
+  const customerIssues = customerId === "new" ? newCustomerIssues(fresh) : [];
   const canSave =
     priced?.saves === true &&
     !saving &&
     !partial &&
     ready.length > 0 &&
-    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : newCustomerReady(fresh));
+    (customerId !== "new" ? Boolean(world.customers.get(customerId)) : customerIssues.length === 0);
+  // Why Save is off, in words, so a disabled button never leaves the Owner guessing.
+  const blockers: string[] = [];
+  if (mode === "regular" && !saving) {
+    if (!customerId) blockers.push(t.newInvoice.blockers.customer);
+    for (const issue of customerIssues) blockers.push(t.newInvoice.blockers[issue]);
+    if (!lines.some(touched)) blockers.push(t.newInvoice.blockers.line);
+  }
+  const lineHint = (line: LineDraft, field: LineField) =>
+    touched(line) && lineIssues(line).has(field) ? t.newInvoice.lineHints[field] : null;
   const gstinCheck = customerId === "new" && fresh.gstin.trim() ? gstinMessage(fresh.gstin) : null;
   const gstinProblem = gstinCheck === null ? null : gstinCheck === "check-digit" ? t.newInvoice.gstinCheck : t.newInvoice.gstinShape;
 
@@ -183,7 +228,7 @@ export function NewInvoice() {
         ? {
             customer: {
               name: fresh.name.trim(),
-              gstin: fresh.gstin.trim().toUpperCase(),
+              gstin: fresh.gstin.trim().toUpperCase() || undefined,
               stateCode: fresh.stateCode,
               creditDays: Number(fresh.creditDays),
               lang: fresh.lang,
@@ -195,7 +240,7 @@ export function NewInvoice() {
     try {
       const { invoiceId } = await createInvoice(body);
       await reload();
-      navigate(`/app/invoices/${invoiceId}`);
+      navigate(`/app/invoices/${invoiceId}${trying ? "?try" : ""}`);
     } catch (e) {
       const code = e instanceof SaveError ? e.code : "save_failed";
       setError(t.newInvoice.errors[code] ?? t.newInvoice.saveFailed);
@@ -218,6 +263,16 @@ export function NewInvoice() {
             </button>
           </div>
           <p className="mt-2 max-w-[60ch]">{t.newInvoice.intro}</p>
+          {trying && (
+            <div className="mt-4 rounded-md border border-bamboo bg-bamboo-soft p-3 text-sm">
+              <p className="font-semibold">{t.newInvoice.tryTitle}</p>
+              <ol className="mt-1 list-decimal pl-5">
+                {t.newInvoice.trySteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </div>
+          )}
           <div role="group" aria-label={t.newInvoice.previewAs} className="mt-4 flex flex-wrap gap-2">
             {MODES.map((id) => (
               <button
@@ -265,7 +320,7 @@ export function NewInvoice() {
               <Field label={t.newInvoice.name}>
                 <input className={control} value={fresh.name} onChange={(event) => setFresh({ ...fresh, name: event.target.value })} />
               </Field>
-              <Field label="GSTIN" hint={gstinProblem}>
+              <Field label={t.newInvoice.gstinOptional} hint={gstinProblem}>
                 <input
                   className={control}
                   value={fresh.gstin}
@@ -334,20 +389,38 @@ export function NewInvoice() {
             {lines.map((line, index) => (
               <fieldset key={line.key} className="grid gap-2 border-t border-rule pt-3">
                 <legend className="text-sm font-medium">{t.newInvoice.line(index + 1)}</legend>
-                <Field label={t.newInvoice.description}>
+                <Field label={t.newInvoice.description} hint={lineHint(line, "description")}>
                   <input className={control} value={line.description} onChange={(event) => edit(line.key, { description: event.target.value })} />
                 </Field>
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <Field label={t.newInvoice.hsn}>
+                  <Field label={t.newInvoice.hsn} hint={lineHint(line, "hsn")}>
                     <input className={control} inputMode="numeric" value={line.hsn} onChange={(event) => edit(line.key, { hsn: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.quantity}>
-                    <input className={control} inputMode="numeric" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
-                  </Field>
-                  <Field label={t.newInvoice.rate}>
+                  <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+                    <Field label={t.newInvoice.quantity} hint={lineHint(line, "qty")}>
+                      <input className={control} inputMode="decimal" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
+                    </Field>
+                    <Field label={t.newInvoice.unit}>
+                      <select
+                        className={control}
+                        value={line.unit}
+                        onChange={(event) => {
+                          const unit = event.target.value;
+                          if (isLineUnit(unit)) edit(line.key, { unit });
+                        }}
+                      >
+                        {LINE_UNITS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label={t.newInvoice.rate} hint={lineHint(line, "rate")}>
                     <input className={control} inputMode="decimal" value={line.rate} onChange={(event) => edit(line.key, { rate: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.discount}>
+                  <Field label={t.newInvoice.discount} hint={lineHint(line, "discount")}>
                     <input
                       className={control}
                       inputMode="numeric"
@@ -389,6 +462,16 @@ export function NewInvoice() {
           </div>
 
           {partial && <p className="text-sm">{t.newInvoice.finishLines}</p>}
+          {blockers.length > 0 && (
+            <div className="text-sm">
+              <p>{t.newInvoice.toSave}</p>
+              <ul className="mt-1 list-disc pl-5">
+                {blockers.map((blocker) => (
+                  <li key={blocker}>{blocker}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           {error && (
             <p role="alert" className="text-sm text-sindoor">
               {error}
@@ -439,7 +522,7 @@ function Field({
   const id = useId();
   const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <div className="grid gap-1 text-sm">
+    <div className="grid content-start gap-1 text-sm">
       <label htmlFor={id} className="font-medium">
         {label}
       </label>
