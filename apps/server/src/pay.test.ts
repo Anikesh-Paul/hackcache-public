@@ -283,6 +283,14 @@ describe("GET /api/pay/:token/audio", () => {
     expect(spoken[0]).toContain("एक लाख अठारह हज़ार रुपये");
     expect(files.audio.size).toBe(1);
   });
+
+  it("reads a Bengali page in Bengali, with the same voice path", async () => {
+    const res = await app.request(`/api/pay/${gupta().payToken}/audio?lang=bn`);
+    expect(res.status).toBe(200);
+    expect(spoken.at(-1)).toContain("নমস্কার");
+    expect(spoken.at(-1)).not.toContain("हिंदी");
+    expect(spoken.at(-1)).toContain("টাকা");
+  });
 });
 
 describe("POST /api/invoices/:id/dispute", () => {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams } from "react-router";
 import type { CallRow, ReminderRow } from "@tagada/appwrite";
 import { odrCaseFile } from "@tagada/domain";
@@ -19,6 +20,8 @@ export function PrintCase() {
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
   if (!invoice || !customer) return <NotFound what="Invoice" />;
 
+  const [englishCopy, setEnglishCopy] = useState(false);
+  const lang = englishCopy ? "en" : customer.lang === "hi" || customer.lang === "bn" ? customer.lang : "en";
   const listed = invoicesForDocument(world.invoices, invoice).map(invoiceOf);
   const ready = reminders !== null && reminders !== "failed" && calls !== null && calls !== "failed";
   const file = ready
@@ -36,13 +39,15 @@ export function PrintCase() {
         })),
         calls: calls.map((row) => ({ invoiceId: row.invoiceId, startedAt: row.startedAt, transcript: row.transcript })),
         today: world.workspace.today,
+        lang,
       })
     : null;
-  if (file?.nothingDue) return <NothingDue invoiceId={invoice.$id} text={file.nothingDue} />;
+  const copy = { englishCopy, onEnglishCopy: () => setEnglishCopy((on) => !on) };
+  if (file?.nothingDue) return <NothingDue invoiceId={invoice.$id} text={file.nothingDue} {...copy} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <PrintBar invoiceId={invoice.$id} canPrint={file !== null} />
+      <PrintBar invoiceId={invoice.$id} canPrint={file !== null} {...copy} />
       <PlanBanner text={file?.planBanner ?? null} />
       {!ready || !file ? (
         <p className="text-center text-ink-2">
@@ -60,11 +65,11 @@ export function PrintCase() {
             <p>{file.dateLine}</p>
           </header>
           <p className="mt-2">
-            For {file.toName}. {file.odrExplanation}
+            {file.headings.forWhom(file.toName)} {file.odrExplanation}
           </p>
 
           <section className="mt-2">
-            <h2 className="font-semibold">Steps</h2>
+            <h2 className="font-semibold">{file.headings.steps}</h2>
             <ol className="mt-1 list-decimal space-y-0.5 pl-5">
               {file.steps.map((step) => (
                 <li key={step}>{step}</li>
@@ -73,7 +78,7 @@ export function PrintCase() {
           </section>
 
           <section className="mt-2">
-            <h2 className="font-semibold">Invoices</h2>
+            <h2 className="font-semibold">{file.headings.invoices}</h2>
             <ul>
               {file.invoices.map((line) => (
                 <li key={line.number} className="flex flex-wrap justify-between gap-x-3 gap-y-0.5 border-b border-rule py-1">
@@ -81,7 +86,7 @@ export function PrintCase() {
                     <span className="mono">{line.number}</span>
                     <span className="text-ink-2">
                       {" "}
-                      issued {line.issued}, due {line.due}
+                      {file.headings.issued} {line.issued}, {file.headings.due} {line.due}
                       {line.note && `. ${line.note}`}
                     </span>
                   </span>
@@ -92,7 +97,7 @@ export function PrintCase() {
           </section>
 
           <section className="mt-2">
-            <h2 className="font-semibold">Interest workings</h2>
+            <h2 className="font-semibold">{file.headings.interest}</h2>
             <p className="mt-1">{file.interestExplanation}</p>
             <p className="mt-1">{file.interestNote}</p>
             {file.interestLines.length > 0 && (
@@ -105,7 +110,7 @@ export function PrintCase() {
           </section>
 
           <section className="mt-2">
-            <h2 className="font-semibold">Reminder history</h2>
+            <h2 className="font-semibold">{file.headings.reminders}</h2>
             {file.reminderNote ? (
               <p className="mt-1">{file.reminderNote}</p>
             ) : (
@@ -120,7 +125,7 @@ export function PrintCase() {
           </section>
 
           <section className="mt-2">
-            <h2 className="font-semibold">Call transcript excerpt</h2>
+            <h2 className="font-semibold">{file.headings.transcript}</h2>
             {file.transcriptWhen && <p className="mt-1 text-ink-2">{file.transcriptWhen}</p>}
             <p className="mt-1 whitespace-pre-line">{file.transcriptLine}</p>
           </section>

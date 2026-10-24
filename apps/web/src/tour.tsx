@@ -12,6 +12,8 @@ import { GUPTA_PLAN, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR } from "@tagada/seed";
 import { confirmBank, importBank, runLadder } from "./lib/appwrite.ts";
 import { pay } from "./lib/pay.ts";
 import { PayLinkQr } from "./pay-qr.tsx";
+import { ownerCopy } from "./i18n/owner.ts";
+import { useLang } from "./lib/prefs.ts";
 import { CallPlayer } from "./sample-call.tsx";
 
 /** What the tour needs to know about the visitor's Demo world, read once on the landing page. */
@@ -290,6 +292,8 @@ function useRing(selector: string, on: boolean) {
 function Coach({ state, onChange }: { state: TourState; onChange: (next: TourState | null) => void }) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
+  const { lang } = useLang();
+  const t = ownerCopy(lang);
   const step = STEPS[state.step] ?? STEPS[0]!;
   const route = step.route(state);
   const here = pathname === route;
@@ -331,15 +335,15 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
   };
 
   const end = () => onChange(null);
-  const progress = `step ${state.step + 1} of ${STEPS.length}`;
+  const progress = t.tourProgress(state.step + 1, STEPS.length);
 
   if (folded) {
     return (
       <div className="tour-chip no-print">
         <button type="button" className="btn primary" onClick={() => onChange({ ...state, arrive: true })}>
-          Resume tour ({progress})
+          {t.resumeTour(state.step + 1, STEPS.length)}
         </button>
-        <button type="button" className="tour-x" onClick={end} aria-label="End the tour">
+        <button type="button" className="tour-x" onClick={end} aria-label={t.endTour}>
           <X size={16} aria-hidden />
         </button>
       </div>
@@ -363,13 +367,13 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         onKeyDown={(e) => e.key === "Escape" && end()}
       >
         <div className="flex items-start gap-2">
-          <p className="text-xs text-ink-2">Tour, {progress}</p>
-          <button type="button" className="tour-x" onClick={end} aria-label="End the tour">
+          <p className="text-xs text-ink-2">{progress}</p>
+          <button type="button" className="tour-x" onClick={end} aria-label={t.endTour}>
             <X size={16} aria-hidden />
           </button>
         </div>
         <h2 id="tour-title" ref={heading} tabIndex={-1} className="text-lg leading-snug font-semibold">
-          {step.title}
+          {t.tourTitles[state.step] ?? step.title}
         </h2>
         {/* Only the body scrolls, so Back and Next stay in view under a long sample call. */}
         <div className="tour-body mt-1 text-[14.5px]">
@@ -390,16 +394,16 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
           <span className="flex-1" />
           {state.step > 0 && (
             <button type="button" className="btn secondary" disabled={busy} onClick={() => go(state.step - 1)}>
-              <ArrowLeft aria-hidden /> Back
+              <ArrowLeft aria-hidden /> {t.back}
             </button>
           )}
           {last ? (
             <Link to="/proof" className="btn primary" onClick={end}>
-              See the proof <ArrowRight aria-hidden />
+              {t.seeProof} <ArrowRight aria-hidden />
             </Link>
           ) : (
             <button type="button" className="btn primary" disabled={busy} onClick={() => go(state.step + 1)}>
-              {busy ? "Working…" : "Next"} {!busy && <ArrowRight aria-hidden />}
+              {busy ? "…" : t.next} {!busy && <ArrowRight aria-hidden />}
             </button>
           )}
         </div>

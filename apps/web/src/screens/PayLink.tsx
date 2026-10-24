@@ -160,7 +160,7 @@ const WORDS: Record<Lang, Words> = {
     late: "দেরি",
     days: (n) => `${n} দিন`,
     owed: "বকেয়া টাকা",
-    listen: "হিন্দিতে শুনুন",
+    listen: "শুনুন",
     listenFailed: "এখন শোনানো গেল না।",
     pay: (amount) => `UPI দিয়ে ${amount} দিন`,
     payNote: "যেকোনো UPI অ্যাপ",
@@ -227,7 +227,7 @@ const WORDS: Record<Lang, Words> = {
     late: "Late by",
     days: (n) => `${n} ${n === 1 ? "day" : "days"}`,
     owed: "Amount due",
-    listen: "Listen in Hindi",
+    listen: "Listen",
     listenFailed: "It could not be played just now.",
     pay: (amount) => `Pay ${amount} by UPI`,
     payNote: "Any UPI app",
@@ -433,7 +433,7 @@ function Slip({
                 </>
               )}
             </p>
-            <ReadAloud token={token} slip={slip} t={t} />
+            <ReadAloud token={token} slip={slip} lang={lang} t={t} />
           </div>
 
           <Standing slip={slip} lang={lang} justDone={justDone} />
@@ -865,7 +865,7 @@ function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile
 }
 
 /** The slip read aloud in Hindi, spoken once on the server and kept in Storage. */
-function ReadAloud({ token, slip, t }: { token: string; slip: PaySlip; t: Words }) {
+function ReadAloud({ token, slip, lang, t }: { token: string; slip: PaySlip; lang: Lang; t: Words }) {
   const [state, setState] = useState<"idle" | "playing" | "failed">("idle");
   const audio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => audio.current?.pause(), []);
@@ -874,14 +874,14 @@ function ReadAloud({ token, slip, t }: { token: string; slip: PaySlip; t: Words 
     audio.current?.pause();
     audio.current = null;
     setState("idle");
-  }, [slip.state, slip.screenshotSent]);
+  }, [slip.state, slip.screenshotSent, lang]);
   const play = async () => {
     if (state === "playing") {
       audio.current?.pause();
       setState("idle");
       return;
     }
-    audio.current ??= new Audio(`${pay.audioUrl(token)}?v=${slip.state}${slip.screenshotSent ? "s" : ""}`);
+    audio.current ??= new Audio(`${pay.audioUrl(token, lang)}&v=${slip.state}${slip.screenshotSent ? "s" : ""}`);
     audio.current.onended = () => setState("idle");
     setState("playing");
     try {

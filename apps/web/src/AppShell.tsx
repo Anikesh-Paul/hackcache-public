@@ -44,6 +44,24 @@ const WORDS = {
     inbox: (n: number) => (n === 0 ? "इनबॉक्स, कुछ नया नहीं" : `इनबॉक्स, ${n} नए`),
     confirmReset: "डेमो फिर से शुरू करें? आपके बदलाव हट जाएंगे और शुरुआती कहानी लौट आएगी।",
   },
+  bn: {
+    demoDate: "ডেমো তারিখ",
+    prevDay: "আগের দিন: সেই দিনের মই চালান",
+    nextDay: "পরের দিন: সেই দিনের মই চালান",
+    running: (date: string) => `${date}-এর দৈনিক মই চলছে…`,
+    ran: (date: string, r: LadderRun) =>
+      `${date}-এর দৈনিক মই চলেছে: ${r.sent}টি ইমেল গেছে` +
+      (r.retried ? ` (${r.retried}টি আবার চেষ্টার পর)` : "") +
+      (r.failed ? `, ${r.failed}টি যায়নি` : "") +
+      (r.skippedDuplicate ? `, ${r.skippedDuplicate}টি আগেই গিয়েছিল` : "") +
+      (r.skippedInBank ? `, ${r.skippedInBank}টি পাঠানো হয়নি: টাকা ব্যাংকে এসেছে, আপনার নিশ্চিতকরণ বাকি` : "") +
+      `, ${r.ready}টি আপনার পাঠানোর জন্য তৈরি।`,
+    runFailed: "দৈনিক মই চালানো যায়নি। আবার চেষ্টা করুন।",
+    log: "অটোমেশন লগ",
+    reset: "ডেমো আবার",
+    inbox: (n: number) => (n === 0 ? "ইনবক্স, নতুন কিছু নেই" : `ইনবক্স, ${n}টি নতুন`),
+    confirmReset: "ডেমো আবার শুরু করবেন? আপনার বদল মুছে যাবে এবং শুরুর গল্প ফিরে আসবে।",
+  },
 } satisfies Record<Lang, unknown>;
 
 function plural(n: number, word: string): string {
@@ -51,13 +69,13 @@ function plural(n: number, word: string): string {
 }
 
 const TABS = [
-  { to: "/app", en: "Today", hi: "आज" },
-  { to: "/app/invoices", en: "Invoices", hi: "बिल" },
-  { to: "/app/customers", en: "Customers", hi: "ग्राहक" },
-  { to: "/app/bank", en: "Bank", hi: "बैंक" },
-  { to: "/app/inbox", en: "Inbox", hi: "इनबॉक्स" },
-  { to: "/app/automation", en: "Automation", hi: "ऑटोमेशन" },
-  { to: "/app/settings", en: "Settings", hi: "सेटिंग्स" },
+  { to: "/app", en: "Today", hi: "आज", bn: "আজ" },
+  { to: "/app/invoices", en: "Invoices", hi: "बिल", bn: "বিল" },
+  { to: "/app/customers", en: "Customers", hi: "ग्राहक", bn: "গ্রাহক" },
+  { to: "/app/bank", en: "Bank", hi: "बैंक", bn: "ব্যাংক" },
+  { to: "/app/inbox", en: "Inbox", hi: "इनबॉक्स", bn: "ইনবক্স" },
+  { to: "/app/automation", en: "Automation", hi: "ऑटोमेशन", bn: "অটোমেশন" },
+  { to: "/app/settings", en: "Settings", hi: "सेटिंग्स", bn: "সেটিংস" },
 ];
 
 /** Keeps the active tab in view, and says when more tabs sit past the right edge. */
@@ -182,7 +200,13 @@ export function AppShell() {
             </div>
           )}
           <div role="group" aria-label="Language" className="flex overflow-hidden rounded-md border border-cover-line">
-            {(["en", "hi"] as const).map((l) => (
+            {(
+              [
+                ["en", "EN"],
+                ["hi", "हिं"],
+                ["bn", "বাং"],
+              ] as const
+            ).map(([l, name]) => (
               <button
                 key={l}
                 type="button"
@@ -191,7 +215,7 @@ export function AppShell() {
                 onClick={() => choose(l)}
                 className={`min-h-11 min-w-11 px-3 text-[13px] ${lang === l ? "bg-on-cover text-cover" : "text-on-cover-2"}`}
               >
-                {l === "en" ? "EN" : "हिं"}
+                {name}
               </button>
             ))}
           </div>

@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { useParams } from "react-router";
 import { demandLetter } from "@tagada/domain";
+import { useLang } from "../lib/prefs.ts";
 import { useWorld } from "../lib/world.tsx";
 import { customerOf, invoiceOf, invoicesForDocument, promisesForDocument, sellerOf } from "../lib/documents.ts";
 import { Badge } from "../ui.tsx";
@@ -18,7 +20,16 @@ export function PrintLetter() {
   const customer = invoice ? world.customers.get(invoice.customerId) : undefined;
   if (!invoice || !customer) return <NotFound what="Invoice" />;
 
+  const { lang: uiLang } = useLang();
+  const [englishCopy, setEnglishCopy] = useState(false);
+  const note =
+    uiLang === "hi"
+      ? { upi: "डेमो UPI ID, कोई भुगतान नहीं होता", bank: "इस डेमो की नमूना खाता जानकारी। कोई भुगतान नहीं होता।" }
+      : uiLang === "bn"
+        ? { upi: "ডেমো UPI ID, কোনো টাকা যায় না", bank: "এই ডেমোর নমুনা অ্যাকাউন্ট। কোনো টাকা যায় না।" }
+        : { upi: "Simulated UPI ID: no one is paid", bank: "Sample account for this Demo world. No one is paid." };
   const payUrl = invoice.payToken ? `${location.origin}/pay/${invoice.payToken}` : null;
+  const lang = englishCopy ? "en" : customer.lang === "hi" || customer.lang === "bn" ? customer.lang : "en";
   const letter = demandLetter({
     seller: sellerOf(world.workspace),
     customer: customerOf(customer),
@@ -27,12 +38,14 @@ export function PrintLetter() {
     invoiceId: invoice.$id,
     today: world.workspace.today,
     payUrl,
+    lang,
   });
-  if (letter.nothingDue) return <NothingDue invoiceId={invoice.$id} text={letter.nothingDue} />;
+  const copy = { englishCopy, onEnglishCopy: () => setEnglishCopy((on) => !on) };
+  if (letter.nothingDue) return <NothingDue invoiceId={invoice.$id} text={letter.nothingDue} {...copy} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <PrintBar invoiceId={invoice.$id} />
+      <PrintBar invoiceId={invoice.$id} {...copy} />
       <PlanBanner text={letter.planBanner} />
       <article className={sheet}>
         <header className="border-b-2 border-ink pb-3">
@@ -51,20 +64,20 @@ export function PrintLetter() {
         </header>
 
         <section className="border-b border-rule-strong py-3">
-          <p className="text-ink-2">To</p>
+          <p className="text-ink-2">{letter.headings.to}</p>
           <p className="font-semibold">{letter.toName}</p>
           {letter.toAddress && <p>{letter.toAddress}</p>}
         </section>
 
         <section className="py-3">
-          <h2 className="font-semibold">Invoices</h2>
+          <h2 className="font-semibold">{letter.headings.invoices}</h2>
           <ul className="mt-2 divide-y divide-rule">
             {letter.invoices.map((line) => (
               <li key={line.number} className="grid gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline">
                 <p>
                   <span className="mono">{line.number}</span>
                   <span className="mt-0.5 block text-ink-2">
-                    Issued {line.issued}. Due {line.due}.
+                    {letter.headings.issued} {line.issued}. {letter.headings.due} {line.due}.
                   </span>
                   {line.note && <span className="mt-0.5 block text-ink-2">{line.note}.</span>}
                 </p>
@@ -73,14 +86,17 @@ export function PrintLetter() {
             ))}
           </ul>
           <p className="mt-2 flex justify-between gap-3 border-t border-ink pt-2 text-base font-semibold">
-            <span>Outstanding</span>
-            <span>{letter.outstanding}</span>
+            <span>{letter.headings.outstanding}</span>
+            <span>
+              {letter.outstanding}
+              <span className="mt-0.5 block text-sm font-normal">{letter.outstandingWords}</span>
+            </span>
           </p>
           <p className="mt-3">{letter.deadlineLine}</p>
         </section>
 
         <section className="border-t border-rule-strong py-3">
-          <h2 className="font-semibold">How to pay</h2>
+          <h2 className="font-semibold">{letter.headings.howToPay}</h2>
           <div className="mt-2 flex flex-wrap items-center gap-3">
             {letter.upiUri && (
               <UpiQr uri={letter.upiUri} label={`UPI QR code to pay ${letter.outstanding}`} className="size-24" />
@@ -89,23 +105,23 @@ export function PrintLetter() {
           </div>
           {letter.upiUri && (
             <p className="no-print mt-2">
-              <Badge kind="sim">Simulated UPI ID: no one is paid</Badge>
+              <Badge kind="sim">{note.upi}</Badge>
             </p>
           )}
-          <h3 className="mt-4 font-medium">Bank transfer</h3>
+          <h3 className="mt-4 font-medium">{letter.bankHeading}</h3>
           <dl className="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3">
-            <dt className="text-ink-2">Account name</dt>
+            <dt className="text-ink-2">{letter.headings.accountName}</dt>
             <dd className="break-words">{letter.bank.accountName}</dd>
-            <dt className="text-ink-2">Bank</dt>
+            <dt className="text-ink-2">{letter.headings.bank}</dt>
             <dd className="break-words">{letter.bank.bankName}</dd>
-            <dt className="text-ink-2">Account number</dt>
+            <dt className="text-ink-2">{letter.headings.accountNumber}</dt>
             <dd className="mono break-all">{letter.bank.accountNumber}</dd>
-            <dt className="text-ink-2">IFSC</dt>
+            <dt className="text-ink-2">{letter.headings.ifsc}</dt>
             <dd className="mono">{letter.bank.ifsc}</dd>
           </dl>
           <p className="mt-1">{letter.bank.note}</p>
           <p className="no-print mt-2">
-            <Badge kind="sim">Sample account for this Demo world. No one is paid.</Badge>
+            <Badge kind="sim">{note.bank}</Badge>
           </p>
           <p className="mt-3 break-all">{letter.payLinkLine}</p>
           {letter.contactLine && <p className="mt-2">{letter.contactLine}</p>}
@@ -129,7 +145,7 @@ export function PrintLetter() {
         <footer className="mt-8 flex break-inside-avoid justify-end print:mt-5">
           <div className="text-center">
             <p>{letter.signOff}</p>
-            <div className="mt-10 w-56 border-t border-ink pt-1 text-xs print:mt-8">Authorised signatory</div>
+            <div className="mt-10 w-56 border-t border-ink pt-1 text-xs print:mt-8">{letter.headings.signatory}</div>
           </div>
         </footer>
       </article>

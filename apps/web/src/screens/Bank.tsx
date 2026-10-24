@@ -15,6 +15,8 @@ import {
   type ProofResultKind,
 } from "@tagada/domain";
 import { formatDate, formatInr } from "@tagada/money";
+import { ownerCopy } from "../i18n/owner.ts";
+import { useLang } from "../lib/prefs.ts";
 import { proofLabel, proofReadout, proofTone } from "../lib/proof.ts";
 import { SaveError, assignCredit, confirmBank, importBank, keepAdvance, loadScreenshot } from "../lib/appwrite.ts";
 import { useWorkspaceRows, useWorld, useWorldState } from "../lib/world.tsx";
@@ -62,6 +64,8 @@ function confirmedNotice(done: string | null, changed: string | null): string {
 /** /app/bank: import a statement, read the suggestion, confirm it. */
 export function Bank() {
   const world = useWorld();
+  const { lang } = useLang();
+  const t = ownerCopy(lang);
   const { reload } = useWorldState();
   const credits = useWorkspaceRows<BankTxnRow>("bank_txns", true);
   const lines = useWorkspaceRows<InvoiceLineRow>("invoice_lines", true);
@@ -202,7 +206,7 @@ export function Bank() {
             accept=".csv,text/csv"
             disabled={busy}
             aria-label="Bank statement CSV"
-            className="mt-2 block min-h-11 text-sm"
+            className="mt-2 block w-full min-h-11 max-w-full text-sm"
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = "";
@@ -284,8 +288,10 @@ export function Bank() {
                         })
                       }
                     >
-                      Keep {formatInr(overpayPaise(row.amountPaise, shares))} as an advance for{" "}
-                      {customerOf(invoiceOf(shares[0].invoiceId)?.customerId ?? "") ?? "this Customer"}
+                      {t.keepAdvance(
+                        formatInr(overpayPaise(row.amountPaise, shares)),
+                        customerOf(invoiceOf(shares[0].invoiceId)?.customerId ?? "") ?? "Customer",
+                      )}
                     </button>
                   )}
                   {row.matchStatus === "suggested" && (
@@ -389,6 +395,7 @@ function AssignCustomer({
   onAssign: (customerId: string) => void;
 }) {
   const [customerId, setCustomerId] = useState("");
+  const t = ownerCopy(useLang().lang);
   return (
     <form
       className="mt-2 flex flex-wrap items-center gap-2"
@@ -398,7 +405,7 @@ function AssignCustomer({
       }}
     >
       <label className="text-sm">
-        Assign to a Customer
+        {t.assign}
         <select
           className="mt-1 block min-h-11 max-w-full rounded-md border border-rule-strong bg-paper px-2 text-sm"
           value={customerId}
@@ -414,7 +421,7 @@ function AssignCustomer({
         </select>
       </label>
       <button type="submit" className="btn secondary" disabled={disabled || !customerId}>
-        Show the suggestion
+        {t.showSuggestion}
       </button>
     </form>
   );
@@ -433,13 +440,17 @@ function Shot({ fileId }: { fileId: string }) {
         if (live) setSrc(next);
         else URL.revokeObjectURL(next);
       },
-      () => {},
+      (e: unknown) => {
+        console.error("screenshot", e);
+        if (live) setSrc("failed");
+      },
     );
     return () => {
       live = false;
       if (url) URL.revokeObjectURL(url);
     };
   }, [fileId]);
+  if (src === "failed") return <span className="text-[12px] text-ink-2">The screenshot could not be loaded.</span>;
   if (!src) return <span className="text-[12px] text-ink-2">Loading the screenshot…</span>;
   return (
     <>
