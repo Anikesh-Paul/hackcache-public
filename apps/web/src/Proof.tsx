@@ -22,8 +22,8 @@ export function Proof() {
     <section className="border-x-4 border-double border-rule-strong bg-paper px-5 py-6 shadow-sm">
       <h1 className="border-b border-ink pb-2 text-xl font-semibold">Every rupee, checked</h1>
       <p className="mt-4 max-w-2xl text-sm text-ink-2">
-        The brief's money cases, and the domain cases for the Ladder, matching, the Plan rule, Grade, Ageing and the
-        forecast headline. Computed in this browser from the same packages the app uses.
+        The brief's money cases, and the domain cases for the Ladder, matching, the Plan rule, Grade, Ageing, the chase
+        order, the letter and the forecast headline. Computed in this browser from the same packages the app uses.
       </p>
       <div className="mt-4 max-w-2xl space-y-2 text-sm">
         <p>{ODR_EXPLAIN}</p>

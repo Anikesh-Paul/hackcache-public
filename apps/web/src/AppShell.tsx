@@ -18,6 +18,7 @@ const WORDS = {
       (r.retried ? ` (${r.retried} after a retry)` : "") +
       (r.failed ? `, ${r.failed} failed` : "") +
       (r.skippedDuplicate ? `, ${r.skippedDuplicate} already sent, skipped` : "") +
+      (r.skippedInBank ? `, ${r.skippedInBank} not chased: money in the bank, waiting for you to confirm` : "") +
       `, ${r.ready} ready for you.`,
     runFailed: "The daily Ladder could not run. The Demo date may not have moved; try again.",
     log: "Automation log",
@@ -35,6 +36,7 @@ const WORDS = {
       (r.retried ? ` (${r.retried} दोबारा कोशिश के बाद)` : "") +
       (r.failed ? `, ${r.failed} नहीं गए` : "") +
       (r.skippedDuplicate ? `, ${r.skippedDuplicate} पहले ही जा चुके थे` : "") +
+      (r.skippedInBank ? `, ${r.skippedInBank} नहीं भेजे: पैसा बैंक में आ चुका है, आपकी पुष्टि बाकी है` : "") +
       `, ${r.ready} आपके भेजने के लिए तैयार।`,
     runFailed: "रोज़ की सीढ़ी नहीं चल पाई। फिर से कोशिश करें।",
     log: "ऑटोमेशन लॉग",

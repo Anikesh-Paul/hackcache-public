@@ -93,6 +93,16 @@ describe("GET /api/pay/:token", () => {
     ]);
   });
 
+  it("tells Roy Furnishings their payment is waiting for the bank to confirm, not how late it is", async () => {
+    const slip = (await (await get(openInvoice("Roy Furnishings").payToken)).json()) as PaySlip;
+    expect(slip.invoice.daysLate).toBeGreaterThan(0);
+    expect(slip.state).toBe("paid_claim");
+    // Roy never said he had paid, so the page asks for no screenshot and thanks him for nothing.
+    expect(slip).toMatchObject({ screenshotSent: false, inBank: true });
+    // A part payment in the bank (Das & Sons) still leaves the rest owing.
+    expect(((await (await get(openInvoice("Das & Sons").payToken)).json()) as PaySlip).state).not.toBe("paid_claim");
+  });
+
   it("refuses a guessed token without reading the database", async () => {
     const before = db.lists();
     const res = await get("0123456789abcdef0123456789abcdef");
@@ -149,7 +159,7 @@ describe("POST /api/pay/:token/paid and /screenshot", () => {
     const res = await app.request(`/api/pay/${invoice.payToken}/screenshot`, { method: "POST", body: form });
     expect(res.status).toBe(200);
     const slip = (await res.json()) as PaySlip;
-    expect(slip).toMatchObject({ state: "paid_claim", screenshotSent: true });
+    expect(slip).toMatchObject({ state: "paid_claim", screenshotSent: true, inBank: false });
 
     const [fileId] = [...files.screenshots.keys()];
     expect(files.screenshots.get(fileId ?? "")).toMatchObject({ ownerUserId: USER });

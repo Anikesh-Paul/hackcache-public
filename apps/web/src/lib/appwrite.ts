@@ -221,6 +221,8 @@ export type LadderRun = {
   scanned: number;
   sent: number;
   skippedDuplicate: number;
+  /** Not chased: the money is in the bank, waiting for the Owner to confirm it. */
+  skippedInBank: number;
   retried: number;
   failed: number;
   ready: number;

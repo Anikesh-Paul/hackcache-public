@@ -122,6 +122,14 @@ describe("Today on the seeded Demo date", () => {
     expect(after.chase.some((c) => c.customerName === "Gupta Traders")).toBe(false);
   });
 
+  it("lists no not-yet-due Invoice while overdue ones exist, and has Paul Gift House's 112-day Invoice", () => {
+    for (const book of [before, after]) {
+      expect(book.chase.length).toBeGreaterThan(0);
+      expect(book.chase.every((c) => c.daysLate > 0)).toBe(true);
+      expect(book.chase.find((c) => c.customerName === "Paul Gift House")?.daysLate).toBe(112);
+    }
+  });
+
   it("averages days to get paid from the seeded payments, and says what kept Promises would make it", () => {
     // 17 paid Invoices, 645 days in all; Das & Sons' Promise is 38 days after its Invoice date.
     expect(before.daysToGetPaid).toEqual({ days: 38, count: 17, ifKeptDays: 38, promisedCount: 1 });

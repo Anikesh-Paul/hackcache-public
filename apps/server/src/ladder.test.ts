@@ -13,14 +13,25 @@ let db: ReturnType<typeof memoryStore>;
 let app: ReturnType<typeof createApp>;
 let mails: Mail[];
 let refuse: (mail: Mail) => string | null;
+/** Resend's answer to a key it already holds for another body. */
+let repeat: (mail: Mail) => boolean;
+let pending: Promise<void>[];
+/** The clock pay links are signed by. */
+let clock: number;
 
 beforeEach(async () => {
   db = memoryStore();
+  clock = Date.parse("2026-11-02T06:00:00Z");
   mails = [];
   refuse = () => null;
-  const pending: Promise<void>[] = [];
+  repeat = () => false;
+  pending = [];
   const mailer: Mailer = {
     async send(mail) {
+      if (repeat(mail)) {
+        mails.push(mail);
+        return { ok: false, error: "Resend 409: This idempotency key has already been used on a request that had a different payload.", repeat: true };
+      }
       const error = refuse(mail);
       if (error) return { ok: false, error };
       mails.push(mail);
@@ -34,7 +45,7 @@ beforeEach(async () => {
       userFromJwt: async (token) => (token === "jwt-asha" ? USER : null),
       worlds: db.store,
       later: (task) => void pending.push(task),
-      tokens: payTokens("test-secret", () => Date.parse("2026-11-02T06:00:00Z")),
+      tokens: payTokens("test-secret", () => clock),
     },
     files: memoryFiles().files,
     voice: { async speak() { return new Uint8Array(); } },
@@ -47,7 +58,17 @@ beforeEach(async () => {
 const post = (path: string, body: unknown, headers: Record<string, string> = jwt) =>
   app.request(path, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify(body) });
 
-type Summary = { runId: string; demoDate: string; scanned: number; sent: number; skippedDuplicate: number; retried: number; failed: number; ready: number };
+type Summary = {
+  runId: string;
+  demoDate: string;
+  scanned: number;
+  sent: number;
+  skippedDuplicate: number;
+  skippedInBank: number;
+  retried: number;
+  failed: number;
+  ready: number;
+};
 const run = async (date: string) => {
   const res = await post("/api/ladder/run", { date });
   expect(res.status).toBe(200);
@@ -81,7 +102,7 @@ describe("POST /api/ladder/run", () => {
     expect(mail?.subject).toContain(saha!.number as string);
     expect(mail?.text).toContain(`https://tagada.example/pay/${saha!.payToken as string}`);
     // Resend drops a second request under the same key, so a send that died before it was noted never goes twice.
-    expect(mail?.idempotencyKey).toBe(`${WS}/rem_${saha!.$id}_s1`);
+    expect(mail?.idempotencyKey).toMatch(new RegExp(`^${WS}/rem_${saha!.$id}_s1/\\d+$`));
     expect(reminder(saha!.$id, 1)).toMatchObject({ status: "sent", channel: "email", attempts: 1, providerMessageId: "msg_1", sentDate: "2026-11-05" });
     expect(saha!.ladderStage).toBe(1);
     const copy = db.table("events").find((e) => e.invoiceId === saha!.$id && e.type === "reminder" && e.actor === "workflow" && String(e.at).startsWith("2026-11-05"));
@@ -137,6 +158,50 @@ describe("POST /api/ladder/run", () => {
     const second = await run("2026-11-05");
     expect(second).toMatchObject({ sent: 1, retried: 1 });
     expect(reminder(saha!.$id, 1)).toMatchObject({ status: "sent" });
+  });
+
+  it("gives each seeding of the world its own Resend key, while the Reminder's row ID stays its idempotency key", async () => {
+    await run("2026-11-05");
+    const [first] = openOf("Saha Furniture Mart");
+    clock += 60_000;
+    await post("/api/demo/reset", {});
+    while (pending.length) await pending.shift();
+    await run("2026-11-05");
+    const [again] = openOf("Saha Furniture Mart");
+    expect(again!.$id).toBe(first!.$id);
+    expect(mails).toHaveLength(2);
+    // A reset world sends a new body (a new pay link); under the old key Resend would refuse it for 24 hours.
+    expect(mails[1]!.text).not.toBe(mails[0]!.text);
+    expect(mails[1]!.idempotencyKey).not.toBe(mails[0]!.idempotencyKey);
+    for (const mail of mails) expect(mail.idempotencyKey).toMatch(new RegExp(`^${WS}/rem_${first!.$id}_s1/`));
+    expect(reminder(again!.$id, 1)).toMatchObject({ status: "sent", attempts: 1, error: null });
+  });
+
+  it("records Resend's refusal of a reused key once, plainly, and does not retry it", async () => {
+    repeat = (mail) => mail.subject.includes(openOf("Saha Furniture Mart")[0]!.number as string);
+    const first = await run("2026-11-05");
+    const [saha] = openOf("Saha Furniture Mart");
+    expect(mails).toHaveLength(1);
+    expect(first).toMatchObject({ sent: 0, failed: 1, retried: 0 });
+    expect(reminder(saha!.$id, 1)).toMatchObject({ status: "failed", attempts: 1 });
+    expect(String(reminder(saha!.$id, 1)?.error)).toMatch(/^Refused as a repeat: Resend 409/);
+    const second = await run("2026-11-06");
+    expect(mails).toHaveLength(1);
+    expect(second.failed).toBe(0);
+    expect(reminder(saha!.$id, 1)).toMatchObject({ status: "failed", attempts: 1, sentDate: "2026-11-05" });
+  });
+
+  it("sends nothing to a Customer whose money is waiting in Bank, and counts those skips", async () => {
+    const inBank = ["Roy Furnishings", "Barua Stores", "Sen Handicrafts", "Hotel Gomati View", "Brahmaputra Home Stores Pvt Ltd"];
+    const summaries = [await run("2026-11-02"), await run("2026-11-12"), await run("2026-11-25")];
+    const runs = new Set(summaries.map((s) => s.runId));
+    const waiting = new Set(inBank.flatMap((name) => openOf(name).map((i) => i.$id)));
+    expect(waiting.size).toBe(6);
+    expect(db.table("reminders").filter((r) => runs.has(String(r.runId)) && waiting.has(String(r.invoiceId)))).toEqual([]);
+    expect(mails.some((m) => inBank.some((name) => m.text.includes(name)))).toBe(false);
+    expect(summaries[0]!.skippedInBank).toBeGreaterThan(0);
+    const logged = db.table("workflow_runs").find((r) => r.runId === summaries[0]!.runId);
+    expect(logged?.skippedInBank).toBe(summaries[0]!.skippedInBank);
   });
 
   it("leaves a stage that is switched off as Ready to send, and sends nothing", async () => {

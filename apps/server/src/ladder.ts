@@ -2,22 +2,27 @@
 // 10:00 IST cron and the Demo date stepper, so all three walk the same code.
 // A run plans the day (breaking any Promise whose date passed), then sends
 // each Reminder; the Reminder's row ID is its idempotency key, created before
-// anything goes out, so no Reminder is ever sent twice.
+// anything goes out, so no Reminder is ever sent twice. An Invoice whose money
+// is already in the bank, waiting for the Owner to confirm it, is not chased.
 import { Permission, Role } from "node-appwrite";
 import { differencePaise, formatDate, formatInr, isCivilDate } from "@tagada/money";
 import {
   DEFAULT_AUTO_SEND,
   REMINDER_NAMES,
+  REPEAT_REFUSED,
   isCustomerLang,
+  isRepeatRefused,
   ladderDay,
   nextAction,
   promiseBroken,
   reminderMessage,
+  waitingInBank,
   type InvoiceFacts,
   type LadderInvoice,
   type PromiseFacts,
 } from "@tagada/domain";
 import { SEEDED_FAILURE, failsFirstSend } from "@tagada/seed";
+import { bankSuggestions } from "./bank-credits.ts";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import type { Mail, Mailer } from "./email.ts";
 import { newId, stamp } from "./pay.ts";
@@ -47,8 +52,9 @@ export type ReminderJob = {
  * `retried`: sent, after an earlier attempt under the same key failed.
  * `duplicate`: the key was already sent. `ready`: left for the Owner to send.
  * `capped`: the Customer had a message today; it rolls to tomorrow.
+ * `refused`: the email service refused the key as a repeat; it is not tried again.
  */
-export type SendResult = "sent" | "retried" | "duplicate" | "failed" | "ready" | "capped";
+export type SendResult = "sent" | "retried" | "duplicate" | "failed" | "refused" | "ready" | "capped";
 
 export type RunSummary = {
   runId: string;
@@ -56,6 +62,8 @@ export type RunSummary = {
   scanned: number;
   sent: number;
   skippedDuplicate: number;
+  /** Not chased: the money is in the bank, waiting for the Owner to confirm it. */
+  skippedInBank: number;
   retried: number;
   failed: number;
   ready: number;
@@ -66,6 +74,16 @@ const text = (value: unknown): string | null => (typeof value === "string" ? val
 const whole = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? value : 0);
 
 export const reminderKey = (invoiceId: string, stage: number) => `rem_${invoiceId}_s${stage}`;
+
+/**
+ * Resend's key: the Reminder's, under this seeding of the world. Reset demo
+ * keeps the workspace ID but writes a new workspace row, and the new world's
+ * emails carry new pay links, so the old key would be refused for 24 hours.
+ */
+export const resendKey = (workspace: StoredRow, key: string) => {
+  const seeding = text(workspace.$createdAt)?.replace(/[^0-9]/g, "");
+  return seeding ? `${workspace.$id}/${key}/${seeding}` : `${workspace.$id}/${key}`;
+};
 
 /** A run stands for its Demo date's 10:00 IST run, whenever the stepper starts it. */
 const runTime = (demoDate: string) => `${demoDate}T10:00:00.000+05:30`;
@@ -159,27 +177,34 @@ async function breakPromises(worlds: WorldStore, workspace: StoredRow, invoices:
 /** The first half of `dailyLadder`: breaks Promises whose date passed, then lists the day's Reminders. */
 export async function planRun(deps: LadderDeps, workspaceId: string, demoDate: string, runId: string) {
   const { worlds } = deps;
-  const [workspace, invoices, promises, reminders] = await Promise.all([
+  const [workspace, invoices, promises, reminders, bank] = await Promise.all([
     worlds.get("workspaces", workspaceId),
     worlds.list("invoices", workspaceId),
     worlds.list("promises", workspaceId),
     worlds.list("reminders", workspaceId),
+    worlds.list("bank_txns", workspaceId),
   ]);
   if (!workspace) throw new Error(`no workspace ${workspaceId}`);
   const open = invoices.filter((i) => i.status !== "paid");
   const standing = await breakPromises(worlds, workspace, open, promises, demoDate);
-  const steps = ladderDay({
-    // Read again after breaking Promises: a broken one no longer pauses its Invoice.
-    invoices: open.map((i) => {
-      const f = facts(i);
-      const broke = standing.some((p) => p.invoiceId === i.$id && p.status === "broken");
-      return broke && (f.pauseReason === "promise" || f.pauseReason === "plan") ? { ...f, pauseReason: null, pausedUntil: null } : f;
-    }),
-    promises: standing,
-    today: demoDate,
-    autoSendStages: autoSendOf(workspace),
-    sentToday: reminders.filter((r) => r.status === "sent" && r.sentDate === demoDate).map((r) => text(r.customerId) ?? ""),
+  // Read again after breaking Promises: a broken one no longer pauses its Invoice.
+  const ladderInvoices = open.map((i) => {
+    const f = facts(i);
+    const broke = standing.some((p) => p.invoiceId === i.$id && p.status === "broken");
+    return broke && (f.pauseReason === "promise" || f.pauseReason === "plan") ? { ...f, pauseReason: null, pausedUntil: null } : f;
   });
+  const waiting = waitingInBank(bankSuggestions(bank), ladderInvoices);
+  const day = (list: LadderInvoice[]) =>
+    ladderDay({
+      invoices: list,
+      promises: standing,
+      today: demoDate,
+      autoSendStages: autoSendOf(workspace),
+      sentToday: reminders.filter((r) => r.status === "sent" && r.sentDate === demoDate).map((r) => text(r.customerId) ?? ""),
+    });
+  const steps = day(ladderInvoices.filter((i) => !waiting.has(i.$id)));
+  // What the Ladder would have sent, had the money not been waiting in the bank.
+  const skippedInBank = day(ladderInvoices.filter((i) => waiting.has(i.$id))).length;
   const jobs: ReminderJob[] = steps.map((step) => ({
     workspaceId,
     runId,
@@ -189,7 +214,7 @@ export async function planRun(deps: LadderDeps, workspaceId: string, demoDate: s
     stage: step.stage,
     send: step.send,
   }));
-  return { scanned: open.length, jobs };
+  return { scanned: open.length, jobs, skippedInBank };
 }
 
 /**
@@ -229,7 +254,8 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
   let retry = false;
   if ((await worlds.create("reminders", row)) === "exists") {
     const known = await worlds.get("reminders", key);
-    if (known?.status === "sent") return "duplicate";
+    // A key the email service refused as a repeat was recorded once; trying it again cannot help.
+    if (known?.status === "sent" || (known?.status === "failed" && isRepeatRefused(text(known.error)))) return "duplicate";
     if (!auto) {
       await worlds.update("reminders", key, { status: waiting, sentDate: job.demoDate, runId: job.runId });
       return job.send === "owner" ? "ready" : "capped";
@@ -268,7 +294,7 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     replyTo: ownerEmail,
     subject: message.subject,
     text: message.text,
-    idempotencyKey: `${job.workspaceId}/${key}`,
+    idempotencyKey: resendKey(workspace, key),
   };
   const outcome =
     !deps.mailer || !deps.demoInbox
@@ -277,8 +303,9 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
         ? { ok: false as const, error: SEEDED_FAILURE }
         : await deps.mailer.send(mail);
   if (!outcome.ok) {
-    await worlds.update("reminders", key, { status: "failed", error: outcome.error });
-    return "failed";
+    const repeat = "repeat" in outcome && outcome.repeat === true;
+    await worlds.update("reminders", key, { status: "failed", error: repeat ? `${REPEAT_REFUSED}${outcome.error}` : outcome.error });
+    return repeat ? "refused" : "failed";
   }
 
   // The earlier attempt's error stays on the row, so the log can show the retry.
@@ -309,7 +336,15 @@ async function refusedOnce(worlds: WorldStore, job: ReminderJob): Promise<boolea
 /** The last step of `dailyLadder`: the run's row in the Automation log. */
 export async function recordRun(
   deps: LadderDeps,
-  run: { workspaceId: string; runId: string; demoDate: string; startedAt: string; scanned: number; results: SendResult[] },
+  run: {
+    workspaceId: string;
+    runId: string;
+    demoDate: string;
+    startedAt: string;
+    scanned: number;
+    skippedInBank: number;
+    results: SendResult[];
+  },
 ): Promise<RunSummary> {
   const count = (...kinds: SendResult[]) => run.results.filter((r) => kinds.includes(r)).length;
   const summary: RunSummary = {
@@ -318,8 +353,9 @@ export async function recordRun(
     scanned: run.scanned,
     sent: count("sent", "retried"),
     skippedDuplicate: count("duplicate"),
+    skippedInBank: run.skippedInBank,
     retried: count("retried"),
-    failed: count("failed"),
+    failed: count("failed", "refused"),
     ready: count("ready"),
     capped: count("capped"),
   };
@@ -337,6 +373,7 @@ export async function recordRun(
         invoicesScanned: summary.scanned,
         sent: summary.sent,
         skippedDuplicate: summary.skippedDuplicate,
+        skippedInBank: summary.skippedInBank,
         retried: summary.retried,
         failed: summary.failed,
       },
@@ -358,12 +395,12 @@ export async function runLadder(
   send: (job: ReminderJob) => Promise<SendResult> = (job) => sendWithRetry(deps, job),
 ): Promise<RunSummary> {
   const startedAt = runTime(demoDate);
-  const { scanned, jobs } = await planRun(deps, workspaceId, demoDate, runId);
+  const { scanned, jobs, skippedInBank } = await planRun(deps, workspaceId, demoDate, runId);
   const results = await Promise.all(jobs.map(send));
-  return recordRun(deps, { workspaceId, runId, demoDate, startedAt, scanned, results });
+  return recordRun(deps, { workspaceId, runId, demoDate, startedAt, scanned, skippedInBank, results });
 }
 
-/** One send, and once more under the same key if it failed. */
+/** One send, and once more under the same key if it failed (not if it was refused as a repeat). */
 export async function sendWithRetry(deps: LadderDeps, job: ReminderJob): Promise<SendResult> {
   const first = await sendReminder(deps, job);
   return first === "failed" ? sendReminder(deps, job) : first;

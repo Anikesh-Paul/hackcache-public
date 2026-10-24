@@ -27,13 +27,16 @@ describe("domain cases on /proof", () => {
       "grade-c-promise": "C: usually pays 3 days late; a Promise was broken on 20 Oct",
       "interest-45-days": "interest from 17 Oct 2026",
       "ageing-sum": "0–30 ₹10,000, 31–60 ₹20,000, 61–90 ₹30,000, 90+ ₹40,000, total ₹1,00,000",
+      "chase-lateness": "₹8,400 (112 days late), then ₹10,000 (5 days late)",
+      "letter-past-due": "Demands ₹60,000 for TBW/26-27/0019",
+      "letter-nothing-due": "Nothing is past due for Gupta Traders.",
     });
     expect(results.every((result) => result.pass && result.actual === result.expected)).toBe(true);
   });
 
-  it("covers the Ladder, the matcher, the Plan rule, Grade, the §15 appointed day and Ageing", () => {
+  it("covers the Ladder, the matcher, the Plan rule, Grade, the §15 appointed day, Ageing, the chase order and the letter", () => {
     expect(new Set(results.map((result) => result.area))).toEqual(
-      new Set(["Ladder", "Match", "Plan rule", "Grade", "Interest", "Ageing"]),
+      new Set(["Ladder", "Match", "Plan rule", "Grade", "Interest", "Ageing", "Chase", "Letter"]),
     );
   });
 });

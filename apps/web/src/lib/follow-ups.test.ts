@@ -71,10 +71,12 @@ const base = (over: Partial<FollowUpInput> = {}): FollowUpInput => ({
     ["gupta", customer("gupta", "Gupta Traders", { consentCalls: true, lang: "hi" })],
     ["saha", customer("saha", "Saha Furniture Mart")],
     ["paul", customer("paul", "Paul Gift House")],
+    ["roy", customer("roy", "Roy Furnishings")],
   ]),
   promisesByInvoice: new Map(),
   reminders: [],
   events: [],
+  bankCredits: [],
   payUrl: (token) => `https://tagada.example/pay/${token}`,
   ...over,
 });
@@ -123,13 +125,57 @@ describe("followUps", () => {
     const list = followUps(
       base({
         invoices: [invoice("0019", "gupta"), paul],
-        reminders: [reminder("0030", "paul", 1, { status: "failed", error: "Resend 500", attempts: 1 })],
+        reminders: [reminder("0030", "paul", 1, { status: "failed", error: 'Resend 500: {"message":"internal"}', attempts: 1 })],
       }),
     );
     expect(list.map((f) => [f.customerName, f.state])).toEqual([
       ["Paul Gift House", "failed"],
       ["Gupta Traders", "ready"],
     ]);
+    // One plain sentence: the provider's error stays on the Reminder row.
+    expect(list[0]?.error).toBe("The email could not be sent; the next run tries again.");
+  });
+
+  it("says money waiting in the bank is there to confirm, instead of chasing it: one line per credit, as it came in", () => {
+    // Roy paid ₹500 over the Invoice's ₹23,310.
+    const roy = invoice("0021", "roy", { dueDate: "2026-10-08", totalPaise: 2_331_000, ladderStage: 3 });
+    const b1 = invoice("0022", "barua", { dueDate: "2026-10-14", totalPaise: 1_512_000, ladderStage: 3 });
+    const b2 = invoice("0023", "barua", { dueDate: "2026-10-21", totalPaise: 1_842_800, ladderStage: 2 });
+    const list = followUps(
+      base({
+        invoices: [invoice("0019", "gupta"), roy, b1, b2],
+        customers: new Map([...base().customers, ["barua", customer("barua", "Barua Stores")]]),
+        bankCredits: [
+          { matchStatus: "suggested", amountPaise: 2_381_000, allocations: [{ invoiceId: "0021", amountPaise: 2_331_000 }] },
+          {
+            matchStatus: "suggested",
+            amountPaise: 3_354_800,
+            allocations: [
+              { invoiceId: "0022", amountPaise: 1_512_000 },
+              { invoiceId: "0023", amountPaise: 1_842_800 },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(list.map((f) => [f.customerName, f.state])).toEqual([
+      ["Roy Furnishings", "in_bank"],
+      ["Barua Stores", "in_bank"],
+      ["Gupta Traders", "ready"],
+    ]);
+    expect(list[0]).toMatchObject({ amountPaise: 2_381_000, number: "TBW/26-27/0021", inBankLine: "₹23,810 from Roy Furnishings is in your bank." });
+    expect(list[1]).toMatchObject({ amountPaise: 3_354_800, number: "TBW/26-27/0022, TBW/26-27/0023" });
+  });
+
+  it("drops the bank line once the Owner confirms the credit", () => {
+    const roy = invoice("0021", "roy", { dueDate: "2026-10-08", totalPaise: 2_381_000, paidPaise: 2_381_000, status: "paid", ladderStage: 3 });
+    const list = followUps(
+      base({
+        invoices: [roy],
+        bankCredits: [{ matchStatus: "confirmed", allocations: [{ invoiceId: "0021", amountPaise: 2_381_000 }] }],
+      }),
+    );
+    expect(list).toEqual([]);
   });
 
   it("says a capped message rolls to tomorrow, and never shows a Reminder's key or stage number", () => {

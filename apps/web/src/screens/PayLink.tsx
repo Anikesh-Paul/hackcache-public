@@ -460,7 +460,7 @@ function Slip({
             </div>
           )}
 
-          {slip.state === "paid_claim" && !slip.screenshotSent && (
+          {slip.state === "paid_claim" && !slip.screenshotSent && !slip.inBank && (
             <ScreenshotUpload t={t} busy={busy} onFile={(file) => run(() => pay.screenshot(token, file))} />
           )}
 
@@ -558,9 +558,12 @@ function Standing({ slip, lang, justDone }: { slip: PaySlip; lang: Lang; justDon
         <div className="px-ln mt-6">
           <h2 className="text-lg font-semibold">{t.claimTitle}</h2>
           <div className="thanks">
-            <span className={`stamp ok ${justDone === "paid_claim" ? "land" : ""}`}>
-              <Check aria-hidden /> {t.thanks}
-            </span>
+            {/* Money that reached the bank on its own was never claimed here, so there is nothing to thank for. */}
+            {!slip.inBank && (
+              <span className={`stamp ok ${justDone === "paid_claim" ? "land" : ""}`}>
+                <Check aria-hidden /> {t.thanks}
+              </span>
+            )}
             <p>{slip.screenshotSent ? t.thanksShot : t.thanksNote}</p>
           </div>
         </div>

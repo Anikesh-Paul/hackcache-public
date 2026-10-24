@@ -8,6 +8,7 @@ import { ladderDay, nextAction, stageName, type LadderInvoice, type NextAction }
 import { matcherBrief, type BriefRow } from "./matcher.ts";
 import { DEFAULT_PLAN_RULE, planRule, type PlanVerdict } from "./plan-rule.ts";
 import { todayBook, type BookInvoice } from "./today.ts";
+import { demandLetter, type DocumentInvoice, type DocumentPromise } from "./documents.ts";
 
 const noDisputesOrBrokenPromises = { disputeDates: [] as string[], brokenPromiseDates: [] as string[] };
 
@@ -87,7 +88,64 @@ function ageingActual(): string {
   return `${buckets}, total ${formatInr(book.totals.receivablesPaise)}`;
 }
 
-/** Ladder, matcher, Plan rule, Grade and Ageing, in the shape /proof renders. */
+const openInvoice = (id: string, dueDate: string, totalPaise: number): BookInvoice => ({
+  $id: id,
+  customerId: "c1",
+  number: `TBW/26-27/${id}`,
+  issueDate: "2026-06-01",
+  dueDate,
+  totalPaise,
+  paidPaise: 0,
+  status: "sent",
+  ladderStage: 0,
+  pausedUntil: null,
+  pauseReason: null,
+});
+
+function chaseActual(): string {
+  const book = todayBook({
+    today: "2026-11-02",
+    // Salary day covered, so each Invoice scores its whole amount.
+    openingCashPaise: 50_000_000,
+    customers: [{ $id: "c1", name: "Alpha Stores", consentCalls: false }],
+    invoices: [
+      openInvoice("0031", "2026-11-26", 67_200_000),
+      openInvoice("0026", "2026-10-28", 1_000_000),
+      openInvoice("0007", "2026-07-13", 840_000),
+    ],
+    promises: [],
+    events: [],
+    bankCredits: [],
+    cashItems: [{ kind: "salary", label: "Salaries", amountPaise: 10_000_000, date: "2026-11-10", recurrence: "monthly" }],
+  });
+  return book.chase.map((row) => `${formatInr(row.amountPaise)} (${row.daysLate} days late)`).join(", then ");
+}
+
+function letterActual(invoices: readonly DocumentInvoice[], promises: readonly DocumentPromise[]): string {
+  const letter = demandLetter({
+    seller: { businessName: "Tripura Bamboo Works", address: null, gstin: null, upiVpa: null, ownerEmail: null, udyamType: "micro", isTrader: false },
+    customer: { name: "Gupta Traders", address: null, place: "Kolkata" },
+    invoices,
+    promises,
+    invoiceId: invoices[0]?.$id ?? "",
+    today: "2026-11-02",
+    payUrl: null,
+  });
+  return letter.nothingDue ?? `Demands ${letter.outstanding} for ${letter.invoices.map((line) => line.number).join(", ")}`;
+}
+
+const guptaLate = openInvoice("0019", "2026-09-25", 11_800_000);
+const guptaNotDue = openInvoice("0032", "2026-12-09", 672_000);
+const guptaPlan: DocumentPromise = {
+  invoiceId: "0019",
+  status: "approved",
+  instalments: [
+    { amountPaise: 6_000_000, date: "2026-10-30" },
+    { amountPaise: 5_800_000, date: "2026-12-02" },
+  ],
+};
+
+/** Ladder, matcher, Plan rule, Grade, Ageing, the chase order and the letter, in the shape /proof renders. */
 export function runDomainCases(): BriefRow[] {
   const paused = nextAction({
     invoice: { ...ladderInvoice, ladderStage: 2 },
@@ -238,6 +296,27 @@ export function runDomainCases(): BriefRow[] {
       "Four open Invoices on 2 Nov 2026, one in each bucket: ₹10,000, ₹20,000, ₹30,000 and ₹40,000",
       "0–30 ₹10,000, 31–60 ₹20,000, 61–90 ₹30,000, 90+ ₹40,000, total ₹1,00,000",
       ageingActual(),
+    ),
+    row(
+      "chase-lateness",
+      "Chase",
+      "On 2 Nov, salary day covered: ₹8,400 112 days late, ₹10,000 5 days late, and ₹6,72,000 not due until 26 Nov",
+      "₹8,400 (112 days late), then ₹10,000 (5 days late)",
+      chaseActual(),
+    ),
+    row(
+      "letter-past-due",
+      "Letter",
+      "Gupta Traders on 2 Nov: ₹1,18,000 under an agreed Plan of ₹60,000 by 30 Oct and ₹58,000 by 2 Dec, and ₹6,720 not due until 9 Dec",
+      "Demands ₹60,000 for TBW/26-27/0019",
+      letterActual([guptaLate, guptaNotDue], [guptaPlan]),
+    ),
+    row(
+      "letter-nothing-due",
+      "Letter",
+      "Gupta Traders on 2 Nov with only the ₹6,720 Invoice not due until 9 Dec",
+      "Nothing is past due for Gupta Traders.",
+      letterActual([guptaNotDue], []),
     ),
   ];
 }

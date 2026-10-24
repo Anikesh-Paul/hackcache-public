@@ -7,6 +7,7 @@ import {
   STATEMENT_2_CSV,
   failsFirstSend,
   invoicesForMatch,
+  isSeededEvent,
   seedWorld,
   type World,
 } from "./index.ts";
@@ -300,6 +301,16 @@ describe("seedWorld", () => {
     const [gupta] = openOf("Gupta Traders");
     expect(match.kind).toBe("part");
     expect(match.allocations).toEqual([{ invoiceId: gupta!.$id, amountPaise: 6_000_000 }]);
+  });
+});
+
+describe("isSeededEvent", () => {
+  it("knows every seeded event, and none the app writes later", () => {
+    expect(world.events.length).toBeGreaterThan(0);
+    for (const event of world.events) expect(isSeededEvent(event.$id), event.$id).toBe(true);
+    for (const id of ["v0123456789abcdef01234567", "rem_i29_w64f0c2a91be7d3e85f10_s1e", "bp0123", "9f3a1c"]) {
+      expect(isSeededEvent(id), id).toBe(false);
+    }
   });
 });
 

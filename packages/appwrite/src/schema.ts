@@ -209,6 +209,7 @@ export const tables = {
     int("invoicesScanned"),
     int("sent"),
     int("skippedDuplicate"),
+    int("skippedInBank"),
     int("retried"),
     int("failed"),
   ]),
