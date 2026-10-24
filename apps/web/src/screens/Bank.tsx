@@ -109,6 +109,14 @@ export function Bank() {
 
   const invoiceOf = (id: string) => world.invoices.find((invoice) => invoice.$id === id);
   const customerOf = (customerId: string) => world.customers.get(customerId)?.name;
+  const statementNote =
+    credits === null
+      ? "Reading the statement…"
+      : credits === "failed"
+        ? "The statement could not be read."
+        : Array.isArray(credits) && rows.length === 0
+          ? "No credits yet."
+          : null;
 
   return (
     <Paper label="Bank">
@@ -195,19 +203,9 @@ export function Bank() {
 
       <div className="sect mt-6">
         <Head title="Credits" m="date" a="amount" />
-        {credits === null && (
+        {statementNote && (
           <Ln>
-            <p className="py-4 text-sm text-ink-2">Reading the statement…</p>
-          </Ln>
-        )}
-        {credits === "failed" && (
-          <Ln>
-            <p className="py-4 text-sm">The statement could not be read.</p>
-          </Ln>
-        )}
-        {Array.isArray(credits) && rows.length === 0 && (
-          <Ln>
-            <p className="py-4 text-sm text-ink-2">No credits yet.</p>
+            <p className={`py-4 text-sm ${credits === "failed" ? "" : "text-ink-2"}`}>{statementNote}</p>
           </Ln>
         )}
         <ul className="entries">
