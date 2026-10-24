@@ -72,7 +72,7 @@ function Headline({ book, opening, today }: { book: TodayBook; opening: number; 
     ...salary.outflows.map((o) => ({ date: o.date, outflow: o })),
   ].sort((a, b) => a.date.localeCompare(b.date) || ("receipt" in a ? -1 : 1));
   return (
-    <div className="sect">
+    <div className="sect" data-tour="headline">
       <div className="ln hl-row">
         <div className="m">
           <span className={`glyph ${short ? "short" : "ok"}`}>
@@ -319,7 +319,7 @@ function Forecast({ book }: { book: TodayBook }) {
 function ChaseFirst({ book }: { book: TodayBook }) {
   const [why, setWhy] = useState(false);
   return (
-    <div className="sect">
+    <div className="sect" data-tour="chase">
       <Head title="Chase these first" a="owed" />
       {book.chase.length === 0 ? (
         <Ln>

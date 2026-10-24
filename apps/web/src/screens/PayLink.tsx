@@ -419,7 +419,7 @@ function Slip({
                   <ArrowRight aria-hidden className="ar" />
                 </a>
               )}
-              <button type="button" className="opt" disabled={busy} onClick={() => run(() => pay.paid(token))}>
+              <button type="button" className="opt" disabled={busy} onClick={() => run(() => pay.paid(token))} data-tour="paid">
                 <span className="oi">
                   <Upload aria-hidden />
                 </span>

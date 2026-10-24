@@ -6,6 +6,8 @@
 # Dependencies and build output
 node_modules/
 dist/
+tests/e2e/.results/
+playwright-report/
 *.tsbuildinfo
 
 # Personal / hackathon-internal notes, not for the public repo
