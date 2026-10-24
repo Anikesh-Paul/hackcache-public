@@ -32,6 +32,14 @@ type Words = {
   payNote: string;
   paid: string;
   paidNote: string;
+  confirmPaid: (business: string) => string;
+  confirmYes: string;
+  confirmNo: string;
+  samples: string;
+  sampleMatching: string;
+  sampleUnknown: string;
+  sampleWrong: string;
+  sampleFailed: string;
   time: string;
   timeNote: string;
   dispute: string;
@@ -76,7 +84,7 @@ type Words = {
   months: string[];
 };
 
-const WORDS: Record<Lang, Words> = {
+export const PAY_WORDS: Record<Lang, Words> = {
   hi: {
     hello: (name) => `नमस्ते, ${name}`,
     from: (business) => `${business} का संदेश`,
@@ -92,6 +100,14 @@ const WORDS: Record<Lang, Words> = {
     payNote: "कोई भी UPI ऐप",
     paid: "मैंने भुगतान कर दिया है",
     paidNote: "स्क्रीनशॉट भेजें",
+    confirmPaid: (business) => `${business} को बताएं कि आपने भुगतान कर दिया है?`,
+    confirmYes: "हाँ, बताएं",
+    confirmNo: "अभी नहीं",
+    samples: "स्क्रीनशॉट नहीं है? एक नमूना आज़माएं",
+    sampleMatching: "मिलता भुगतान",
+    sampleUnknown: "अनजाना UTR",
+    sampleWrong: "राशि अलग है",
+    sampleFailed: "यह नमूना नहीं जा सका।",
     time: "थोड़ा समय चाहिए",
     timeNote: "किश्तों में चुकाएं",
     dispute: "बिल में गड़बड़ी है? बताएं",
@@ -144,12 +160,20 @@ const WORDS: Record<Lang, Words> = {
     late: "দেরি",
     days: (n) => `${n} দিন`,
     owed: "বকেয়া টাকা",
-    listen: "হিন্দিতে শুনুন",
+    listen: "শুনুন",
     listenFailed: "এখন শোনানো গেল না।",
     pay: (amount) => `UPI দিয়ে ${amount} দিন`,
     payNote: "যেকোনো UPI অ্যাপ",
     paid: "আমি পেমেন্ট করে দিয়েছি",
     paidNote: "স্ক্রিনশট পাঠান",
+    confirmPaid: (business) => `${business}-কে জানান যে আপনি পেমেন্ট করে দিয়েছেন?`,
+    confirmYes: "হ্যাঁ, জানান",
+    confirmNo: "এখন নয়",
+    samples: "স্ক্রিনশট নেই? একটি নমুনা পাঠান",
+    sampleMatching: "মিলে যাওয়া পেমেন্ট",
+    sampleUnknown: "অজানা UTR",
+    sampleWrong: "টাকার অঙ্ক আলাদা",
+    sampleFailed: "এই নমুনাটি পাঠানো গেল না।",
     time: "একটু সময় দরকার",
     timeNote: "কিস্তিতে দিন",
     dispute: "বিলে কোনো ভুল আছে? জানান",
@@ -203,12 +227,20 @@ const WORDS: Record<Lang, Words> = {
     late: "Late by",
     days: (n) => `${n} ${n === 1 ? "day" : "days"}`,
     owed: "Amount due",
-    listen: "Listen in Hindi",
+    listen: "Listen",
     listenFailed: "It could not be played just now.",
     pay: (amount) => `Pay ${amount} by UPI`,
     payNote: "Any UPI app",
     paid: "I've already paid",
     paidNote: "Send a screenshot",
+    confirmPaid: (business) => `Tell ${business} you have paid?`,
+    confirmYes: "Yes, tell them",
+    confirmNo: "Not now",
+    samples: "No screenshot handy? Try a sample",
+    sampleMatching: "Matching payment",
+    sampleUnknown: "Unknown UTR",
+    sampleWrong: "Wrong amount",
+    sampleFailed: "That sample could not be sent.",
     time: "I need some time",
     timeNote: "Pay in instalments",
     dispute: "Something wrong with the bill? Tell us",
@@ -258,7 +290,7 @@ const WORDS: Record<Lang, Words> = {
 /** "शुक्र, 6 नवंबर" in the page's language. Latin digits on every page, so each page keeps one digit system. */
 function dateIn(lang: Lang, iso: string): string {
   if (lang === "en") return formatDate(iso);
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const [, month, day] = iso.split("-").map(Number);
   return `${t.weekdays[weekday(iso) ?? 0]}, ${day} ${t.months[(month ?? 1) - 1]}`;
 }
@@ -295,7 +327,7 @@ export function PayLink() {
     document.title = load.status === "ready" ? `${load.slip.from.businessName}: ${load.slip.invoice.number}` : "Tagada";
   }, [load]);
 
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   return (
     <div className="paydesk" lang={lang}>
       <div className="paytop">
@@ -354,11 +386,12 @@ function Slip({
   justDone: PaySlip["state"] | null;
   onChange: (slip: PaySlip) => void;
 }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const business = slip.from.businessName;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<"plan" | "dispute" | null>(null);
+  const [askPaid, setAskPaid] = useState(false);
 
   const run = async (action: () => Promise<PaySlip>) => {
     setBusy(true);
@@ -400,7 +433,7 @@ function Slip({
                 </>
               )}
             </p>
-            <ReadAloud token={token} slip={slip} t={t} />
+            <ReadAloud token={token} slip={slip} lang={lang} t={t} />
           </div>
 
           <Standing slip={slip} lang={lang} justDone={justDone} />
@@ -419,16 +452,40 @@ function Slip({
                   <ArrowRight aria-hidden className="ar" />
                 </a>
               )}
-              <button type="button" className="opt" disabled={busy} onClick={() => run(() => pay.paid(token))} data-tour="paid">
-                <span className="oi">
-                  <Upload aria-hidden />
-                </span>
-                <span>
-                  {t.paid}
-                  <small>{t.paidNote}</small>
-                </span>
-                <ArrowRight aria-hidden className="ar" />
-              </button>
+              <div data-tour="paid">
+                {askPaid ? (
+                  <div className="picker" role="group" aria-label={t.confirmPaid(business)}>
+                    <p className="text-[17px] font-semibold">{t.confirmPaid(business)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => {
+                          setAskPaid(false);
+                          void run(() => pay.paid(token));
+                        }}
+                      >
+                        {t.confirmYes}
+                      </button>
+                      <button type="button" className="btn secondary" onClick={() => setAskPaid(false)}>
+                        {t.confirmNo}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="opt" disabled={busy} onClick={() => setAskPaid(true)}>
+                    <span className="oi">
+                      <Upload aria-hidden />
+                    </span>
+                    <span>
+                      {t.paid}
+                      <small>{t.paidNote}</small>
+                    </span>
+                    <ArrowRight aria-hidden className="ar" />
+                  </button>
+                )}
+              </div>
               {slip.state === "owing" && slip.choices.length > 0 && (
                 <button
                   type="button"
@@ -511,7 +568,7 @@ function Slip({
 
 /** What is owed, or, once the Customer has acted, what they agreed: never both (§6.7 fix 12). */
 function Standing({ slip, lang, justDone }: { slip: PaySlip; lang: Lang; justDone: PaySlip["state"] | null }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const business = slip.from.businessName;
   switch (slip.state) {
     case "owing":
@@ -603,7 +660,7 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 function Instalments({ title, plan, lang }: { title: string; plan: readonly PayInstalment[]; lang: Lang }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   return (
     <div className="plan">
       <div className="ln wide head-line">
@@ -648,7 +705,7 @@ function PlanPicker({
   onTalk: () => void;
   onCancel: () => void;
 }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const [choice, setChoice] = useState<number | "talk">(0);
   const submit = () => {
     if (choice === "talk") return onTalk();
@@ -739,8 +796,27 @@ function DisputeForm({
   );
 }
 
+const SAMPLES = [
+  { file: "upi-gupta-matching.png", key: "sampleMatching" },
+  { file: "upi-unknown-utr.png", key: "sampleUnknown" },
+  { file: "upi-wrong-amount.png", key: "sampleWrong" },
+] as const;
+
 function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile: (file: File) => void }) {
   const [bad, setBad] = useState(false);
+  const [sampleFailed, setSampleFailed] = useState(false);
+  const sendSample = async (name: string) => {
+    setSampleFailed(false);
+    setBad(false);
+    try {
+      const res = await fetch(`/samples/${name}`);
+      if (!res.ok) throw new Error("sample");
+      const blob = await res.blob();
+      onFile(new File([blob], name, { type: blob.type || "image/png" }));
+    } catch {
+      setSampleFailed(true);
+    }
+  };
   return (
     <div className="px-ln mt-5">
       <label className={`opt upload ${busy ? "opacity-60" : ""}`}>
@@ -769,12 +845,27 @@ function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile
           {t.fileFailed}
         </p>
       )}
+      <div className="mt-4">
+        <p className="text-[15px] text-ink-2">{t.samples}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SAMPLES.map((sample) => (
+            <button key={sample.file} type="button" className="btn secondary" disabled={busy} onClick={() => void sendSample(sample.file)}>
+              {t[sample.key]}
+            </button>
+          ))}
+        </div>
+        {sampleFailed && (
+          <p className="mt-2 text-[15px] text-sindoor" role="alert">
+            {t.sampleFailed}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
 
 /** The slip read aloud in Hindi, spoken once on the server and kept in Storage. */
-function ReadAloud({ token, slip, t }: { token: string; slip: PaySlip; t: Words }) {
+function ReadAloud({ token, slip, lang, t }: { token: string; slip: PaySlip; lang: Lang; t: Words }) {
   const [state, setState] = useState<"idle" | "playing" | "failed">("idle");
   const audio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => audio.current?.pause(), []);
@@ -783,14 +874,14 @@ function ReadAloud({ token, slip, t }: { token: string; slip: PaySlip; t: Words 
     audio.current?.pause();
     audio.current = null;
     setState("idle");
-  }, [slip.state, slip.screenshotSent]);
+  }, [slip.state, slip.screenshotSent, lang]);
   const play = async () => {
     if (state === "playing") {
       audio.current?.pause();
       setState("idle");
       return;
     }
-    audio.current ??= new Audio(`${pay.audioUrl(token)}?v=${slip.state}${slip.screenshotSent ? "s" : ""}`);
+    audio.current ??= new Audio(`${pay.audioUrl(token, lang)}&v=${slip.state}${slip.screenshotSent ? "s" : ""}`);
     audio.current.onended = () => setState("idle");
     setState("playing");
     try {

@@ -19,6 +19,7 @@ test("a Customer's 'already paid' on the pay link reaches the Owner's Inbox", as
     page.getByRole("link", { name: /Open pay link as Gupta Traders/ }).click(),
   ]);
   await customer.getByRole("button", { name: /मैंने भुगतान कर दिया है/ }).click();
+  await customer.getByRole("button", { name: "हाँ, बताएं" }).click();
   await expect(customer.getByText(/स्क्रीनशॉट/).first()).toBeVisible();
 
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Inbox" }).click();

@@ -367,10 +367,12 @@ describe("Chase these first", () => {
       gapClosedPaise: 4_000_000,
       action: "call",
       reason: "Closes the whole salary gap. Usually pays 12 days late; no reminder in 31 days.",
+      why: { gap: "all", gapPaise: 4_000_000, avgDelayDays: 12, reminderAgoDays: 31 },
     });
     expect(b.chase[1]).toMatchObject({
       action: "open",
       reason: "Closes ₹8,400 of the ₹40,000 salary gap. No Invoice paid yet; no reminder yet.",
+      why: { gap: "part", gapPaise: 4_000_000, avgDelayDays: null, reminderAgoDays: null },
     });
   });
 
@@ -378,6 +380,7 @@ describe("Chase these first", () => {
     const covered = todayBook({ ...gap(), openingCashPaise: 50_000_000 });
     expect(covered.salary?.cashAfterPaise).toBeGreaterThan(0);
     expect(covered.chase[0]).toMatchObject({ invoiceId: "big", reason: expect.stringMatching(/^Brings in ₹1,18,000\./) });
+    expect(covered.chase[0]?.why.gap).toBe("none");
   });
 
   it("adds lateness: a smaller Invoice three months late ranks above a larger one 5 days late", () => {

@@ -1,6 +1,6 @@
 // Per-browser conveniences: theme and header language. Storage can be blocked
 // (private windows), so every read and write is guarded.
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 function read(key: string): string | null {
   try {
@@ -51,13 +51,33 @@ export function useTheme() {
   return { theme, toggle };
 }
 
-export type Lang = "en" | "hi";
+export type Lang = "en" | "hi" | "bn";
+
+// One choice for the whole page: the header, Settings and every screen read the same value.
+let chosenLang: Lang | null = null;
+const langListeners = new Set<() => void>();
+
+export function currentLang(): Lang {
+  if (chosenLang === null) {
+    const saved = read("tagada.lang");
+    chosenLang = saved === "hi" || saved === "bn" ? saved : "en";
+  }
+  return chosenLang;
+}
+
+export function chooseLang(next: Lang) {
+  if (currentLang() === next) return;
+  write("tagada.lang", next);
+  chosenLang = next;
+  for (const listener of langListeners) listener();
+}
+
+export function subscribeLang(listener: () => void): () => void {
+  langListeners.add(listener);
+  return () => langListeners.delete(listener);
+}
 
 export function useLang() {
-  const [lang, setLang] = useState<Lang>(() => (read("tagada.lang") === "hi" ? "hi" : "en"));
-  const choose = useCallback((next: Lang) => {
-    write("tagada.lang", next);
-    setLang(next);
-  }, []);
-  return { lang, choose };
+  const lang = useSyncExternalStore(subscribeLang, currentLang, currentLang);
+  return { lang, choose: chooseLang };
 }

@@ -220,6 +220,39 @@ describe("bank import and proof check", () => {
     });
   });
 
+  it("assigns the ₹15,000 PhonePe deposit to Gupta and keeps Roy's ₹500 as an advance", async () => {
+    const phonepe = txns().find((row) => String(row.narration).includes("PHONEPE"));
+    const narration = phonepe?.narration;
+    const assigned = await post("/api/bank/assign", { id: phonepe?.$id, customerId: customerId("Gupta Traders") });
+    expect(assigned.status).toBe(200);
+    expect(await assigned.json()).toMatchObject({ kind: "part" });
+    const stored = txns().find((row) => row.$id === phonepe?.$id);
+    expect(stored).toMatchObject({
+      matchStatus: "suggested",
+      narration,
+      assignedCustomerId: customerId("Gupta Traders"),
+    });
+    const confirmed = await post("/api/bank/confirm", { ids: [phonepe?.$id] });
+    expect(await confirmed.json()).toMatchObject({ confirmed: 1, changed: 0 });
+
+    const roy = txns().find((row) => row.matchKind === "overpay");
+    expect(await (await post("/api/bank/advance", { id: roy?.$id })).json()).toEqual({ error: "not_confirmed" });
+    expect(db.table("events").filter((row) => row.type === "advance")).toHaveLength(0);
+    await post("/api/bank/confirm", { ids: [roy?.$id] });
+    const kept = await post("/api/bank/advance", { id: roy?.$id });
+    expect(await kept.json()).toEqual({
+      ok: true,
+      amountPaise: 50_000,
+      customerName: "Roy Furnishings",
+      already: false,
+    });
+    expect(db.table("events").find((row) => row.type === "advance")?.summary).toBe(
+      "₹500 kept as an advance for Roy Furnishings.",
+    );
+    expect(await (await post("/api/bank/advance", { id: roy?.$id })).json()).toMatchObject({ already: true });
+    expect(db.table("events").filter((row) => row.type === "advance")).toHaveLength(1);
+  });
+
   it("refuses an import with no session", async () => {
     const res = await app.request("/api/bank/import", {
       method: "POST",

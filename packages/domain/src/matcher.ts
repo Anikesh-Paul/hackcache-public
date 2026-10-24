@@ -211,6 +211,31 @@ function unknown(paidUp?: MatchInvoice): Match {
   };
 }
 
+export type AssignedCustomer = { id: string; name: string };
+
+/**
+ * Suggest a match as if the narration named this Customer, and no one else.
+ * The Owner confirms the suggestion the same way as any other credit.
+ */
+export function matchForCustomer(credit: MatchCredit, invoices: readonly MatchInvoice[], customer: AssignedCustomer): Match {
+  const theirs = invoices.filter((invoice) => invoice.customerId === customer.id);
+  if (theirs.length === 0) {
+    return {
+      kind: "unknown",
+      allocations: [],
+      note: `Nothing is open for ${customer.name}, so this is not applied to an Invoice.`,
+      tds: null,
+    };
+  }
+  return matchCredit({ ...credit, narration: `${customer.name} ${credit.narration}` }, theirs);
+}
+
+/** Paise of a credit that the match does not put on an Invoice. Zero when nothing is left over. */
+export function overpayPaise(creditPaise: number, allocations: readonly { amountPaise: number }[]): number {
+  const extra = differencePaise(creditPaise, sumPaise(allocations.map((share) => share.amountPaise)));
+  return extra > 0 ? extra : 0;
+}
+
 /** Suggest a match for one credit. Open Invoices only; paid ones are the caller's to leave out, and a zero balance is ignored here too. */
 export function matchCredit(credit: MatchCredit, invoices: readonly MatchInvoice[]): Match {
   const open = invoices.filter((invoice) => balanceOf(invoice) > 0);
@@ -489,7 +514,16 @@ export function invoicesForMatch(input: {
     });
 }
 
-export type BriefRow = { id: string; area: string; input: string; expected: string; actual: string; pass: boolean };
+export type BriefRow = {
+  id: string;
+  area: string;
+  input: string;
+  expected: string;
+  actual: string;
+  pass: boolean;
+  /** Test file in the public repo that locks this case. */
+  source: string;
+};
 
 /** The brief's matcher cases, in the shape `/proof` renders. Expected text is fixed. */
 export function matcherBrief(): BriefRow[] {
@@ -522,7 +556,7 @@ export function matcherBrief(): BriefRow[] {
   const spread = matchCredit(credit("NEFT M/S BARUA STORES PVT LTD", 300_000), [newer, older]);
   const part = matchCredit(credit("BARUA STORES", 200_000), [inv]);
   const applied = sumPaise(part.allocations.map((a) => a.amountPaise));
-  const rows: Omit<BriefRow, "pass">[] = [
+  const rows: Omit<BriefRow, "pass" | "source">[] = [
     {
       id: "match-number",
       area: "Match",
@@ -561,5 +595,9 @@ export function matcherBrief(): BriefRow[] {
       actual: `${part.kind}: ${formatInr(applied)} applied, ${formatInr(differencePaise(inv.totalPaise, applied))} still owed`,
     },
   ];
-  return rows.map((row) => ({ ...row, pass: row.actual === row.expected }));
+  return rows.map((row) => ({
+    ...row,
+    source: "packages/domain/src/matcher.test.ts",
+    pass: row.actual === row.expected,
+  }));
 }

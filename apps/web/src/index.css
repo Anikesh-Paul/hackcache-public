@@ -261,6 +261,10 @@ h3 {
     color: var(--ink-2);
     border-left-color: transparent;
   }
+  /* A head's right column is a label, not an amount: a longer Hindi or Bengali one wraps at 360 px. */
+  .ln.head > .a {
+    white-space: normal;
+  }
   .sect + .sect {
     margin-top: 36px;
   }

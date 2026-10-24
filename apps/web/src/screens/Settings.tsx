@@ -5,6 +5,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { AUTO_SEND_SWITCHES, LADDER_STAGES, planRule } from "@tagada/domain";
 import { E_INVOICE_TURNOVER_PAISE, formatInr, parseAmountPaise } from "@tagada/money";
+import { useT } from "../i18n/index.ts";
 import { emailSetup, saveSettings } from "../lib/appwrite.ts";
 import { LANGUAGES } from "../lib/languages.ts";
 import { useLang } from "../lib/prefs.ts";
@@ -14,22 +15,7 @@ import { Head, Ln, Paper } from "../ui.tsx";
 const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper px-3 text-ink";
 const small = "min-h-11 w-20 rounded-md border border-rule-strong bg-paper px-3 text-ink";
 
-const REGISTRATIONS = [
-  { id: "regular", name: "Regular GST", note: "Tax Invoice, with GST" },
-  { id: "composition", name: "Composition", note: "Bill of Supply, no GST charged" },
-  { id: "unregistered", name: "Not registered", note: "Invoice, no GST" },
-] as const;
-
-const PROBLEMS: Record<string, string> = {
-  businessName: "Give your business a name.",
-  address: "The address is too long.",
-  registrationType: "Choose how you are registered.",
-  aggregateTurnoverPaise: "Write the turnover in rupees, like 1,80,00,000.",
-  planRule: "The rest must be due after the first instalment; the first instalment is 1% to 100%.",
-  autoSendStages: "Only the three messages can go out on their own.",
-  ownerEmail: "That email address does not look right.",
-  lang: "Choose a language.",
-};
+const REGISTRATIONS = ["regular", "composition", "unregistered"] as const;
 
 function Field({ label, hint, children }: { label: string; hint?: string | null; children: ReactNode }) {
   return (
@@ -47,6 +33,7 @@ function Field({ label, hint, children }: { label: string; hint?: string | null;
 
 /** The one Demo inbox every reminder email is delivered to: fixed to the Resend account's own email. */
 function DemoInbox({ businessName }: { businessName: string }) {
+  const t = useT();
   const [setup, setSetup] = useState<Awaited<ReturnType<typeof emailSetup>> | "loading" | "failed">("loading");
   useEffect(() => {
     let live = true;
@@ -63,23 +50,19 @@ function DemoInbox({ businessName }: { businessName: string }) {
   }, []);
   return (
     <div className="grid gap-1 text-sm">
-      <span className="font-medium">Demo inbox</span>
+      <span className="font-medium">{t.settings.demoInbox}</span>
       {setup === "loading" ? (
-        <span className="text-ink-2">Reading…</span>
+        <span className="text-ink-2">{t.settings.reading}</span>
       ) : setup === "failed" ? (
-        <span className="text-ink-2">Could not be read. Reload to try again.</span>
+        <span className="text-ink-2">{t.settings.unreadable}</span>
       ) : setup.emailReady ? (
         <span className="mono break-all">{setup.demoInbox}</span>
       ) : (
         <span role="alert" className="text-sindoor">
-          Email is not set up on this server yet, so reminder emails show as failed. They need RESEND_API_KEY and
-          DEMO_INBOX_EMAIL.
+          {t.settings.noEmail}
         </span>
       )}
-      <small className="text-ink-2">
-        Reminder emails go from “{businessName} via Tagada”. In this demo every one is delivered to this one inbox, never
-        to a Customer.
-      </small>
+      <small className="text-ink-2">{t.settings.fromNote(businessName)}</small>
     </div>
   );
 }
@@ -92,7 +75,9 @@ function rupees(paise: number): string {
 export function Settings() {
   const world = useWorld();
   const { reload } = useWorldState();
-  const { choose } = useLang();
+  // The header and Settings share one choice: the radios show it, and Save stores it with the workspace.
+  const { lang, choose } = useLang();
+  const t = useT();
   const ws = world.workspace;
   const rule = planRule.parse(ws.planRule);
 
@@ -106,7 +91,6 @@ export function Settings() {
     restWithinDays: String(rule.restWithinDays),
     autoSendStages: [...ws.autoSendStages],
     ownerEmail: ws.ownerEmail ?? "",
-    lang: ws.lang ?? "en",
   });
   const [problem, setProblem] = useState<{ field: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -115,7 +99,7 @@ export function Settings() {
     setForm((now) => ({ ...now, ...patch }));
     setSaved(false);
   };
-  const hint = (field: string) => (problem?.field === field ? PROBLEMS[field] : null);
+  const hint = (field: string) => (problem?.field === field ? t.settings.problems[field] : null);
   const turnoverPaise = parseAmountPaise(form.turnover);
 
   const save = async (event: FormEvent) => {
@@ -139,13 +123,12 @@ export function Settings() {
         },
         autoSendStages: form.autoSendStages,
         ownerEmail: form.ownerEmail.trim() || null,
-        lang: form.lang,
+        lang,
       });
       if (!result.ok) {
         setProblem({ field: result.field });
         return;
       }
-      if (form.lang === "en" || form.lang === "hi") choose(form.lang);
       await reload();
       setSaved(true);
     } catch (e) {
@@ -160,81 +143,79 @@ export function Settings() {
     set({ autoSendStages: on ? [...form.autoSendStages, stage].sort() : form.autoSendStages.filter((s) => s !== stage) });
 
   return (
-    <Paper label="Settings">
+    <Paper label={t.settings.title}>
       <form onSubmit={save} noValidate>
         <div className="ln wide">
           <div className="m" />
           <div className="p">
-            <h1 className="text-[28px] leading-tight">Settings</h1>
-            <p className="mt-1 max-w-[60ch] text-ink-2">Your business, your Plan rule and what the Ladder may send on its own.</p>
+            <h1 className="text-[28px] leading-tight">{t.settings.title}</h1>
+            <p className="mt-1 max-w-[60ch] text-ink-2">{t.settings.intro}</p>
           </div>
         </div>
 
         <div className="sect mt-6">
-          <Head title="Your business" />
+          <Head title={t.settings.business} />
           <Ln>
             <div className="grid max-w-[560px] gap-3">
-              <Field label="Business name" hint={hint("businessName")}>
+              <Field label={t.settings.businessName} hint={hint("businessName")}>
                 <input className={control} value={form.businessName} onChange={(e) => set({ businessName: e.target.value })} />
               </Field>
-              <Field label="Address" hint={hint("address")}>
+              <Field label={t.settings.address} hint={hint("address")}>
                 <input className={control} value={form.address} onChange={(e) => set({ address: e.target.value })} />
               </Field>
               <fieldset className="picker grid gap-2">
-                <legend className="px-1 text-sm font-medium">GST registration</legend>
-                {REGISTRATIONS.map((r) => (
-                  <label key={r.id} className="choice">
+                <legend className="px-1 text-sm font-medium">{t.settings.registration}</legend>
+                {REGISTRATIONS.map((id) => (
+                  <label key={id} className="choice">
                     <input
                       type="radio"
                       name="registration"
-                      checked={form.registrationType === r.id}
-                      onChange={() => set({ registrationType: r.id })}
+                      checked={form.registrationType === id}
+                      onChange={() => set({ registrationType: id })}
                     />
                     <span>
-                      {r.name}
-                      <small>{r.note}</small>
+                      {t.settings.registrations[id].name}
+                      <small>{t.settings.registrations[id].note}</small>
                     </span>
                   </label>
                 ))}
               </fieldset>
-              <Field label="Aggregate turnover this year, ₹" hint={hint("aggregateTurnoverPaise")}>
+              <Field label={t.settings.turnover} hint={hint("aggregateTurnoverPaise")}>
                 <input className={control} inputMode="decimal" value={form.turnover} onChange={(e) => set({ turnover: e.target.value })} />
               </Field>
               <small className="text-ink-2">
-                {turnoverPaise !== null && turnoverPaise > E_INVOICE_TURNOVER_PAISE
-                  ? "Above ₹5 crore: your Invoices carry the e-invoicing note."
-                  : "Up to ₹5 crore: no e-invoicing note."}
+                {turnoverPaise !== null && turnoverPaise > E_INVOICE_TURNOVER_PAISE ? t.settings.eInvoiceAbove : t.settings.eInvoiceBelow}
               </small>
             </div>
           </Ln>
         </div>
 
         <div className="sect">
-          <Head title="Your Plan rule" />
+          <Head title={t.settings.planRule} />
           <Ln>
             <p className="flex flex-wrap items-center gap-2 text-sm">
-              First instalment at least
-              <input aria-label="First instalment, percent" className={small} inputMode="numeric" value={form.minFirstPct} onChange={(e) => set({ minFirstPct: e.target.value })} />
-              % within
-              <input aria-label="First instalment within days" className={small} inputMode="numeric" value={form.firstWithinDays} onChange={(e) => set({ firstWithinDays: e.target.value })} />
-              days, the rest within
-              <input aria-label="Rest within days" className={small} inputMode="numeric" value={form.restWithinDays} onChange={(e) => set({ restWithinDays: e.target.value })} />
-              days.
+              {t.settings.firstAtLeast}
+              <input aria-label={t.settings.firstPct} className={small} inputMode="numeric" value={form.minFirstPct} onChange={(e) => set({ minFirstPct: e.target.value })} />
+              {t.settings.percentWithin}
+              <input aria-label={t.settings.firstDays} className={small} inputMode="numeric" value={form.firstWithinDays} onChange={(e) => set({ firstWithinDays: e.target.value })} />
+              {t.settings.daysRestWithin}
+              <input aria-label={t.settings.restDays} className={small} inputMode="numeric" value={form.restWithinDays} onChange={(e) => set({ restWithinDays: e.target.value })} />
+              {t.settings.daysEnd}
             </p>
             {hint("planRule") && (
               <small role="alert" className="text-sindoor">
                 {hint("planRule")}
               </small>
             )}
-            <small>Call with AI and the pay link only offer Plans inside this rule; anything else needs your decision.</small>
+            <small>{t.settings.ruleNote}</small>
           </Ln>
         </div>
 
         <div className="sect">
-          <Head title="Auto-send stages" />
+          <Head title={t.settings.autoSend} />
           <Ln>
             <fieldset className="grid max-w-[560px] gap-2">
-              <legend className="sr-only">Ladder messages the daily run sends without asking</legend>
+              <legend className="sr-only">{t.settings.autoSendLegend}</legend>
               {AUTO_SEND_SWITCHES.map((stage) => (
                 <label key={stage} className="choice">
                   <input
@@ -244,22 +225,16 @@ export function Settings() {
                     onChange={(e) => toggleStage(stage, e.target.checked)}
                   />
                   <span>
-                    {LADDER_STAGES[stage - 1]?.name}
-                    <small>
-                      {form.autoSendStages.includes(stage)
-                        ? "On: the 10:00 run emails it."
-                        : "Off: it waits in Today's follow-ups as Ready to send."}
-                    </small>
+                    {t.ladder.stages[stage - 1]?.name}
+                    <small>{form.autoSendStages.includes(stage) ? t.settings.on : t.settings.off}</small>
                   </span>
                 </label>
               ))}
               {LADDER_STAGES.slice(AUTO_SEND_SWITCHES.length).map((stage) => (
                 <p key={stage.stage} className="choice cursor-default">
                   <span>
-                    {stage.name}
-                    <small>
-                      {stage.stage === 5 ? "Never sent automatically: you send it." : "Always yours to take."}
-                    </small>
+                    {t.ladder.stages[stage.stage - 1]?.name}
+                    <small>{stage.stage === 5 ? t.settings.never : t.settings.always}</small>
                   </span>
                 </p>
               ))}
@@ -273,10 +248,10 @@ export function Settings() {
         </div>
 
         <div className="sect">
-          <Head title="Email" />
+          <Head title={t.settings.email} />
           <Ln>
             <div className="grid max-w-[560px] gap-3">
-              <Field label="Your email (Customers' replies come here)" hint={hint("ownerEmail")}>
+              <Field label={t.settings.yourEmail} hint={hint("ownerEmail")}>
                 <input className={control} type="email" value={form.ownerEmail} onChange={(e) => set({ ownerEmail: e.target.value })} />
               </Field>
               <DemoInbox businessName={form.businessName} />
@@ -285,13 +260,21 @@ export function Settings() {
         </div>
 
         <div className="sect">
-          <Head title="Language" />
+          <Head title={t.settings.language} />
           <Ln>
             <fieldset className="flex flex-wrap gap-2">
-              <legend className="sr-only">Your language</legend>
+              <legend className="sr-only">{t.settings.yourLanguage}</legend>
               {LANGUAGES.map((l) => (
                 <label key={l.id} className="choice" lang={l.id}>
-                  <input type="radio" name="lang" checked={form.lang === l.id} onChange={() => set({ lang: l.id })} />
+                  <input
+                    type="radio"
+                    name="lang"
+                    checked={lang === l.id}
+                    onChange={() => {
+                      choose(l.id);
+                      setSaved(false);
+                    }}
+                  />
                   <span>{l.name}</span>
                 </label>
               ))}
@@ -303,11 +286,11 @@ export function Settings() {
           <Ln>
             <span className="flex flex-wrap items-center gap-3">
               <button type="submit" className="btn primary" disabled={saving}>
-                {saving ? "Saving…" : "Save settings"}
+                {saving ? t.common.saving : t.settings.save}
               </button>
               <span role="status" className="text-sm">
-                {saved && "Saved."}
-                {problem?.field === "save" && <span className="text-sindoor">Not saved. Try again.</span>}
+                {saved && t.settings.saved}
+                {problem?.field === "save" && <span className="text-sindoor">{t.settings.notSaved}</span>}
               </span>
             </span>
           </Ln>

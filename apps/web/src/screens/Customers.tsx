@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
-import { GRADE_WHY } from "@tagada/domain";
 import { formatInr } from "@tagada/money";
-import { amountOwed, daysLatePhrase, gradeFor, gradeSentence } from "../lib/customer-grade.ts";
+import { amountOwed, gradeFor } from "../lib/customer-grade.ts";
+import { useT } from "../i18n/index.ts";
 import { usePaymentHistory, useWorld } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
 
@@ -11,24 +11,25 @@ export function Customers() {
   const world = useWorld();
   const events = usePaymentHistory();
   const [why, setWhy] = useState(false);
+  const t = useT();
   const today = world.workspace.today;
   const customers = [...world.customers.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
-    <Paper label="Customers">
+    <Paper label={t.customers.title}>
       <Ln>
-        <h1 className="text-[28px] leading-tight">Customers</h1>
+        <h1 className="text-[28px] leading-tight">{t.customers.title}</h1>
         <p className="mt-1 text-sm text-ink-2">
-          {customers.length} Customers. A grade is how they have paid, with the reason.{" "}
+          {t.customers.intro(customers.length)}{" "}
           <button type="button" className="linkbtn" aria-expanded={why} onClick={() => setWhy((open) => !open)}>
-            Why?
+            {t.common.why}
           </button>
         </p>
-        {why && <p className="mt-2 max-w-[68ch] text-sm">{GRADE_WHY}</p>}
+        {why && <p className="mt-2 max-w-[68ch] text-sm">{t.customers.gradeWhy}</p>}
       </Ln>
 
       <div className="sect mt-6">
-        <Head title="Every Customer" m="place" a="owed" />
+        <Head title={t.customers.every} m={t.customers.place} a={t.customers.owed} />
         <ul className="entries">
           {customers.map((customer) => {
             const invoices = world.invoices.filter((invoice) => invoice.customerId === customer.$id);
@@ -48,12 +49,12 @@ export function Customers() {
                     {customer.name}
                   </Link>
                   <small>
-                    {events === "loading" && "Reading payment history…"}
-                    {events === "failed" && "Grade unavailable"}
-                    {grade && gradeSentence(grade)}
+                    {events === "loading" && t.customers.reading}
+                    {events === "failed" && t.customers.unavailable}
+                    {grade && t.customers.grade(grade.grade, grade.facts)}
                     <span className="mt-0.5 block">
-                      {customer.creditDays ?? 0} days' credit.
-                      {grade?.avgDelayDays != null && ` ${daysLatePhrase(grade.avgDelayDays)}.`}
+                      {t.customers.credit(customer.creditDays ?? 0)}
+                      {grade?.avgDelayDays != null && ` ${t.customers.delay(grade.avgDelayDays)}.`}
                     </span>
                   </small>
                 </div>

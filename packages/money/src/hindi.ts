@@ -64,6 +64,14 @@ export function hindiRupees(paise: number): string {
  * Weekday and date in Hindi, for an ISO date. An unusable string is returned
  * unchanged, as the call prototype did.
  */
+/** "6 नवंबर": digits, for lists of dates where words would be heavy. */
+export function hindiShortDate(iso: string): string {
+  const date = parseCivilDate(iso);
+  const monthName = date ? HI_MONTHS[date.month - 1] : undefined;
+  if (!date || monthName === undefined) return iso;
+  return `${date.day} ${monthName}`;
+}
+
 export function hindiDate(iso: string): string {
   const date = parseCivilDate(iso);
   const day = weekday(iso);

@@ -1,5 +1,5 @@
 import { Link, useSearchParams } from "react-router";
-import { formatDate, formatInr, sumPaise } from "@tagada/money";
+import { formatInr, sumPaise } from "@tagada/money";
 import {
   AGEING_BUCKETS,
   INVOICE_FILTERS,
@@ -8,20 +8,15 @@ import {
   matchesFilter,
   type InvoiceFilter,
 } from "@tagada/domain";
+import { useT } from "../i18n/index.ts";
 import { compareInvoiceList } from "../lib/invoice-list.ts";
 import { useWorld, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 
-const LABELS: Record<InvoiceFilter, string> = {
-  all: "All",
-  overdue: "Overdue",
-  promised: "Promised",
-  disputed: "Disputed",
-  paid: "Paid",
-};
-
 export function Invoices() {
   const world = useWorld();
+  const t = useT();
+  const labels = t.invoices.filters;
   const [params, setParams] = useSearchParams();
   const asked = params.get("filter") ?? "all";
   const filter: InvoiceFilter = isInvoiceFilter(asked) ? asked : "all";
@@ -36,18 +31,18 @@ export function Invoices() {
   const total = sumPaise(shown.map((v) => (paidOnly ? v.invoice.totalPaise : v.standing.balancePaise)));
 
   return (
-    <Paper label="Invoices">
+    <Paper label={t.invoices.title}>
       <Ln>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-[28px] leading-tight">Invoices</h1>
+          <h1 className="text-[28px] leading-tight">{t.invoices.title}</h1>
           <Link to="/app/invoices/new" className="btn primary">
-            New invoice
+            {t.invoices.newInvoice}
           </Link>
         </div>
         <p className="mt-1 text-sm text-ink-2">
-          {world.invoices.length} Invoices this financial year. Amounts are what is still owed.
+          {t.invoices.count(world.invoices.length)}
         </p>
-        <div role="group" aria-label="Show" className="mt-4 flex flex-wrap gap-2">
+        <div role="group" aria-label={t.invoices.show} className="mt-4 flex flex-wrap gap-2">
           {INVOICE_FILTERS.map((f) => {
             const count = views.filter((v) => matchesFilter(v.standing, f)).length;
             return (
@@ -60,7 +55,7 @@ export function Invoices() {
                   !age && filter === f ? "border-ink bg-ink font-semibold text-paper" : "border-rule-strong text-ink"
                 }`}
               >
-                {LABELS[f]} <span className={!age && filter === f ? "" : "text-ink-2"}>{count}</span>
+                {labels[f]} <span className={!age && filter === f ? "" : "text-ink-2"}>{count}</span>
               </button>
             );
           })}
@@ -69,15 +64,15 @@ export function Invoices() {
 
       <div className="sect mt-6">
         <Head
-          title={age ? `${age.label} days past due` : filter === "all" ? "Every Invoice" : LABELS[filter]}
-          m="due"
-          a="owed"
+          title={age ? t.invoices.ageTitle(age.label) : filter === "all" ? t.invoices.every : labels[filter]}
+          m={t.invoices.due}
+          a={t.invoices.owed}
         />
         {shown.length === 0 ? (
           <div className="entries">
             <Ln>
               <p className="text-ink-2">
-                No {age ? "" : `${LABELS[filter].toLowerCase()} `}Invoices on {formatDate(world.workspace.today)}.
+                {t.invoices.noneOn(age || filter === "all" ? null : labels[filter], t.date(world.workspace.today))}
               </p>
             </Ln>
           </div>
@@ -85,13 +80,13 @@ export function Invoices() {
           <ul className="entries">
             {shown.map(({ invoice, customer, standing }) => (
               <li key={invoice.$id} className="ln ruler relative">
-                <div className="m">{formatDate(invoice.dueDate, { weekday: false })}</div>
+                <div className="m">{t.date(invoice.dueDate, { weekday: false })}</div>
                 <div className="p">
                   <Link
                     to={`/app/invoices/${invoice.$id}`}
                     className="font-medium no-underline after:absolute after:inset-0"
                   >
-                    {customer?.name ?? "Unknown Customer"}
+                    {customer?.name ?? t.invoices.unknownCustomer}
                   </Link>
                   <small>
                     <span className="mono">{invoice.number}</span>
@@ -104,7 +99,7 @@ export function Invoices() {
                   {standing.state === "paid" ? (
                     <span className="text-ink-2">
                       {formatInr(invoice.totalPaise)}
-                      <small className="block text-xs">paid</small>
+                      <small className="block text-xs">{t.invoices.paid}</small>
                     </span>
                   ) : (
                     formatInr(standing.balancePaise)
@@ -114,7 +109,7 @@ export function Invoices() {
             ))}
             <li className="ln tot">
               <div className="m" />
-              <div className="p">{paidOnly ? "Paid" : "Still owed"}</div>
+              <div className="p">{paidOnly ? t.invoices.paidTotal : t.invoices.stillOwed}</div>
               <div className="a">
                 <span className="dbl">{formatInr(total)}</span>
               </div>
