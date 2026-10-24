@@ -3,7 +3,7 @@
 import { formatDate, formatInr } from "@tagada/money";
 import { grade, type GradeInput } from "./grade.ts";
 import { invoiceStanding } from "./invoice.ts";
-import { msmedInterest } from "./msmed.ts";
+import { msmedInterest, section43bh } from "./msmed.ts";
 import { ladderDay, nextAction, stageName, type LadderInvoice, type NextAction } from "./ladder.ts";
 import { matcherBrief, type BriefRow } from "./matcher.ts";
 import { DEFAULT_PLAN_RULE, planRule, type PlanVerdict } from "./plan-rule.ts";
@@ -50,6 +50,16 @@ function appointedWords(): string {
   return meter ? `interest from ${formatDate(meter.from, { weekday: false, year: true })}` : "no interest";
 }
 
+function deductionWords(): string {
+  const invoice = { issueDate: "2026-08-26", dueDate: "2026-09-25" };
+  const words = (isTrader: boolean) => {
+    const clock = section43bh({ udyamType: "micro", isTrader }, invoice, "2026-11-02");
+    if (!clock) return "not covered";
+    return `${clock.sameYear ? "same year" : "year paid"}: FY ${clock.claimYear} if paid by ${formatDate(clock.claimBy, { weekday: false, year: true })}`;
+  };
+  return `manufacturer, ${words(false)}; trader, ${words(true)}`;
+}
+
 const SOURCE: Record<string, string> = {
   Ladder: "packages/domain/src/ladder.test.ts",
   Match: "packages/domain/src/matcher.test.ts",
@@ -59,6 +69,7 @@ const SOURCE: Record<string, string> = {
   Ageing: "packages/domain/src/today.test.ts",
   Chase: "packages/domain/src/today.test.ts",
   Letter: "packages/domain/src/documents.test.ts",
+  Tax: "packages/domain/src/domain.test.ts",
 };
 
 function row(id: string, area: string, input: string, expected: string, actual: string): BriefRow {
@@ -308,6 +319,13 @@ export function runDomainCases(): BriefRow[] {
       "Invoice dated 1 Sep 2026 with 60 days' credit, due 31 Oct",
       "interest from 17 Oct 2026",
       appointedWords(),
+    ),
+    row(
+      "deduction-43bh",
+      "Tax",
+      "Section 43B(h) on 2 Nov 2026: a micro seller's Invoice dated 26 Aug 2026, due 25 Sep and unpaid, from a manufacturer and from a trader",
+      "manufacturer, same year: FY 26-27 if paid by 31 Mar 2027; trader, not covered",
+      deductionWords(),
     ),
     row(
       "ageing-sum",

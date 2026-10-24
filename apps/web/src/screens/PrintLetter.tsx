@@ -138,6 +138,18 @@ export function PrintLetter() {
           </aside>
         )}
 
+        {letter.deduction && (
+          <aside className="mt-2 break-inside-avoid border border-rule-strong p-3">
+            <p className="font-medium">{letter.deduction.heading}</p>
+            <p className="mt-2">{letter.deduction.explanation}</p>
+            <ul className="mt-2 space-y-1">
+              {letter.deduction.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </aside>
+        )}
+
         {/* The sign-off never splits from its signature line across a page break. */}
         <footer className="mt-8 flex break-inside-avoid justify-end print:mt-5">
           <div className="text-center">

@@ -354,6 +354,13 @@ export const en = {
     span: (from: string, to: string) => `${from} to ${to}`,
     daysAt: (days: number, rate: string) => `${days} days at ${rate}`,
     notAdvice: "General information, not legal advice.",
+    deductionTitle: "Section 43B(h)",
+    deductionLine: (date: string, year: string, sameYear: boolean) =>
+      sameYear
+        ? `Paid by ${date}, the buyer may claim this bill as an expense in FY ${year}.`
+        : `The buyer may now claim this bill only in the year it is paid: paid by ${date}, FY ${year}.`,
+    deductionWhy: (appointed: string) =>
+      `Section 43B(h) of the Income Tax Act lets a buyer claim what they owe a micro or small enterprise as an expense in the year of the Invoice only if they pay by the MSMED Act's appointed day, here ${appointed}: the due date, or 45 days after the Invoice date if the agreed terms are longer (§15). Paid later, the claim moves to the year it is paid. That gives the buyer their own reason to pay on time. The reminders from the overdue one on, the Payment Demand Letter and the call say so, as "may": it depends on the buyer's own accounts.`,
     whatYouCanDo: "What you can do",
     copied: "Pay link copied",
     copy: "Copy pay link",
@@ -1007,7 +1014,7 @@ export const en = {
   proofPage: {
     title: "Every rupee, checked",
     intro:
-      "The brief's money cases, and the domain cases for the Ladder, matching, the Plan rule, Grade, Ageing, the chase order, the letter and the forecast headline. Computed in this browser from the same packages the app uses.",
+      "The brief's money cases, and the domain cases for the Ladder, matching, the Plan rule, Grade, Section 43B(h), Ageing, the chase order, the letter and the forecast headline. Computed in this browser from the same packages the app uses.",
     built: (commit: ReactNode) => (
       <>
         Built from {commit}. Each case links to the test that locks it, at that commit.

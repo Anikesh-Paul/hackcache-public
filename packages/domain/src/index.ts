@@ -25,8 +25,8 @@ export type { BankSuggestion } from "./in-bank.ts";
 export { DEFAULT_PLAN_RULE, planIssueReason, planRule } from "./plan-rule.ts";
 export type { Instalment, PlanIssue, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
 
-export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS } from "./msmed.ts";
-export type { MsmedMeter, SellerFacts } from "./msmed.ts";
+export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS, section43bh } from "./msmed.ts";
+export type { DeductionClock, MsmedMeter, SellerFacts } from "./msmed.ts";
 
 export {
   AGEING_BUCKETS,
@@ -109,7 +109,7 @@ export type {
 export { PROOF_LABEL, checkProof, proofBankLine, proofFromModel } from "./proof-check.ts";
 export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";
 
-export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";
+export { REMINDER_NAMES, REMINDER_TEMPLATES, deductionSpoken, deductionWords, reminderMessage } from "./templates.ts";
 export type { ReminderFacts } from "./templates.ts";
 
 export { REPEAT_REFUSED, REPEAT_REFUSED_WORDS, SEND_FAILED_WORDS, isRepeatRefused, sendFailureWords } from "./send-failure.ts";
