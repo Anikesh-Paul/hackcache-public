@@ -7,7 +7,7 @@ import { NotFound } from "./NotFound.tsx";
 import { NothingDue, PlanBanner, PrintBar } from "./PrintBar.tsx";
 
 const sheet =
-  "case-file mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-4 text-[12px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[10mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
+  "on-paper case-file mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-4 text-[12px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[10mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
 
 /** /print/case/:id. One A4 page: the toolbar does not print. */
 export function PrintCase() {

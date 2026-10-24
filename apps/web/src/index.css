@@ -190,7 +190,10 @@ h3 {
     color: var(--ink-2);
     font-size: 13px;
     min-width: 0;
-    white-space: nowrap;
+    line-height: 1.25;
+    /* Stay inside the margin column. A nowrap label paints over the particulars. */
+    white-space: normal;
+    overflow-wrap: break-word;
   }
   @media (max-width: 639px) {
     .ln > .m {
@@ -1088,8 +1091,14 @@ h3 {
       top: 16px;
     }
   }
-  /* Phones: the call's margin labels ("Before the call", a speaker's name) sit above their line, not over it. */
-  @media (max-width: 639px) {
+  /* Below 768 the call's margin labels sit above their line. From 768 up the call page
+     widens its margin so "Before the call" and "Be the Customer" fit in the column. */
+  @media (min-width: 768px) {
+    .call-leaf {
+      --margin: 9.75rem;
+    }
+  }
+  @media (max-width: 767px) {
     .call-grid .ln:not(.head):not(.hl-row) > .m:not(:empty) {
       grid-column: 2 / -1;
       padding: 0 14px 2px;
@@ -1568,6 +1577,40 @@ h3 {
     .tour-ring {
       transition: none;
     }
+  }
+}
+
+/* Phone tabs: a fade at the clipped edge, so the row shows that it scrolls. */
+.tab-row {
+  scrollbar-width: none;
+}
+.tab-row::-webkit-scrollbar {
+  display: none;
+}
+.tab-row[data-more="true"] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+
+/* Screen only: a document is white paper with dark ink in either theme.
+   The print rules on :root still own the printed colours. */
+@media screen {
+  .on-paper {
+    --ink: #1f2a24;
+    --ink-2: #55615a;
+    --paper: #ffffff;
+    --rule: #e6dfcf;
+    --rule-strong: #cfc4ac;
+    --bamboo: #4f7a3a;
+    --bamboo-ink: #3e6330;
+    --bamboo-soft: #e3edd9;
+    --turmeric: #c98a1b;
+    --turmeric-ink: #8a5a0b;
+    --turmeric-soft: #f6ead0;
+    --sindoor: #b3412e;
+    --sindoor-soft: #f5e1dc;
+    --desk: #f3efe6;
+    color: #1f2a24;
+    color-scheme: light;
   }
 }
 

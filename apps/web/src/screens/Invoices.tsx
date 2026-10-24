@@ -8,7 +8,8 @@ import {
   matchesFilter,
   type InvoiceFilter,
 } from "@tagada/domain";
-import { useWorld, viewOf, type InvoiceView } from "../lib/world.tsx";
+import { compareInvoiceList } from "../lib/invoice-list.ts";
+import { useWorld, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 
 const LABELS: Record<InvoiceFilter, string> = {
@@ -19,15 +20,6 @@ const LABELS: Record<InvoiceFilter, string> = {
   paid: "Paid",
 };
 
-/** Open Invoices first, the earliest due first (so the most overdue); then paid ones, newest first. */
-function byUrgency(a: InvoiceView, b: InvoiceView): number {
-  const paidA = a.standing.state === "paid";
-  const paidB = b.standing.state === "paid";
-  if (paidA !== paidB) return paidA ? 1 : -1;
-  if (paidA) return b.invoice.issueDate.localeCompare(a.invoice.issueDate);
-  return a.invoice.dueDate.localeCompare(b.invoice.dueDate);
-}
-
 export function Invoices() {
   const world = useWorld();
   const [params, setParams] = useSearchParams();
@@ -36,7 +28,7 @@ export function Invoices() {
   // From Today's Ageing bar: the unpaid Invoices this many days past due.
   const age = AGEING_BUCKETS.find((b) => b.key === params.get("age"));
 
-  const views = world.invoices.map((invoice) => viewOf(world, invoice)).sort(byUrgency);
+  const views = world.invoices.map((invoice) => viewOf(world, invoice)).sort(compareInvoiceList);
   const shown = age
     ? views.filter((v) => v.standing.state !== "paid" && ageingBucket(v.standing.daysLate) === age.key)
     : views.filter((v) => matchesFilter(v.standing, filter));
