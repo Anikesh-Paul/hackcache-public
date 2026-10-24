@@ -27,10 +27,16 @@ type TourState = TourStart & {
   arrive: boolean;
 };
 
-type Ctx = { start: (from: TourStart) => void; active: boolean };
+type Ctx = {
+  start: (from: TourStart) => void;
+  active: boolean;
+  /** The tour has reached its last step in this tab, so Today keeps "What Tagada changed". */
+  finished: boolean;
+};
 
-const TourCtx = createContext<Ctx>({ start: () => {}, active: false });
+const TourCtx = createContext<Ctx>({ start: () => {}, active: false, finished: false });
 const KEY = "tagada.tour";
+const FINISHED_KEY = "tagada.tour.finished";
 const WEEK = 7;
 const [FIRST] = GUPTA_PLAN;
 
@@ -49,6 +55,22 @@ function save(state: TourState | null) {
     else sessionStorage.removeItem(KEY);
   } catch {
     // Private windows can refuse storage; the tour still runs until a reload.
+  }
+}
+
+function loadFinished(): boolean {
+  try {
+    return sessionStorage.getItem(FINISHED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function saveFinished() {
+  try {
+    sessionStorage.setItem(FINISHED_KEY, "1");
+  } catch {
+    // As above: the panel still shows until a reload.
   }
 }
 
@@ -129,7 +151,7 @@ const STEPS: Step[] = [
   {
     id: "done",
     route: () => "/app",
-    target: '[data-tour="headline"]',
+    target: '[data-tour="impact"]',
     enter: confirmGupta,
     body: (_s, t) => t.tour.steps.done.body(),
     extra: (_s, t) => (
@@ -145,6 +167,7 @@ const STEPS: Step[] = [
 /** Wraps every page, so the tour can follow the visitor from the books to the pay link and back. */
 export function TourRoot() {
   const [state, setState] = useState<TourState | null>(() => load());
+  const [finished, setFinished] = useState(() => loadFinished() || state?.step === STEPS.length - 1);
   const start = useCallback((from: TourStart) => {
     const next = { ...from, step: 0, plan: null, jumped: false, arrive: true };
     save(next);
@@ -153,9 +176,13 @@ export function TourRoot() {
   const update = useCallback((next: TourState | null) => {
     save(next);
     setState(next);
+    if (next?.step === STEPS.length - 1) {
+      saveFinished();
+      setFinished(true);
+    }
   }, []);
   return (
-    <TourCtx.Provider value={{ start, active: state !== null }}>
+    <TourCtx.Provider value={{ start, active: state !== null, finished }}>
       <Outlet />
       {state && <Coach state={state} onChange={update} />}
     </TourCtx.Provider>

@@ -62,3 +62,9 @@ export const CALL_CREDITS_PER_MINUTE = 450;
  * credits at ₹88 to the dollar is ₹19.36.
  */
 export const CALL_CREDIT_PAISE_PER_THOUSAND = 1936;
+
+/**
+ * The price of 1,000 emails in paise: Resend's Pro plan, $20 a month for
+ * 50,000 emails at ₹88 to the dollar, is ₹35.20 per 1,000.
+ */
+export const EMAIL_PAISE_PER_THOUSAND = 3520;

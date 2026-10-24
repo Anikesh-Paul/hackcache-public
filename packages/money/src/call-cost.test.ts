@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { CALL_CREDITS_PER_MINUTE, callCostPaise, callCredits, callReturn, formatInr, paiseFromRupees, rupeesFromPaise } from "./index.ts";
+import {
+  CALL_CREDITS_PER_MINUTE,
+  EMAIL_PAISE_PER_THOUSAND,
+  callCostPaise,
+  callCredits,
+  callReturn,
+  costPerHundredPaise,
+  emailCostPaise,
+  formatInr,
+  paiseFromRupees,
+  rupeesFromPaise,
+} from "./index.ts";
 
 describe("paiseFromRupees", () => {
   it("turns the agent's whole rupees into paise", () => {
@@ -56,5 +67,23 @@ describe("callReturn", () => {
 
   it("is nothing for no calls", () => {
     expect(callReturn({ calls: [], securedPaise: [] })).toEqual({ calls: 0, costPaise: 0, securedPaise: 0 });
+  });
+});
+
+describe("email cost and cost per ₹100", () => {
+  it("prices emails at ₹35.20 per 1,000, half up", () => {
+    expect(EMAIL_PAISE_PER_THOUSAND).toBe(3520);
+    expect(emailCostPaise(1000)).toBe(3520);
+    expect(emailCostPaise(5)).toBe(18);
+    expect(emailCostPaise(0)).toBe(0);
+  });
+
+  it("works out the paise spent on each ₹100 collected, half up", () => {
+    // ₹19.46 to collect ₹60,000: 1,946 × 10,000 ÷ 60,00,000 = 3.24 paise.
+    expect(costPerHundredPaise(1946, 6_000_000)).toBe(3);
+    expect(costPerHundredPaise(18, 6_000_000)).toBe(0);
+    expect(costPerHundredPaise(500, 10_000)).toBe(500);
+    expect(costPerHundredPaise(0, 0)).toBeNull();
+    expect(() => costPerHundredPaise(-1, 100)).toThrow();
   });
 });
