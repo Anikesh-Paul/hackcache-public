@@ -5,7 +5,7 @@ describe("/proof", () => {
   it("runs every money and domain case from the packages, and they all pass", () => {
     const results = runShownProof();
     const areas = new Set(results.map((result) => result.area));
-    for (const area of ["GST", "Interest", "Ladder", "Match", "Plan rule", "Grade", "Ageing", "Chase", "Letter", "Forecast"]) {
+    for (const area of ["GST", "Interest", "Ladder", "Match", "Plan rule", "Grade", "Ageing", "Chase", "Letter", "Forecast", "Tax"]) {
       expect(areas.has(area), area).toBe(true);
     }
     expect(results.every((result) => result.pass && result.actual === result.expected)).toBe(true);

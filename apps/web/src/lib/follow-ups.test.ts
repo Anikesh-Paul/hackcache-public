@@ -65,7 +65,7 @@ const reminder = (invoiceId: string, customerId: string, stage: number, over: Pa
 });
 
 const base = (over: Partial<FollowUpInput> = {}): FollowUpInput => ({
-  workspace: { today: "2026-11-02", autoSendStages: [1, 2], businessName: "Tripura Bamboo Works", ownerEmail: "owner@example.com" },
+  workspace: { today: "2026-11-02", autoSendStages: [1, 2], businessName: "Tripura Bamboo Works", ownerEmail: "owner@example.com", udyamType: "micro", isTrader: false },
   invoices: [invoice("0019", "gupta")],
   customers: new Map([
     ["gupta", customer("gupta", "Gupta Traders", { consentCalls: true, lang: "hi" })],

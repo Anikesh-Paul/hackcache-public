@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CUSTOMER_LANGS, REMINDER_TEMPLATES, reminderMessage, type ReminderFacts } from "./index.ts";
+import { CUSTOMER_LANGS, REMINDER_TEMPLATES, reminderMessage, section43bh, type ReminderFacts } from "./index.ts";
 
 const gupta: Omit<ReminderFacts, "stage" | "lang"> = {
   businessName: "Tripura Bamboo Works",
@@ -69,5 +69,37 @@ describe("reminderMessage", () => {
 
   it("has no message for the ODR case file", () => {
     expect(() => reminderMessage({ ...gupta, stage: 6, lang: "en" })).toThrow();
+  });
+
+  describe("Section 43B(h)", () => {
+    const deduction = section43bh({ udyamType: "micro", isTrader: false }, { issueDate: "2026-08-26", dueDate: "2026-09-25" }, "2026-11-02");
+
+    it("is named from the overdue reminder on, in every language, and never in the first two", () => {
+      for (const lang of CUSTOMER_LANGS) {
+        for (const stage of [1, 2]) expect(reminderMessage({ ...gupta, stage, lang, deduction }).text).not.toContain("43B(h)");
+        for (const stage of [3, 4, 5]) {
+          const text = reminderMessage({ ...gupta, stage, lang, deduction }).text;
+          expect(text).toContain("43B(h)");
+          expect(text).toContain("26-27");
+        }
+      }
+    });
+
+    it("says by when the bill stays in this year, and says it may, not that it will", () => {
+      const text = reminderMessage({ ...gupta, stage: 4, lang: "en", deduction }).text;
+      expect(text).toContain("Paid by 31 Mar 2027, you may claim this bill as an expense in FY 26-27.");
+      expect(text).not.toMatch(/penalt|disallow|court|police/i);
+    });
+
+    it("once the year has passed, names the year it is paid in instead", () => {
+      const later = section43bh({ udyamType: "micro", isTrader: false }, { issueDate: "2026-08-26", dueDate: "2026-09-25" }, "2027-04-02");
+      const text = reminderMessage({ ...gupta, today: "2027-04-02", stage: 5, lang: "en", deduction: later }).text;
+      expect(text).toContain("only in the year it is paid: paid by 31 Mar 2028, that is FY 27-28.");
+    });
+
+    it("is left out when the seller is not covered", () => {
+      expect(reminderMessage({ ...gupta, stage: 5, lang: "en", deduction: null }).text).not.toContain("43B(h)");
+      expect(reminderMessage({ ...gupta, stage: 5, lang: "en" }).text).not.toContain("43B(h)");
+    });
   });
 });

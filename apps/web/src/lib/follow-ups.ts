@@ -8,6 +8,7 @@ import {
   isCustomerLang,
   ladderDay,
   reminderMessage,
+  section43bh,
   sendFailureWords,
   waitingInBank,
   whatsappLink,
@@ -51,7 +52,7 @@ export type FollowUp = {
 };
 
 export type FollowUpInput = {
-  workspace: Pick<WorkspaceRow, "today" | "autoSendStages" | "businessName" | "ownerEmail">;
+  workspace: Pick<WorkspaceRow, "today" | "autoSendStages" | "businessName" | "ownerEmail" | "udyamType" | "isTrader">;
   invoices: readonly InvoiceRow[];
   customers: ReadonlyMap<string, CustomerRow>;
   promisesByInvoice: ReadonlyMap<string, PromiseFacts[]>;
@@ -86,6 +87,7 @@ export function followUps(input: FollowUpInput): FollowUp[] {
             today,
             payUrl: input.payUrl(invoice.payToken),
             contact: workspace.ownerEmail ?? workspace.businessName,
+            deduction: section43bh(workspace, invoice, today),
           })
         : { subject: "", text: "" };
     const sentEvent = reminder ? eventById.get(`${reminder.$id}e`) : undefined;

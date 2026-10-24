@@ -9,8 +9,8 @@ A collections desk for India's small manufacturers: it ranks who to chase, calls
 **[Open the live app](https://app-web-dlk4.onrender.com)** · **[See every rupee checked](https://app-web-dlk4.onrender.com/proof)** · No login, no setup
 
 [![CI](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/unit%20tests-508%20passing-3f6b35)
-![Proof](https://img.shields.io/badge/%2Fproof-44%20of%2044-3f6b35)
+![Tests](https://img.shields.io/badge/unit%20tests-553%20passing-3f6b35)
+![Proof](https://img.shields.io/badge/%2Fproof-45%20of%2045-3f6b35)
 ![Languages](https://img.shields.io/badge/English%20%C2%B7%20%E0%A4%B9%E0%A4%BF%E0%A4%A8%E0%A5%8D%E0%A4%A6%E0%A5%80%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-c9952b)
 
 <img src="docs/screenshots/landing.png" alt="Tagada's landing page: India's micro and small businesses are waiting on ₹8.1 lakh crore of late payments, with three ways in: the tour, the call, and the proof" width="900">
@@ -42,7 +42,7 @@ Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While y
 | **Start the 2-minute tour** | Eight steps. The app moves itself to each screen and changes the books for you, from ₹48,000 short to salaries covered. |
 | **Make your own invoice** | Bill any customer, or add one with your own name (GSTIN optional, part quantities like 2.5 kg are fine). Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. Add or edit a Customer with your own email, record a payment by hand, or correct or cancel an unpaid invoice. |
 | **Be Gupta ji: take the call** | You play the customer. Speak Hindi or English to Munim, the AI agent, and watch the owner's books change as you talk. No microphone? Read or play the recorded call instead. |
-| **See the proof** | 44 test cases from the brief (GST, interest, matching, the Ladder, grades), computed live in your browser from the same code the app runs. |
+| **See the proof** | 45 test cases: the brief's (GST, interest, matching, the Ladder, grades) and Section 43B(h), computed live in your browser from the same code the app runs. |
 
 **Reset demo** in the header brings the starting story back at any time.
 
@@ -122,6 +122,7 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 - **The right document every time**: a Tax Invoice, a **Bill of Supply** with the exact composition heading, or a plain invoice, depending on the seller's registration. A "Preview as" switch shows every case.
 - **Print-ready A4** invoices with a UPI QR code for the amount.
 - **MSMED interest**: three times the RBI Bank Rate, compounded monthly, with the dated rate change (16.5% before 7 Oct 2026, 17.25% after) and a **Why?** showing the workings.
+- **Section 43B(h)**: since FY 2023-24, a buyer may claim what they owe a micro or small enterprise as an expense in the Invoice's year only if they pay by the MSMED Act's appointed day (at most 45 days); paid later, only in the year they pay. It's a lawful reason for the buyer to pay on time, not a threat. The overdue reminders, the letter and the call say by when the bill stays in this year, always as "may", and the Invoice shows it with a **Why?**. A trader or a medium enterprise is never shown it.
 - **Payment Demand Letter**: firm, correct, and never called a "legal notice". It is never sent automatically.
 - **ODR case file**: one page with invoices, interest workings, the reminder history, a call excerpt and numbered steps for the government's [odr.msme.gov.in](https://odr.msme.gov.in) portal.
 
@@ -137,7 +138,7 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 
 <img src="docs/screenshots/proof.png" alt="The /proof page: 44 of 44 passed, each case showing what was expected and what the code computed" width="900">
 
-The brief's cases (GST, interest, GSTIN, numbering, Hindi words, matching, the Ladder, the Plan rule, grades, ageing, the chase order, the letter and the forecast headline) run **in your browser, from the same packages the app uses**. Each shows its input, the expected value and the computed value, and links to the test that locks it at the deployed commit.
+The brief's cases (GST, interest, GSTIN, numbering, Hindi words, matching, the Ladder, the Plan rule, grades, ageing, the chase order, the letter and the forecast headline), and Section 43B(h), run **in your browser, from the same packages the app uses**. Each shows its input, the expected value and the computed value, and links to the test that locks it at the deployed commit.
 
 ## How it's built
 
@@ -195,8 +196,8 @@ flowchart LR
 
 | | |
 |---|---|
-| **508 unit tests** (Vitest) | Every money and domain rule, the server's routes, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
-| **44 live cases** on `/proof` | The brief's cases, from the same packages, in the judge's own browser |
+| **553 unit tests** (Vitest) | Every money and domain rule, the server's routes, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
+| **45 live cases** on `/proof` | The brief's cases, from the same packages, in the judge's own browser |
 | **5 end-to-end tests** (Playwright), run against the live site | A customer's "already paid" reaching the owner's Inbox; the tour to *Salary covered ✓* and `/proof`; the tour twice in a row from a reset with no failed send; `/proof` typed mid-tour; the language switch |
 
 ## Run it yourself

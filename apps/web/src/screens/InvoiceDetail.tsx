@@ -9,6 +9,7 @@ import {
   FileText,
   Flag,
   IndianRupee,
+  Landmark,
   Pause,
   Pencil,
   Phone,
@@ -28,7 +29,15 @@ import {
   SECTION16_RATE_FROM_BPS,
   stateName,
 } from "@tagada/money";
-import { ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
+import {
+  ladderRungs,
+  msmedInterest,
+  section43bh,
+  type DeductionClock,
+  type InvoiceState,
+  type MsmedMeter,
+  type ProofResultKind,
+} from "@tagada/domain";
 import { isSeededEvent } from "@tagada/seed";
 import { proofAmount, proofTone } from "../lib/proof.ts";
 import { useT } from "../i18n/index.ts";
@@ -62,6 +71,8 @@ export function InvoiceDetail() {
   const { customer, standing } = viewOf(world, invoice);
   const { workspace } = world;
   const meter = msmedInterest(workspace, invoice, standing, workspace.today);
+  const owing = standing.state !== "paid" && standing.state !== "cancelled" && standing.balancePaise > 0;
+  const deduction = owing ? section43bh(workspace, invoice, workspace.today) : null;
   const rungs = ladderRungs(invoice, standing);
   const intra = customer?.stateCode === workspace.stateCode;
   const owedLine =
@@ -160,6 +171,7 @@ export function InvoiceDetail() {
         className="leaf max-lg:shadow-[var(--sheet-shadow)] lg:col-start-1 lg:row-start-2 lg:pt-9"
       >
         {meter && <Meter meter={meter} />}
+        {deduction && <Deduction clock={deduction} />}
 
         <div className="sect">
           <Head
@@ -379,6 +391,33 @@ function Meter({ meter }: { meter: MsmedMeter }) {
                 ))}
               </tbody>
             </table>
+            <p className="mt-2 text-xs text-ink-2">{t.invoice.notAdvice}</p>
+          </Ln>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Section 43B(h): until when the buyer may claim this bill in its own year, with the rule one tap away. */
+function Deduction({ clock }: { clock: DeductionClock }) {
+  const [open, setOpen] = useState(false);
+  const t = useT();
+  return (
+    <div className="sect">
+      <div className="entries border-t border-ink">
+        <Ln m={<Landmark size={16} aria-hidden className="ml-auto" />}>
+          <span className="font-medium">{t.invoice.deductionTitle}</span> <Badge kind="real">{t.invoice.computed}</Badge>
+          <small>
+            {t.invoice.deductionLine(t.date(clock.claimBy, { weekday: false, year: true }), clock.claimYear, clock.sameYear)}{" "}
+            <button type="button" className="linkbtn" aria-expanded={open} onClick={() => setOpen(!open)}>
+              {t.common.why}
+            </button>
+          </small>
+        </Ln>
+        {open && (
+          <Ln>
+            <p className="text-sm">{t.invoice.deductionWhy(t.date(clock.appointed, { weekday: false, year: true }))}</p>
             <p className="mt-2 text-xs text-ink-2">{t.invoice.notAdvice}</p>
           </Ln>
         )}

@@ -28,6 +28,10 @@ export type DocPhrases = {
   interestAside: string;
   msmedLabel: string;
   msmedExplain: string;
+  deductionHeading: string;
+  deductionExplain: string;
+  /** One Invoice: paid by `date`, the buyer may claim it in FY `year`; `sameYear` false once the Invoice's own year has passed. */
+  deductionLine: (number: string, date: string, year: string, sameYear: boolean) => string;
   odrExplain: string;
   steps: readonly string[];
   bankHeading: string;
@@ -91,6 +95,11 @@ const en: DocPhrases = {
   msmedLabel: "general information, not legal advice",
   msmedExplain:
     "MSMED is the Micro, Small and Medium Enterprises Development Act. A micro or small supplier that is not a trader may charge compound interest on a late payment, with a new rest each month, at three times the RBI Bank Rate. The figure is worked out by Tagada's interest code.",
+  deductionHeading: "Section 43B(h) of the Income Tax Act",
+  deductionExplain:
+    "A buyer may claim what they owe a micro or small enterprise as an expense in the year of the Invoice only if they pay by the date the MSMED Act allows (the agreed date, at most 45 days). Paid later, it may be claimed only in the year it is paid. Whether this applies depends on the buyer's own accounts.",
+  deductionLine: (number, date, year, sameYear) =>
+    sameYear ? `${number}: paid by ${date}, it may be claimed in FY ${year}.` : `${number}: now claimed in the year it is paid; paid by ${date}, FY ${year}.`,
   odrExplain:
     "ODR is online dispute resolution. The government's portal for delayed payments to micro and small businesses is odr.msme.gov.in.",
   steps: [
@@ -167,6 +176,13 @@ const hi: DocPhrases = {
   msmedLabel: "सामान्य जानकारी, कानूनी सलाह नहीं",
   msmedExplain:
     "MSMED का मतलब है सूक्ष्म, लघु और मध्यम उद्यम विकास अधिनियम। जो सूक्ष्म या लघु आपूर्तिकर्ता व्यापारी नहीं है, वह देर से हुए भुगतान पर आरबीआई बैंक दर के तीन गुना पर चक्रवृद्धि ब्याज ले सकता है, जिसमें हर महीने ब्याज मूलधन में जुड़ता है। यह आंकड़ा Tagada के ब्याज कोड ने निकाला है।",
+  deductionHeading: "आयकर अधिनियम की धारा 43B(h)",
+  deductionExplain:
+    "खरीदार किसी सूक्ष्म या लघु उद्यम को देय राशि बिल वाले साल के खर्च में तभी दिखा सकता है जब भुगतान MSMED अधिनियम की तय तारीख तक हो (तय तारीख, ज़्यादा से ज़्यादा 45 दिन)। बाद में भुगतान हुआ तो यह खर्च उसी साल में गिना जा सकता है जिस साल भुगतान हो। यह खरीदार के अपने हिसाब-किताब पर निर्भर है।",
+  deductionLine: (number, date, year, sameYear) =>
+    sameYear
+      ? `${number}: ${date} तक भुगतान हुआ तो FY ${year} में खर्च दिखाया जा सकता है।`
+      : `${number}: अब भुगतान वाले साल में गिना जाएगा; ${date} तक भुगतान हुआ तो FY ${year}।`,
   odrExplain:
     "ODR ऑनलाइन विवाद समाधान है। सूक्ष्म और लघु कारोबार के देर से भुगतान के लिए सरकार का पोर्टल odr.msme.gov.in है।",
   steps: [
@@ -254,6 +270,13 @@ const bn: DocPhrases = {
   msmedLabel: "সাধারণ তথ্য, আইনি পরামর্শ নয়",
   msmedExplain:
     "MSMED মানে ক্ষুদ্র, ছোট ও মাঝারি উদ্যোগ উন্নয়ন আইন। যে ক্ষুদ্র বা ছোট সরবরাহকারী ব্যবসায়ী নন, তিনি দেরিতে পাওয়া টাকার উপর আরবিআই ব্যাংক রেটের তিন গুণ হারে চক্রবৃদ্ধি সুদ নিতে পারেন, যেখানে প্রতি মাসে সুদ আসলের সঙ্গে যোগ হয়। অঙ্কটি Tagada-র সুদের কোড হিসাব করেছে।",
+  deductionHeading: "আয়কর আইনের ধারা 43B(h)",
+  deductionExplain:
+    "ক্রেতা কোনো ক্ষুদ্র বা ছোট উদ্যোগের বকেয়া টাকা বিলের বছরের খরচে তখনই দেখাতে পারেন, যখন MSMED আইনের নির্দিষ্ট তারিখের মধ্যে পেমেন্ট হয় (ঠিক করা তারিখ, বড়জোর 45 দিন)। পরে পেমেন্ট হলে খরচটি যে বছরে পেমেন্ট হবে সেই বছরে গণ্য হতে পারে। এটা ক্রেতার নিজের হিসাবের ওপর নির্ভর করে।",
+  deductionLine: (number, date, year, sameYear) =>
+    sameYear
+      ? `${number}: ${date}-এর মধ্যে পেমেন্ট হলে FY ${year}-এর খরচে দেখানো যায়।`
+      : `${number}: এখন পেমেন্টের বছরে গণ্য হবে; ${date}-এর মধ্যে পেমেন্ট হলে FY ${year}।`,
   odrExplain:
     "ODR হল অনলাইন বিরোধ নিষ্পত্তি। ক্ষুদ্র ও ছোট ব্যবসার দেরিতে পেমেন্টের জন্য সরকারের পোর্টাল odr.msme.gov.in।",
   steps: [

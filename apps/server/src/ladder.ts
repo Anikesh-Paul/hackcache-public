@@ -17,11 +17,13 @@ import {
   nextAction,
   promiseBroken,
   reminderMessage,
+  section43bh,
   suggestedInBank,
   waitingInBank,
   type InvoiceFacts,
   type LadderInvoice,
   type PromiseFacts,
+  type SellerFacts,
 } from "@tagada/domain";
 import { SEEDED_FAILURE, failsFirstSend } from "@tagada/seed";
 import { bankSuggestions } from "./bank-credits.ts";
@@ -81,6 +83,13 @@ export type RunSummary = {
 
 const text = (value: unknown): string | null => (typeof value === "string" ? value : null);
 const whole = (value: unknown): number => (typeof value === "number" && Number.isInteger(value) ? value : 0);
+const UDYAM_TYPES = ["micro", "small", "medium", "none"] as const;
+
+/** What Section 43B(h) and §16 interest need to know about the seller, from a stored workspace. */
+export function sellerOf(workspace: StoredRow): SellerFacts {
+  const udyam = UDYAM_TYPES.find((type) => type === workspace.udyamType) ?? null;
+  return { udyamType: udyam, isTrader: workspace.isTrader === true };
+}
 
 /** Emails a Demo world may send to addresses its visitor typed in; after that they go to the Demo inbox. */
 export const OWN_ADDRESS_LIMIT = 10;
@@ -310,6 +319,11 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     today: job.demoDate,
     payUrl: `${deps.webOrigin}/pay/${text(invoice.payToken) ?? ""}`,
     contact: ownerEmail ?? businessName,
+    deduction: section43bh(
+      sellerOf(workspace),
+      { issueDate: text(invoice.issueDate) ?? "", dueDate: text(invoice.dueDate) ?? "" },
+      job.demoDate,
+    ),
   });
   const to = (await ownAddress(deps, job.workspaceId, text(customer.email))) ?? deps.demoInbox;
   const mail: Mail = {
