@@ -40,7 +40,7 @@ Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While y
 | Door | What happens |
 |---|---|
 | **Start the 2-minute tour** | Eight steps. The app moves itself to each screen and changes the books for you, from ₹48,000 short to salaries covered. |
-| **Make your own invoice** | Bill any customer, or add one with your own name (GSTIN optional, part quantities like 2.5 kg are fine). Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. |
+| **Make your own invoice** | Bill any customer, or add one with your own name (GSTIN optional, part quantities like 2.5 kg are fine). Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. Add or edit a Customer with your own email, record a payment by hand, or correct or cancel an unpaid invoice. |
 | **Be Gupta ji: take the call** | You play the customer. Speak Hindi or English to Munim, the AI agent, and watch the owner's books change as you talk. No microphone? Read or play the recorded call instead. |
 | **See the proof** | 44 test cases from the brief (GST, interest, matching, the Ladder, grades), computed live in your browser from the same code the app runs. |
 
@@ -206,7 +206,7 @@ You need Node 22.12+, pnpm 11, an Appwrite project, and keys for ElevenLabs, Gem
 ```bash
 pnpm install
 cp .env.example .env          # fill in the keys
-pnpm appwrite:setup           # creates the tables, indexes and buckets (safe to re-run)
+pnpm appwrite:setup           # creates the tables, indexes and buckets, and adds new enum values (safe to re-run)
 
 pnpm dev:server               # API on http://localhost:8787
 pnpm dev:web                  # app on http://localhost:5173

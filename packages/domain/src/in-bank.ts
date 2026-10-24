@@ -40,7 +40,7 @@ export function waitingInBank(credits: readonly BankSuggestion[], invoices: read
   const out = new Map<string, number>();
   for (const invoice of invoices) {
     const covers = settled.get(invoice.$id);
-    if (invoice.status === "paid" || covers === undefined) continue;
+    if (invoice.status === "paid" || invoice.status === "cancelled" || covers === undefined) continue;
     const owed = differencePaise(invoice.totalPaise, invoice.paidPaise);
     if (owed > 0 && covers >= owed) out.set(invoice.$id, cash.get(invoice.$id) ?? 0);
   }

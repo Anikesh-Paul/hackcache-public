@@ -111,6 +111,24 @@ describe("planSetup", () => {
   });
 });
 
+describe("planSetup on an enum column", () => {
+  it("adds the elements the schema gained, keeping any the project already has", () => {
+    const existing = everythingExists();
+    existing.tables["invoices"]!.enums = { status: ["draft", "sent", "part", "paid", "disputed", "legacy"] };
+    const ops = planSetup(schema, existing);
+    expect(ops).toHaveLength(1);
+    const [op] = ops;
+    expect(op).toMatchObject({ kind: "updateEnum", tableId: "invoices", column: { key: "status", required: true } });
+    expect(op?.kind === "updateEnum" && op.column.elements).toEqual(["draft", "sent", "part", "paid", "disputed", "legacy", "cancelled"]);
+  });
+
+  it("does nothing when the column already allows every element", () => {
+    const existing = everythingExists();
+    existing.tables["invoices"]!.enums = { status: ["draft", "sent", "part", "paid", "disputed", "cancelled"] };
+    expect(planSetup(schema, existing)).toEqual([]);
+  });
+});
+
 function keyOf(o: ReturnType<typeof planSetup>[number]): string {
   switch (o.kind) {
     case "createDatabase":
@@ -118,6 +136,7 @@ function keyOf(o: ReturnType<typeof planSetup>[number]): string {
     case "createTable":
       return o.table.id;
     case "createColumn":
+    case "updateEnum":
       return o.column.key;
     case "createIndex":
       return o.index.key;

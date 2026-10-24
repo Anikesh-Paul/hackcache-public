@@ -102,7 +102,7 @@ export function CustomerDetail() {
               {customer.phone && (
                 <>
                   <br />
-                  {t.customer.phone(customer.phone)}
+                  {t.customer.phone(customer.phone.replace(/^\+91(\d{5})(\d{5})$/, "+91 $1 $2"))}
                 </>
               )}
               <br />

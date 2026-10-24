@@ -51,6 +51,7 @@ const router = createBrowserRouter([
               { path: "/app/invoices/new", element: <NewInvoice /> },
               { path: "/app/invoices", element: <Invoices /> },
               { path: "/app/invoices/:id/duplicate", element: <DuplicatePreview /> },
+              { path: "/app/invoices/:id/edit", element: <NewInvoice /> },
               { path: "/app/invoices/:id", element: <InvoiceDetail /> },
               { path: "/app/customers", element: <Customers /> },
               { path: "/app/customers/new", element: <CustomerForm /> },

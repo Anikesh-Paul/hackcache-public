@@ -49,7 +49,7 @@ export function CustomerFields({
         />
       </Field>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t.newInvoice.state} hint={stateLocked ? t.customerForm.stateLocked : null}>
+        <Field label={t.newInvoice.state}>
           <select
             className={control}
             value={draft.stateCode}
@@ -73,6 +73,7 @@ export function CustomerFields({
           />
         </Field>
       </div>
+      {stateLocked && <p className="-mt-1 text-sm text-ink-2">{t.customerForm.stateLocked}</p>}
       <Field label={t.newInvoice.language}>
         <select className={control} value={draft.lang} onChange={(event) => set({ lang: event.target.value as LanguageId })}>
           {LANGUAGES.map((language) => (

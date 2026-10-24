@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
   GST_RATES,
@@ -14,12 +14,13 @@ import {
   type GstRate,
   type LineUnit,
 } from "@tagada/money";
-import { SaveError, createInvoice } from "../lib/appwrite.ts";
+import { SaveError, createInvoice, editInvoice } from "../lib/appwrite.ts";
 import { blankCustomer, customerBody, customerIssues, type CustomerDraft } from "../lib/customer-form.ts";
 import { priceDraft, type DraftLine, type PreviewAs } from "../lib/preview-as.ts";
 import { useInvoiceRows, useWorld, useWorldState } from "../lib/world.tsx";
 import { Field, Ln, Paper, control } from "../ui.tsx";
 import { CustomerFields } from "./CustomerFields.tsx";
+import { NotFound } from "./NotFound.tsx";
 import { TaxInvoice } from "./TaxInvoice.tsx";
 import { useT } from "../i18n/index.ts";
 
@@ -128,16 +129,23 @@ function freshCustomer(fresh: CustomerDraft, workspaceId: string): CustomerRow |
   };
 }
 
+/**
+ * /app/invoices/new, and /app/invoices/:id/edit for an unpaid Invoice with
+ * nothing paid against it: its lines and due date change; its number,
+ * Customer and issue date stay.
+ */
 export function NewInvoice() {
   const world = useWorld();
   const { reload } = useWorldState();
   const navigate = useNavigate();
   const t = useT();
   const [params] = useSearchParams();
+  const { id: editId } = useParams();
+  const editing = editId ? world.invoices.find((invoice) => invoice.$id === editId) : undefined;
   const fromId = params.get("from") ?? undefined;
   // Came from the landing page's "Make your own invoice": walk the judge through it.
   const trying = params.has("try");
-  const source = fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined;
+  const source = editing ?? (fromId ? world.invoices.find((invoice) => invoice.$id === fromId) : undefined);
   const sourceLines = useInvoiceRows<InvoiceLineRow>("invoice_lines", source?.$id);
   const applied = useRef(false);
 
@@ -145,6 +153,7 @@ export function NewInvoice() {
   const [customerId, setCustomerId] = useState("");
   const [fresh, setFresh] = useState<CustomerDraft>(blankCustomer);
   const [lines, setLines] = useState<LineDraft[]>([blankLine()]);
+  const [dueDate, setDueDate] = useState(editing?.dueDate ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -164,12 +173,14 @@ export function NewInvoice() {
   const partial = lines.some((line) => touched(line) && !parseLine(line));
   const priced = priceDraft({ mode, workspace: world.workspace, customer: picked, lines: ready });
   const creditDays = picked?.creditDays ?? 30;
+  const dueOk = !editing || (dueDate >= editing.issueDate && dueDate <= addDays(editing.issueDate, 365));
   const freshIssues = customerId === "new" ? customerIssues(fresh) : [];
   const canSave =
     priced?.saves === true &&
     !saving &&
     !partial &&
     ready.length > 0 &&
+    dueOk &&
     (customerId !== "new" ? Boolean(world.customers.get(customerId)) : freshIssues.length === 0);
   // Why Save is off, in words, so a disabled button never leaves the Owner guessing.
   const blockers: string[] = [];
@@ -177,6 +188,7 @@ export function NewInvoice() {
     if (!customerId) blockers.push(t.newInvoice.blockers.customer);
     for (const issue of freshIssues) blockers.push(t.newInvoice.blockers[issue]);
     if (!lines.some(touched)) blockers.push(t.newInvoice.blockers.line);
+    if (!dueOk) blockers.push(t.newInvoice.blockers.dueDate);
   }
   const lineHint = (line: LineDraft, field: LineField) =>
     touched(line) && lineIssues(line).has(field) ? t.newInvoice.lineHints[field] : null;
@@ -195,6 +207,13 @@ export function NewInvoice() {
           }
         : { customerId, lines: ready };
     try {
+      if (editing) {
+        await editInvoice(editing.$id, { lines: ready, dueDate });
+        // Read again, so the Invoice's lines are the new ones.
+        await reload();
+        navigate(`/app/invoices/${editing.$id}`);
+        return;
+      }
       const { invoiceId } = await createInvoice(body);
       await reload();
       navigate(`/app/invoices/${invoiceId}${trying ? "?try" : ""}`);
@@ -205,21 +224,51 @@ export function NewInvoice() {
     }
   };
 
+  if (editId && !editing) return <NotFound what="Invoice" />;
+  if (editing && (editing.paidPaise > 0 || (editing.status !== "sent" && editing.status !== "disputed"))) {
+    return (
+      <Paper label={t.newInvoice.editTitle}>
+        <Ln>
+          <h1 className="text-[28px] leading-tight">{t.newInvoice.editTitle}</h1>
+          <p className="mt-2 max-w-[60ch]">{t.newInvoice.notEditable}</p>
+          <Link to={`/app/invoices/${editing.$id}`} className="btn secondary mt-4">
+            {t.newInvoice.backToInvoice(editing.number)}
+          </Link>
+        </Ln>
+      </Paper>
+    );
+  }
+
   return (
     <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Paper label={t.newInvoice.label}>
+      <Paper label={editing ? t.newInvoice.editTitle : t.newInvoice.label}>
         <Ln>
           <p className="text-[13px] text-ink-2">
             <Link to="/app/invoices">{t.invoices.title}</Link>
-            {source ? ` / ${source.number}` : ""} / {t.newInvoice.crumbNew}
+            {editing ? (
+              <>
+                {" / "}
+                <Link to={`/app/invoices/${editing.$id}`}>{editing.number}</Link> / {t.newInvoice.crumbEdit}
+              </>
+            ) : (
+              <>
+                {source ? ` / ${source.number}` : ""} / {t.newInvoice.crumbNew}
+              </>
+            )}
           </p>
           <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
-            <h1 className="text-[28px] leading-tight">{t.newInvoice.title}</h1>
+            <h1 className="text-[28px] leading-tight">{editing ? t.newInvoice.editTitle : t.newInvoice.title}</h1>
             <button type="button" className="btn primary" disabled={!canSave} onClick={save}>
-              {saving ? t.common.saving : priced?.saves === false ? t.newInvoice.previewOnly : t.newInvoice.save}
+              {saving
+                ? t.common.saving
+                : priced?.saves === false
+                  ? t.newInvoice.previewOnly
+                  : editing
+                    ? t.newInvoice.saveChanges
+                    : t.newInvoice.save}
             </button>
           </div>
-          <p className="mt-2 max-w-[60ch]">{t.newInvoice.intro}</p>
+          <p className="mt-2 max-w-[60ch]">{editing ? t.newInvoice.editIntro(editing.number) : t.newInvoice.intro}</p>
           {trying && (
             <div className="mt-4 rounded-md border border-bamboo bg-bamboo-soft p-3 text-sm">
               <p className="font-semibold">{t.newInvoice.tryTitle}</p>
@@ -230,6 +279,7 @@ export function NewInvoice() {
               </ol>
             </div>
           )}
+          {!editing && (
           <div role="group" aria-label={t.newInvoice.previewAs} className="mt-4 flex flex-wrap gap-2">
             {MODES.map((id) => (
               <button
@@ -245,6 +295,7 @@ export function NewInvoice() {
               </button>
             ))}
           </div>
+          )}
           {mode === "regular" ? (
             <p className="mt-2 text-sm text-ink-2">{t.newInvoice.ownRegistration(world.workspace.businessName)}</p>
           ) : (
@@ -261,7 +312,12 @@ export function NewInvoice() {
           }}
         >
           <Field label={t.newInvoice.customer}>
-            <select className={control} value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
+            <select
+              className={control}
+              value={customerId}
+              disabled={Boolean(editing)}
+              onChange={(event) => setCustomerId(event.target.value)}
+            >
               <option value="">{t.newInvoice.choose}</option>
               {customers.map((customer) => (
                 <option key={customer.$id} value={customer.$id}>
@@ -276,6 +332,19 @@ export function NewInvoice() {
             <div className="rounded-md border border-rule p-3">
               <CustomerFields draft={fresh} onChange={setFresh} />
             </div>
+          )}
+
+          {editing && (
+            <Field label={t.newInvoice.dueDate} hint={dueOk ? null : t.newInvoice.blockers.dueDate}>
+              <input
+                className={control}
+                type="date"
+                min={editing.issueDate}
+                max={addDays(editing.issueDate, 365)}
+                value={dueDate}
+                onChange={(event) => setDueDate(event.target.value)}
+              />
+            </Field>
           )}
 
           <div className="grid gap-3">
@@ -386,9 +455,9 @@ export function NewInvoice() {
             customer={priced.customer}
             lines={priced.lines}
             priced={priced.totals}
-            number={null}
-            issueDate={world.workspace.today}
-            dueDate={addDays(world.workspace.today, creditDays)}
+            number={editing?.number ?? null}
+            issueDate={editing?.issueDate ?? world.workspace.today}
+            dueDate={editing ? dueDate || editing.dueDate : addDays(world.workspace.today, creditDays)}
           />
         ) : (
           <Paper label={t.newInvoice.printPreview}>

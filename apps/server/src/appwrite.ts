@@ -113,6 +113,12 @@ export function appwriteWorlds(client: Client): WorldStore {
       await withRetry(() => db.updateRow({ databaseId: DATABASE_ID, tableId, rowId, data: patch }));
     },
 
+    async delete(tableId, rowId) {
+      await withRetry(() => db.deleteRow({ databaseId: DATABASE_ID, tableId, rowId })).catch((e: unknown) => {
+        if (!isNotFound(e)) throw e;
+      });
+    },
+
     async list(tableId, workspaceId, where = {}) {
       const { rows } = await withRetry(() =>
         db.listRows({
