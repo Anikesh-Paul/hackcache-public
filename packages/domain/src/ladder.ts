@@ -13,6 +13,11 @@ export const LADDER_STAGES = [
 
 export type LadderStage = (typeof LADDER_STAGES)[number];
 
+/** A stage's name, or "Reminder" for a number outside the Ladder. */
+export function stageName(stage: number): string {
+  return LADDER_STAGES.find((s) => s.stage === stage)?.name ?? "Reminder";
+}
+
 export type Rung = LadderStage & { state: "climbed" | "today" | "next" };
 
 /**

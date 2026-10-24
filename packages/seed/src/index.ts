@@ -430,6 +430,13 @@ const INVOICES: InvoiceSeed[] = [
  * history, and again the first time the daily run emails them.
  */
 const FAILS_FIRST_SEND = "paul";
+/** Gupta's seeded call, kept for the case file. It is not a call the Owner placed. */
+const SEEDED_CALL_PREFIX = "seedgupta";
+
+export function isSeededCall(conversationId: unknown): boolean {
+  return String(conversationId ?? "").startsWith(SEEDED_CALL_PREFIX);
+}
+
 export const SEEDED_FAILURE = "The first try was refused (seeded failure, to show a retry)";
 
 /** True for the one Customer whose first live email is refused. */
@@ -857,7 +864,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
           ...base,
           $id: id("gcall"),
           invoiceId: guptaOpen.$id,
-          conversationId: `seedgupta${workspaceId}`,
+          conversationId: `${SEEDED_CALL_PREFIX}${workspaceId}`,
           startedAt: at("2026-10-20", "11:40"),
           durationS: 48,
           outcome: null,

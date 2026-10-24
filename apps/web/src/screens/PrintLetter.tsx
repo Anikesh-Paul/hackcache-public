@@ -8,7 +8,7 @@ import { PrintBar } from "./PrintBar.tsx";
 import { UpiQr } from "./TaxInvoice.tsx";
 
 const sheet =
-  "mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-5 text-[13px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
+  "mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-5 text-[13px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[12mm] print:max-w-none print:bg-white print:p-0 print:text-[12px] print:text-black print:shadow-none";
 
 /** /print/letter/:id. The toolbar is screen-only, so the printed page has no app chrome. */
 export function PrintLetter() {
@@ -108,7 +108,7 @@ export function PrintLetter() {
         </section>
 
         {letter.msmed && (
-          <aside className="mt-2 border border-rule-strong p-3">
+          <aside className="mt-2 break-inside-avoid border border-rule-strong p-3">
             <p className="font-medium">{letter.msmed.label}</p>
             <p className="mt-2">{letter.msmed.explanation}</p>
             <p className="mt-2 font-medium">{letter.msmed.totalLine}</p>
@@ -121,10 +121,11 @@ export function PrintLetter() {
           </aside>
         )}
 
-        <footer className="mt-8 flex justify-end">
+        {/* The sign-off never splits from its signature line across a page break. */}
+        <footer className="mt-8 flex break-inside-avoid justify-end print:mt-5">
           <div className="text-center">
             <p>{letter.signOff}</p>
-            <div className="mt-10 w-56 border-t border-ink pt-1 text-xs">Authorised signatory</div>
+            <div className="mt-10 w-56 border-t border-ink pt-1 text-xs print:mt-8">Authorised signatory</div>
           </div>
         </footer>
       </article>

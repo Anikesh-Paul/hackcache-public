@@ -15,13 +15,14 @@ export {
   ladderRungs,
   nextAction,
   promiseBroken,
+  stageName,
 } from "./ladder.ts";
 export type { LadderInvoice, LadderStage, LadderStep, NextAction, Rung } from "./ladder.ts";
 
 export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
 export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
 
-export { msmedInterest } from "./msmed.ts";
+export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS } from "./msmed.ts";
 export type { MsmedMeter, SellerFacts } from "./msmed.ts";
 
 export { AGEING_BUCKETS, CHASE_WHY, FORECAST_WEEKS, ageingBucket, payPackets, todayBook } from "./today.ts";

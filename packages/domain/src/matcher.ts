@@ -517,6 +517,11 @@ export function matcherBrief(): BriefRow[] {
   const tds = matchCredit(credit("ROY FURNISHINGS", differencePaise(1_000_000, short)), [
     bill("roy", "TBW/26-27/0003", "Roy Furnishings", 1_000_000, { buyerType: "services" }),
   ]);
+  const older = bill("old", "TBW/26-27/0008", "Barua Stores", 100_000, { customerId: "barua", issueDate: "2026-08-01" });
+  const newer = bill("new", "TBW/26-27/0009", "Barua Stores", 200_000, { customerId: "barua" });
+  const spread = matchCredit(credit("NEFT M/S BARUA STORES PVT LTD", 300_000), [newer, older]);
+  const part = matchCredit(credit("BARUA STORES", 200_000), [inv]);
+  const applied = sumPaise(part.allocations.map((a) => a.amountPaise));
   const rows: Omit<BriefRow, "pass">[] = [
     {
       id: "match-number",
@@ -538,6 +543,22 @@ export function matcherBrief(): BriefRow[] {
       input: "₹10,000 taxable, short by exactly 2%",
       expected: "Possible TDS",
       actual: tds.kind === "tds" ? "Possible TDS" : tds.kind,
+    },
+    {
+      id: "match-oldest-first",
+      area: "Match",
+      input: "₹3,000 from Barua Stores, which owes ₹1,000 on 0008 (August) and ₹2,000 on 0009 (September)",
+      expected: "0008 ₹1,000, then 0009 ₹2,000",
+      actual: spread.allocations
+        .map((a) => `${a.invoiceId === "old" ? "0008" : a.invoiceId === "new" ? "0009" : a.invoiceId} ${formatInr(a.amountPaise)}`)
+        .join(", then "),
+    },
+    {
+      id: "match-part",
+      area: "Match",
+      input: "₹2,000 from Barua Stores against ₹5,000 owed",
+      expected: "part: ₹2,000 applied, ₹3,000 still owed",
+      actual: `${part.kind}: ${formatInr(applied)} applied, ${formatInr(differencePaise(inv.totalPaise, applied))} still owed`,
     },
   ];
   return rows.map((row) => ({ ...row, pass: row.actual === row.expected }));

@@ -19,6 +19,7 @@ import {
   type Instalment,
   type PlanRule,
 } from "@tagada/domain";
+import { isSeededCall } from "@tagada/seed";
 import { callCostPaise, callCredits, formatDate, formatInr, hindiDate, hindiRupees } from "@tagada/money";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import { newId, open, owner, record, slipOf, stamp, type Book } from "./pay.ts";
@@ -118,8 +119,7 @@ export async function startCall(
   const ctx = contextOf(book);
   const guard = guardOf(book, ctx);
   if (!guard.ok) return { ok: false, status: 403, error: guard.block, message: guard.message };
-  // The seeded transcript (conversationId seedgupta…) is for the case file. It is not a call the Owner placed.
-  const placed = calls.filter((call) => !String(call.conversationId ?? "").startsWith("seedgupta"));
+  const placed = calls.filter((call) => !isSeededCall(call.conversationId));
   if (placed.length >= deps.limits.perWorkspace) {
     return {
       ok: false,

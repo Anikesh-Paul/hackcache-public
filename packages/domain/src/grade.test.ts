@@ -77,7 +77,8 @@ describe("grade", () => {
       brokenPromiseDates: ["2026-08-04"],
     });
     expect(result.grade).toBe("C");
-    expect(result.reason).toContain("Promise was broken");
+    expect(result.reason).toContain("a Promise was broken on 4 Aug");
+    expect(result.reason).not.toMatch(/90 days/);
   });
 
   it("is A when that Promise was broken a day earlier than 90 days", () => {

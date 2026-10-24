@@ -1,8 +1,10 @@
 // The domain cases /proof runs beside the money cases. Expected text is a
 // fixed literal. Actual text is whatever the public functions return.
-import { formatInr } from "@tagada/money";
+import { formatDate, formatInr } from "@tagada/money";
 import { grade, type GradeInput } from "./grade.ts";
-import { LADDER_STAGES, ladderDay, nextAction, type LadderInvoice, type NextAction } from "./ladder.ts";
+import { invoiceStanding } from "./invoice.ts";
+import { msmedInterest } from "./msmed.ts";
+import { ladderDay, nextAction, stageName, type LadderInvoice, type NextAction } from "./ladder.ts";
 import { matcherBrief, type BriefRow } from "./matcher.ts";
 import { DEFAULT_PLAN_RULE, planRule, type PlanVerdict } from "./plan-rule.ts";
 import { todayBook, type BookInvoice } from "./today.ts";
@@ -23,8 +25,7 @@ const ladderInvoice: LadderInvoice = {
 
 function ladderWords(action: NextAction): string {
   if (action.kind === "wait") return action.why;
-  const name = LADDER_STAGES.find((stage) => stage.stage === action.stage)?.name ?? "Reminder";
-  return `${name}, ${action.send === "auto" ? "sent for you" : "for you to send"}`;
+  return `${stageName(action.stage)}, ${action.send === "auto" ? "sent for you" : "for you to send"}`;
 }
 
 function planWords(verdict: PlanVerdict): string {
@@ -39,6 +40,13 @@ function planWords(verdict: PlanVerdict): string {
 function gradeWords(input: GradeInput): string {
   const result = grade(input);
   return `${result.grade}: ${result.reason}`;
+}
+
+function appointedWords(): string {
+  const invoice = { ...ladderInvoice, issueDate: "2026-09-01", dueDate: "2026-10-31" };
+  const today = "2026-11-02";
+  const meter = msmedInterest({ udyamType: "micro", isTrader: false }, invoice, invoiceStanding(invoice, [], today), today);
+  return meter ? `interest from ${formatDate(meter.from, { weekday: false, year: true })}` : "no interest";
 }
 
 function row(id: string, area: string, input: string, expected: string, actual: string): BriefRow {
@@ -93,6 +101,12 @@ export function runDomainCases(): BriefRow[] {
     today: "2026-11-25",
     autoSendStages: [1, 2],
   });
+  const disputed = nextAction({
+    invoice: { ...ladderInvoice, status: "disputed", ladderStage: 3 },
+    promises: [],
+    today: "2026-12-20",
+    autoSendStages: [1, 2],
+  });
   const letter = nextAction({
     invoice: { ...ladderInvoice, ladderStage: 4 },
     promises: [],
@@ -132,6 +146,13 @@ export function runDomainCases(): BriefRow[] {
       "Promise of ₹1,18,000 by 24 Nov, nothing paid, today 25 Nov",
       "Reminder call, for you to send",
       ladderWords(resumed),
+    ),
+    row(
+      "ladder-dispute",
+      "Ladder",
+      "The Customer raised a Dispute, and the Invoice is 40 days late",
+      "disputed",
+      ladderWords(disputed),
     ),
     row(
       "ladder-letter",
@@ -196,6 +217,20 @@ export function runDomainCases(): BriefRow[] {
       "Pays 31 days late on average",
       "C: usually pays 31 days late",
       gradeWords({ today: "2026-11-02", paidDaysLate: [31], openDueDates: [], ...noDisputesOrBrokenPromises }),
+    ),
+    row(
+      "grade-c-promise",
+      "Grade",
+      "Pays 3 days late, but broke a Promise on 20 Oct 2026",
+      "C: usually pays 3 days late; a Promise was broken on 20 Oct",
+      gradeWords({ today: "2026-11-02", paidDaysLate: [3], openDueDates: [], disputeDates: [], brokenPromiseDates: ["2026-10-20"] }),
+    ),
+    row(
+      "interest-45-days",
+      "Interest",
+      "Invoice dated 1 Sep 2026 with 60 days' credit, due 31 Oct",
+      "interest from 17 Oct 2026",
+      appointedWords(),
     ),
     row(
       "ageing-sum",

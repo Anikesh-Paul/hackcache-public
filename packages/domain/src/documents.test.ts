@@ -85,6 +85,27 @@ describe("Payment Demand Letter", () => {
     expect(text).toContain("Pay link: https://tagada.example/pay/abc");
   });
 
+  it("names only the late amount in the interest total, not Invoices still inside their terms", () => {
+    const notDue: DocumentInvoice = {
+      ...guptaInvoice,
+      $id: "i30",
+      number: "TBW/26-27/0030",
+      issueDate: "2026-10-20",
+      dueDate: "2026-11-19",
+      totalPaise: 504_000,
+    };
+    const both = demandLetter({
+      seller,
+      customer: guptaCustomer,
+      invoices: [guptaInvoice, notDue],
+      invoiceId: "i18",
+      today: TODAY,
+      payUrl: null,
+    });
+    expect(both.outstanding).toBe("₹1,23,040");
+    expect(both.msmed?.totalLine).toBe("Interest so far ₹2,057.65, on ₹1,18,000 owed past the MSMED due date.");
+  });
+
   it("keeps legal notice inside the disclaimer, and never says 90 days", () => {
     const text = letterText(letter);
     expect(text.match(/legal notice/gi)).toEqual(["legal notice"]);

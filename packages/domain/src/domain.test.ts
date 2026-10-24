@@ -11,7 +11,8 @@ import {
 
 const TODAY = "2026-11-02";
 
-const gupta: InvoiceFacts = {
+const gupta: InvoiceFacts & { issueDate: string } = {
+  issueDate: "2026-08-26",
   totalPaise: 11_800_000,
   paidPaise: 0,
   status: "sent",
@@ -130,8 +131,19 @@ describe("MSMED §16 interest meter", () => {
     expect(msmedInterest({ udyamType: null, isTrader: false }, gupta, standing, TODAY)).toBeNull();
   });
 
+  it("runs from 45 days after the Invoice date when the agreed terms are longer (§15)", () => {
+    // Issued 1 Sep with 60 days' credit: due 31 Oct, but the appointed day is 16 Oct.
+    const long = { ...gupta, issueDate: "2026-09-01", dueDate: "2026-10-31" };
+    const meter = msmedInterest(seller, long, invoiceStanding(long, [], TODAY), TODAY);
+    expect(meter?.from).toBe("2026-10-17");
+    // Not yet late by its own terms, but past the appointed day: interest still runs.
+    const early = { ...long, dueDate: "2026-12-31" };
+    expect(invoiceStanding(early, [], TODAY).daysLate).toBe(0);
+    expect(msmedInterest(seller, early, invoiceStanding(early, [], TODAY), TODAY)?.from).toBe("2026-10-17");
+  });
+
   it("is not shown before the due date has passed, or once paid", () => {
-    const notDue = { ...gupta, dueDate: TODAY };
+    const notDue = { ...gupta, issueDate: "2026-10-03", dueDate: TODAY };
     expect(msmedInterest(seller, notDue, invoiceStanding(notDue, [], TODAY), TODAY)).toBeNull();
     const paid = { ...gupta, status: "paid" as const, paidPaise: 11_800_000 };
     expect(msmedInterest(seller, paid, invoiceStanding(paid, [], TODAY), TODAY)).toBeNull();

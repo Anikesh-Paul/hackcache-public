@@ -14,7 +14,7 @@ import {
 } from "@tagada/money";
 import { stripTags } from "./call.ts";
 import { invoiceStanding, type InvoiceFacts } from "./invoice.ts";
-import { LADDER_STAGES } from "./ladder.ts";
+import { stageName } from "./ladder.ts";
 import { msmedInterest, type SellerFacts } from "./msmed.ts";
 
 export const LETTER_TITLE = "Payment Demand Letter";
@@ -29,7 +29,7 @@ export const ODR_EXPLAIN =
   "ODR is online dispute resolution. The government's portal for delayed payments to micro and small businesses is odr.msme.gov.in.";
 
 export const TDS_EXPLAIN =
-  "TDS is tax deducted at source. Some Customers must keep back a set share of a payment and pay that share to the tax department in the supplier's name. Possible TDS means the shortfall is exactly 0.1%, 1%, 2% or 10% of the taxable value.";
+  "TDS is tax deducted at source. Some Customers must keep back a set share of a payment and pay that share to the tax department in the supplier's name. Possible TDS means the amount kept back is exactly 0.1%, 1%, 2% or 10% of the taxable value.";
 
 /**
  * The Demo world's bank transfer. The IFSC is not issued to any bank.
@@ -170,6 +170,7 @@ function prepare(invoices: readonly DocumentInvoice[], seller: SellerFacts, toda
   const balances: number[] = [];
   const workings: string[] = [];
   const interests: number[] = [];
+  const principals: number[] = [];
   for (const invoice of listed) {
     const standing = invoiceStanding(invoice, [], today);
     lines.push({
@@ -182,10 +183,14 @@ function prepare(invoices: readonly DocumentInvoice[], seller: SellerFacts, toda
     const meter = msmedInterest(seller, invoice, standing, today);
     if (!meter) continue;
     interests.push(meter.interestPaise);
+    principals.push(meter.principalPaise);
     for (const rest of meter.rests) workings.push(restLine(invoice.number, rest));
   }
   const outstandingPaise = sumPaise(balances);
-  return { listed, lines, outstandingPaise, outstanding: formatInr(outstandingPaise), workings, interestPaise: sumPaise(interests) };
+  const interestPaise = sumPaise(interests);
+  // Only the Invoices past their appointed day earn interest, so the total names that amount, not all that is owed.
+  const interestTotal = `Interest so far ${formatInr(interestPaise)}, on ${formatInr(sumPaise(principals))} owed past the MSMED due date.`;
+  return { listed, lines, outstandingPaise, outstanding: formatInr(outstandingPaise), workings, interestTotal };
 }
 
 function whyNoInterest(seller: SellerFacts): string {
@@ -220,10 +225,6 @@ export function transcriptExcerpt(raw: string | null): string | null {
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
-function stageName(stage: number): string {
-  return LADDER_STAGES.find((s) => s.stage === stage)?.name ?? "Reminder";
-}
-
 function channelWords(channel: DocumentReminder["channel"]): string {
   if (channel === "email") return "by email";
   if (channel === "whatsapp_link") return "on WhatsApp";
@@ -252,7 +253,7 @@ export function demandLetter(input: {
   today: string;
   payUrl: string | null;
 }): DemandLetter {
-  const { listed, lines, outstandingPaise, outstanding, workings, interestPaise } = prepare(
+  const { listed, lines, outstandingPaise, outstanding, workings, interestTotal } = prepare(
     input.invoices,
     input.seller,
     input.today,
@@ -293,7 +294,7 @@ export function demandLetter(input: {
         : {
             label: MSMED_BOX_LABEL,
             explanation: MSMED_EXPLAIN,
-            totalLine: `Interest so far ${formatInr(interestPaise)}, on ${outstanding} still owed.`,
+            totalLine: interestTotal,
             lines: workings,
             aside: NOT_IN_DEMAND,
           },
@@ -309,7 +310,7 @@ export function odrCaseFile(input: {
   calls: readonly DocumentCall[];
   today: string;
 }): CaseFile {
-  const { listed, lines, workings, interestPaise } = prepare(input.invoices, input.seller, input.today);
+  const { listed, lines, workings, interestTotal } = prepare(input.invoices, input.seller, input.today);
   const ids = new Set(listed.map((invoice) => invoice.$id));
   const numbers = new Map(listed.map((invoice) => [invoice.$id, invoice.number]));
   const reminders = input.reminders
@@ -318,7 +319,7 @@ export function odrCaseFile(input: {
     .map((reminder) => {
       const which = numbers.size > 1 ? `${numbers.get(reminder.invoiceId) ?? "Invoice"}, ` : "";
       return {
-        when: reminder.sentDate ? formatDate(reminder.sentDate, { weekday: false, year: true }) : "Date not recorded",
+        when: reminder.sentDate ? dated(reminder.sentDate) : "Date not recorded",
         text: `${which}${stageName(reminder.stage)}, ${statusWords(reminder.status)} ${channelWords(reminder.channel)}`,
       };
     });
@@ -341,7 +342,7 @@ export function odrCaseFile(input: {
     interestNote:
       workings.length === 0
         ? whyNoInterest(input.seller)
-        : `Interest so far ${formatInr(interestPaise)}. This is general information, not legal advice.`,
+        : `${interestTotal} This is ${MSMED_BOX_LABEL}.`,
     interestLines: workings,
     reminders,
     reminderNote: reminders.length === 0 ? NO_REMINDERS : null,
