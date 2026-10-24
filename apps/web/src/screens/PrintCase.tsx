@@ -1,10 +1,10 @@
-import { Link, useParams } from "react-router";
-import { ArrowLeft, Printer } from "lucide-react";
+import { useParams } from "react-router";
 import type { CallRow, ReminderRow } from "@tagada/appwrite";
 import { odrCaseFile } from "@tagada/domain";
 import { useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { customerOf, invoiceOf, invoicesForDocument, sellerOf } from "../lib/documents.ts";
 import { NotFound } from "./NotFound.tsx";
+import { PrintBar } from "./PrintBar.tsx";
 
 const sheet =
   "case-file mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-4 text-[12px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[10mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
@@ -40,14 +40,7 @@ export function PrintCase() {
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <div className="no-print mx-auto mb-4 flex max-w-[210mm] flex-wrap gap-2">
-        <Link to={`/app/invoices/${invoice.$id}`} className="btn secondary">
-          <ArrowLeft aria-hidden /> Back to the Invoice
-        </Link>
-        <button type="button" className="btn primary" onClick={() => window.print()}>
-          <Printer aria-hidden /> Print or save as PDF
-        </button>
-      </div>
+      <PrintBar invoiceId={invoice.$id} />
       {!ready || !file ? (
         <p className="text-center text-ink-2">
           {reminders === "failed" || calls === "failed"

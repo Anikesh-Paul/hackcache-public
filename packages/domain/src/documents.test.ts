@@ -80,6 +80,7 @@ describe("Payment Demand Letter", () => {
     expect(letter.deadlineLine).toBe("Please pay ₹1,18,000 by Mon 9 Nov 2026.");
     expect(text).toContain("UPI: tripurabamboo@demo");
     expect(text).toContain("Bank transfer");
+    expect(text).toContain("Pay by bank transfer to this account.");
     expect(text).toContain("DEMO0TAGADA");
     expect(text).toContain("Pay link: https://tagada.example/pay/abc");
   });

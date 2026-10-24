@@ -1,10 +1,10 @@
-import { Link, useParams } from "react-router";
-import { ArrowLeft, Printer } from "lucide-react";
+import { useParams } from "react-router";
 import { demandLetter } from "@tagada/domain";
 import { useWorld } from "../lib/world.tsx";
 import { customerOf, invoiceOf, invoicesForDocument, sellerOf } from "../lib/documents.ts";
 import { Badge } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
+import { PrintBar } from "./PrintBar.tsx";
 import { UpiQr } from "./TaxInvoice.tsx";
 
 const sheet =
@@ -30,14 +30,7 @@ export function PrintLetter() {
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <div className="no-print mx-auto mb-4 flex max-w-[210mm] flex-wrap gap-2">
-        <Link to={`/app/invoices/${invoice.$id}`} className="btn secondary">
-          <ArrowLeft aria-hidden /> Back to the Invoice
-        </Link>
-        <button type="button" className="btn primary" onClick={() => window.print()}>
-          <Printer aria-hidden /> Print or save as PDF
-        </button>
-      </div>
+      <PrintBar invoiceId={invoice.$id} />
       <article className={sheet}>
         <header className="border-b-2 border-ink pb-3">
           <p className="text-lg font-semibold">{letter.fromName}</p>
@@ -106,7 +99,10 @@ export function PrintLetter() {
             <dt className="text-ink-2">IFSC</dt>
             <dd className="mono">{letter.bank.ifsc}</dd>
           </dl>
-          <p className="mt-1 text-ink-2">{letter.bank.note}</p>
+          <p className="mt-1">{letter.bank.note}</p>
+          <p className="no-print mt-2">
+            <Badge kind="sim">Sample account for this Demo world. No one is paid.</Badge>
+          </p>
           <p className="mt-3 break-all">{letter.payLinkLine}</p>
           {letter.contactLine && <p className="mt-2">{letter.contactLine}</p>}
         </section>

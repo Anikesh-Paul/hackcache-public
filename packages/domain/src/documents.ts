@@ -1,8 +1,9 @@
 // The Payment Demand Letter and the ODR case file. Pure: every figure comes
 // from the rows passed in, and every paise sum from `money`. The workspace
-// stores a UPI ID and no bank account, so the letter prints a sample account
-// that cannot receive a transfer. The payment date is 7 days on from the Demo
-// date, the same window the final reminder names. It is not a statutory period.
+// stores a UPI ID and no bank account, so the letter prints the Demo world's
+// sample account as the bank transfer. The screen says no one is paid. The
+// payment date is 7 days on from the Demo date, the same window the final
+// reminder names. It is not a statutory period.
 import {
   addDays,
   formatDate,
@@ -30,12 +31,15 @@ export const ODR_EXPLAIN =
 export const TDS_EXPLAIN =
   "TDS is tax deducted at source. Some Customers must keep back a set share of a payment and pay that share to the tax department in the supplier's name. Possible TDS means the shortfall is exactly 0.1%, 1%, 2% or 10% of the taxable value.";
 
-/** Not a real bank. The IFSC is not issued to any bank, so a transfer cannot land. */
+/**
+ * The Demo world's bank transfer. The IFSC is not issued to any bank.
+ * The screen says so; the printed letter still tells the Customer where to pay.
+ */
 export const SAMPLE_BANK = {
   bankName: "Sample bank for this Demo world",
   accountNumber: "38492011000018",
   ifsc: "DEMO0TAGADA",
-  note: "This sample account cannot receive a real transfer.",
+  note: "Pay by bank transfer to this account.",
 } as const;
 
 export const ODR_STEPS = [
@@ -150,30 +154,38 @@ function dated(iso: string): string {
   return formatDate(iso, { weekday: false, year: true });
 }
 
-function invoiceLine(invoice: DocumentInvoice, today: string): LetterInvoiceLine {
-  const standing = invoiceStanding(invoice, [], today);
-  return {
-    number: invoice.number,
-    issued: dated(invoice.issueDate),
-    due: dated(invoice.dueDate),
-    outstanding: formatInr(standing.balancePaise),
-  };
+function restLine(invoiceNumber: string, rest: { start: string | null; end: string | null; rates: { days: number | null; annualBps: number }[]; interestPaise: number }): string {
+  const rates = rest.rates
+    .map((part) => (part.days === null ? formatRateBps(part.annualBps) : `${formatRateBps(part.annualBps)} for ${part.days} days`))
+    .join(" + ");
+  const when =
+    rest.start && rest.end ? `${formatDate(rest.start, { weekday: false })} to ${formatDate(rest.end, { weekday: false })}` : "Month";
+  return `${invoiceNumber}: ${when}, ${rates}, ${formatInr(rest.interestPaise)}`;
 }
 
-function interestWorkings(invoice: DocumentInvoice, seller: SellerFacts, today: string): string[] {
-  const standing = invoiceStanding(invoice, [], today);
-  const meter = msmedInterest(seller, invoice, standing, today);
-  if (!meter) return [];
-  return meter.rests.map((rest) => {
-    const rates = rest.rates
-      .map((part) =>
-        part.days === null ? formatRateBps(part.annualBps) : `${formatRateBps(part.annualBps)} for ${part.days} days`,
-      )
-      .join(" + ");
-    const when =
-      rest.start && rest.end ? `${formatDate(rest.start, { weekday: false })} to ${formatDate(rest.end, { weekday: false })}` : "Month";
-    return `${invoice.number}: ${when}, ${rates}, ${formatInr(rest.interestPaise)}`;
-  });
+/** One pass over the Invoices: the lines, what is owed, and any MSMED interest. */
+function prepare(invoices: readonly DocumentInvoice[], seller: SellerFacts, today: string) {
+  const listed = [...invoices].sort((a, b) => a.issueDate.localeCompare(b.issueDate) || a.number.localeCompare(b.number));
+  const lines: LetterInvoiceLine[] = [];
+  const balances: number[] = [];
+  const workings: string[] = [];
+  const interests: number[] = [];
+  for (const invoice of listed) {
+    const standing = invoiceStanding(invoice, [], today);
+    lines.push({
+      number: invoice.number,
+      issued: dated(invoice.issueDate),
+      due: dated(invoice.dueDate),
+      outstanding: formatInr(standing.balancePaise),
+    });
+    balances.push(standing.balancePaise);
+    const meter = msmedInterest(seller, invoice, standing, today);
+    if (!meter) continue;
+    interests.push(meter.interestPaise);
+    for (const rest of meter.rests) workings.push(restLine(invoice.number, rest));
+  }
+  const outstandingPaise = sumPaise(balances);
+  return { listed, lines, outstandingPaise, outstanding: formatInr(outstandingPaise), workings, interestPaise: sumPaise(interests) };
 }
 
 function whyNoInterest(seller: SellerFacts): string {
@@ -240,12 +252,11 @@ export function demandLetter(input: {
   today: string;
   payUrl: string | null;
 }): DemandLetter {
-  const listed = [...input.invoices].sort((a, b) => a.issueDate.localeCompare(b.issueDate) || a.number.localeCompare(b.number));
-  const lines = listed.map((invoice) => invoiceLine(invoice, input.today));
-  const outstandingPaise = sumPaise(
-    listed.map((invoice) => invoiceStanding(invoice, [], input.today).balancePaise),
+  const { listed, lines, outstandingPaise, outstanding, workings, interestPaise } = prepare(
+    input.invoices,
+    input.seller,
+    input.today,
   );
-  const outstanding = formatInr(outstandingPaise);
   const deadline = addDays(input.today, PAYMENT_WINDOW_DAYS);
   const primary = listed.find((invoice) => invoice.$id === input.invoiceId) ?? listed[0];
   const upiUri =
@@ -257,10 +268,6 @@ export function demandLetter(input: {
           note: primary?.number ?? "Invoice",
         })
       : null;
-  const workings = listed.flatMap((invoice) => interestWorkings(invoice, input.seller, input.today));
-  const interestPaise = sumPaise(
-    listed.map((invoice) => msmedInterest(input.seller, invoice, invoiceStanding(invoice, [], input.today), input.today)?.interestPaise ?? 0),
-  );
 
   return {
     title: LETTER_TITLE,
@@ -302,13 +309,9 @@ export function odrCaseFile(input: {
   calls: readonly DocumentCall[];
   today: string;
 }): CaseFile {
-  const listed = [...input.invoices].sort((a, b) => a.issueDate.localeCompare(b.issueDate) || a.number.localeCompare(b.number));
+  const { listed, lines, workings, interestPaise } = prepare(input.invoices, input.seller, input.today);
   const ids = new Set(listed.map((invoice) => invoice.$id));
   const numbers = new Map(listed.map((invoice) => [invoice.$id, invoice.number]));
-  const workings = listed.flatMap((invoice) => interestWorkings(invoice, input.seller, input.today));
-  const interestPaise = sumPaise(
-    listed.map((invoice) => msmedInterest(input.seller, invoice, invoiceStanding(invoice, [], input.today), input.today)?.interestPaise ?? 0),
-  );
   const reminders = input.reminders
     .filter((reminder) => ids.has(reminder.invoiceId))
     .sort((a, b) => (a.sentDate ?? "").localeCompare(b.sentDate ?? "") || a.stage - b.stage)
@@ -333,7 +336,7 @@ export function odrCaseFile(input: {
     toName: input.customer.name,
     odrExplanation: ODR_EXPLAIN,
     steps: ODR_STEPS,
-    invoices: listed.map((invoice) => invoiceLine(invoice, input.today)),
+    invoices: lines,
     interestExplanation: MSMED_EXPLAIN,
     interestNote:
       workings.length === 0

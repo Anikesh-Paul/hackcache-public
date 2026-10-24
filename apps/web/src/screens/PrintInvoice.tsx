@@ -1,11 +1,11 @@
 import { Link, useParams } from "react-router";
-import { ArrowLeft, Printer } from "lucide-react";
 import type { InvoiceLineRow } from "@tagada/appwrite";
 import { addDays } from "@tagada/money";
 import { useInvoiceRows, useWorld } from "../lib/world.tsx";
 import { priceLines } from "../lib/pricing.ts";
 import { Ln, Paper } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
+import { PrintBar } from "./PrintBar.tsx";
 import { TaxInvoice } from "./TaxInvoice.tsx";
 
 /** /print/invoice/:id: the saved Invoice on A4, priced by `money`. */
@@ -19,14 +19,7 @@ export function PrintInvoice() {
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <div className="no-print mx-auto mb-4 flex max-w-[210mm] flex-wrap gap-2">
-        <Link to={`/app/invoices/${invoice.$id}`} className="btn secondary">
-          <ArrowLeft aria-hidden /> Back to the Invoice
-        </Link>
-        <button type="button" className="btn primary" onClick={() => window.print()}>
-          <Printer aria-hidden /> Print or save as PDF
-        </button>
-      </div>
+      <PrintBar invoiceId={invoice.$id} />
       {lines === "failed" ? (
         <p className="text-center">The lines could not be loaded. Reload the page to try again.</p>
       ) : lines ? (

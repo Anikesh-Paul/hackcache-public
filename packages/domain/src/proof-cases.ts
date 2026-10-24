@@ -7,7 +7,7 @@ import { matcherBrief, type BriefRow } from "./matcher.ts";
 import { DEFAULT_PLAN_RULE, planRule, type PlanVerdict } from "./plan-rule.ts";
 import { todayBook, type BookInvoice } from "./today.ts";
 
-const NONE = { disputeDates: [] as string[], brokenPromiseDates: [] as string[] };
+const noDisputesOrBrokenPromises = { disputeDates: [] as string[], brokenPromiseDates: [] as string[] };
 
 const ladderInvoice: LadderInvoice = {
   $id: "i1",
@@ -181,21 +181,21 @@ export function runDomainCases(): BriefRow[] {
       "Grade",
       "Pays 7 days late, no Dispute in the last 6 months",
       "A: usually pays 7 days late",
-      gradeWords({ today: "2026-11-02", paidDaysLate: [7], openDueDates: [], ...NONE }),
+      gradeWords({ today: "2026-11-02", paidDaysLate: [7], openDueDates: [], ...noDisputesOrBrokenPromises }),
     ),
     row(
       "grade-b",
       "Grade",
       "Paid 14 days late and 10 days late, one Invoice due 25 Sep 2026 still open on 2 Nov",
       "B: usually pays 12 days late; this one is 38 days late",
-      gradeWords({ today: "2026-11-02", paidDaysLate: [14, 10], openDueDates: ["2026-09-25"], ...NONE }),
+      gradeWords({ today: "2026-11-02", paidDaysLate: [14, 10], openDueDates: ["2026-09-25"], ...noDisputesOrBrokenPromises }),
     ),
     row(
       "grade-c",
       "Grade",
       "Pays 31 days late on average",
       "C: usually pays 31 days late",
-      gradeWords({ today: "2026-11-02", paidDaysLate: [31], openDueDates: [], ...NONE }),
+      gradeWords({ today: "2026-11-02", paidDaysLate: [31], openDueDates: [], ...noDisputesOrBrokenPromises }),
     ),
     row(
       "ageing-sum",
