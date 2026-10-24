@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { cloneElement, useEffect, useId, useRef, useState, type ReactElement } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
@@ -258,6 +258,7 @@ export function NewInvoice() {
           )}
         </Ln>
 
+        <Ln>
         <form
           className="mt-6 grid gap-4"
           onSubmit={(event) => {
@@ -412,6 +413,7 @@ export function NewInvoice() {
             </p>
           )}
         </form>
+        </Ln>
       </Paper>
 
       <div className="min-w-0">
@@ -445,16 +447,28 @@ export function NewInvoice() {
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string | null; children: ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string | null;
+  children: ReactElement<{ id?: string; "aria-describedby"?: string }>;
+}) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
   return (
-    <label className="grid gap-1 text-sm">
-      <span className="font-medium">{label}</span>
-      {children}
+    <div className="grid gap-1 text-sm">
+      <label htmlFor={id} className="font-medium">
+        {label}
+      </label>
+      {cloneElement(children, { id, "aria-describedby": hintId })}
       {hint && (
-        <span role="alert" className="text-sindoor">
+        <span id={hintId} role="alert" className="text-sindoor">
           {hint}
         </span>
       )}
-    </label>
+    </div>
   );
 }
