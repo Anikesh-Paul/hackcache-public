@@ -6,6 +6,18 @@ export const GST_RATES = [0, 5, 18] as const;
 
 export type GstRate = (typeof GST_RATES)[number];
 
+/**
+ * Units a line can be counted in, as they print on the invoice. "nos" (numbers)
+ * is the default and is stored as null.
+ */
+export const LINE_UNITS = ["nos", "pcs", "set", "dozen", "box", "bundle", "kg", "g", "m", "ft", "sq ft", "l"] as const;
+
+export type LineUnit = (typeof LINE_UNITS)[number];
+
+export function isLineUnit(unit: unknown): unit is LineUnit {
+  return typeof unit === "string" && (LINE_UNITS as readonly string[]).includes(unit);
+}
+
 export function isGstRate(rate: number): rate is GstRate {
   return (GST_RATES as readonly number[]).includes(rate);
 }

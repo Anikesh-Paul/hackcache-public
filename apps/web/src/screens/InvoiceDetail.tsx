@@ -235,7 +235,7 @@ function InvoiceLines({
       {lines.map((line, n) => {
         const p = priced.lines[n];
         return (
-          <Ln key={line.$id} m={line.qtyMilli / 1000} a={formatInr(p?.taxablePaise ?? 0)} className="ruler">
+          <Ln key={line.$id} m={line.unit ? `${line.qtyMilli / 1000} ${line.unit}` : line.qtyMilli / 1000} a={formatInr(p?.taxablePaise ?? 0)} className="ruler">
             {line.description}
             <small>
               {line.hsn && (

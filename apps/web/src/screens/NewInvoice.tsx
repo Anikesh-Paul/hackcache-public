@@ -3,14 +3,17 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import type { CustomerRow, InvoiceLineRow } from "@tagada/appwrite";
 import {
   GST_RATES,
+  LINE_UNITS,
   addDays,
   formatAmountInput,
   indianStates,
   isGstRate,
+  isLineUnit,
   parseAmountPaise,
   quantityMilli,
   stateName,
   type GstRate,
+  type LineUnit,
 } from "@tagada/money";
 import { SaveError, createInvoice } from "../lib/appwrite.ts";
 import { LANGUAGES, type LanguageId } from "../lib/languages.ts";
@@ -36,6 +39,7 @@ type LineDraft = {
   description: string;
   hsn: string;
   qty: string;
+  unit: LineUnit;
   rate: string;
   discount: string;
   gst: GstRate;
@@ -47,7 +51,7 @@ const control = "min-h-11 w-full rounded-md border border-rule-strong bg-paper p
 const DEFAULT_HSN = "4602";
 
 function blankLine(): LineDraft {
-  return { key: crypto.randomUUID(), description: "", hsn: DEFAULT_HSN, qty: "1", rate: "", discount: "0", gst: 5 };
+  return { key: crypto.randomUUID(), description: "", hsn: DEFAULT_HSN, qty: "1", unit: "nos", rate: "", discount: "0", gst: 5 };
 }
 
 /** 2.5 or 0.75 are fine; at most three decimals, above 0. */
@@ -68,6 +72,7 @@ function fromStored(line: InvoiceLineRow): LineDraft {
     description: line.description,
     hsn: line.hsn ?? "",
     qty: String(line.qtyMilli / 1000),
+    unit: isLineUnit(line.unit) ? line.unit : "nos",
     rate: formatAmountInput(line.ratePaise),
     discount: String(line.discountBp / 100),
     gst: isGstRate(rate) ? rate : 5,
@@ -100,6 +105,7 @@ function parseLine(line: LineDraft): DraftLine | null {
     ratePaise,
     discountPercent: discount,
     gstRatePercent: line.gst,
+    unit: line.unit,
   };
 }
 
@@ -390,9 +396,27 @@ export function NewInvoice() {
                   <Field label={t.newInvoice.hsn} hint={lineHint(line, "hsn")}>
                     <input className={control} inputMode="numeric" value={line.hsn} onChange={(event) => edit(line.key, { hsn: event.target.value })} />
                   </Field>
-                  <Field label={t.newInvoice.quantity} hint={lineHint(line, "qty")}>
-                    <input className={control} inputMode="decimal" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
-                  </Field>
+                  <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+                    <Field label={t.newInvoice.quantity} hint={lineHint(line, "qty")}>
+                      <input className={control} inputMode="decimal" value={line.qty} onChange={(event) => edit(line.key, { qty: event.target.value })} />
+                    </Field>
+                    <Field label={t.newInvoice.unit}>
+                      <select
+                        className={control}
+                        value={line.unit}
+                        onChange={(event) => {
+                          const unit = event.target.value;
+                          if (isLineUnit(unit)) edit(line.key, { unit });
+                        }}
+                      >
+                        {LINE_UNITS.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
                   <Field label={t.newInvoice.rate} hint={lineHint(line, "rate")}>
                     <input className={control} inputMode="decimal" value={line.rate} onChange={(event) => edit(line.key, { rate: event.target.value })} />
                   </Field>

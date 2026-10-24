@@ -384,6 +384,7 @@ export const bn: Copy = {
     description: "বিবরণ",
     hsn: "HSN বা SAC",
     quantity: "পরিমাণ",
+    unit: "একক",
     rate: "দর (₹)",
     discount: "ছাড় %",
     gstRate: "GST হার",

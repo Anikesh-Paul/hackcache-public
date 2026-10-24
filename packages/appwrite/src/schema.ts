@@ -139,6 +139,8 @@ export const tables = {
     str("description", 256, true),
     str("hsn", 8),
     int("qtyMilli", true),
+    // Null is "nos", so rows written before the column existed still read right.
+    str("unit", 8),
     paise("ratePaise", true),
     int("discountBp"),
     int("gstRateBp", true),

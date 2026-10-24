@@ -213,6 +213,15 @@ describe("POST /api/invoices", () => {
     expect(await saved.json()).toMatchObject({ invoice: { taxablePaise: 83_333, igstPaise: 4_167, totalPaise: 87_500 } });
     expect(db.rows().find((row) => row.description === "Cane, by the kg")?.qtyMilli).toBe(2_500);
 
+    const kg = await postInvoice({ customerId: gupta, lines: [{ ...cane, description: "Cane, kg", unit: "kg" }, { ...chair, unit: "nos" }] });
+    expect(kg.status).toBe(200);
+    expect(db.rows().find((row) => row.description === "Cane, kg")?.unit).toBe("kg");
+    // "nos" is the default and is not written, so rows read the same as before the column existed.
+    const chairs = db.rows().filter((row) => row.description === chair.description && row.qtyMilli === 1_000);
+    expect(chairs.at(-1)).not.toHaveProperty("unit");
+    const badUnit = await postInvoice({ customerId: gupta, lines: [{ ...cane, unit: "tonnes" }] });
+    expect(await badUnit.json()).toEqual({ error: "invalid_line" });
+
     const refused = await postInvoice({ customerId: gupta, lines: [{ ...cane, quantity: 2.0005 }] });
     expect(refused.status).toBe(400);
     expect(await refused.json()).toEqual({ error: "invalid_line" });
