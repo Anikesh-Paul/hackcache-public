@@ -9,8 +9,10 @@ import {
   callDay,
   callGuard,
   checkOutcome,
+  deductionWords,
   planInWords,
   planRule,
+  section43bh,
   spokenName,
   stripTags,
   type CallBlock,
@@ -22,6 +24,7 @@ import {
 import { isSeededCall } from "@tagada/seed";
 import { callCostPaise, callCredits, formatDate, formatInr, hindiDate, hindiRupees } from "@tagada/money";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
+import { sellerOf } from "./ladder.ts";
 import { newId, open, owner, record, slipOf, stamp, type Book } from "./pay.ts";
 
 /** The private ElevenLabs agent: one WebRTC conversation token per call. */
@@ -60,6 +63,11 @@ function variablesFor(book: Book, ctx: CallContext, callId: string): Record<stri
   const { workspace, invoice, customer } = book;
   const slip = slipOf(book);
   const rule: PlanRule = ctx.rule;
+  const deduction = section43bh(
+    sellerOf(workspace),
+    { issueDate: text(invoice.issueDate) ?? "", dueDate: text(invoice.dueDate) ?? "" },
+    ctx.today,
+  );
   return {
     business_name: text(workspace.businessName) ?? "",
     customer_name: spokenName(text(customer?.name) ?? ""),
@@ -73,6 +81,8 @@ function variablesFor(book: Book, ctx: CallContext, callId: string): Record<stri
     rule_min_first_pct: String(rule.minFirstPct),
     rule_first_within_days: String(rule.firstWithinDays),
     rule_rest_within_days: String(rule.restWithinDays),
+    // Section 43B(h) in Hindi, or empty when the seller is not covered. Munim may say it once, if asked for more time.
+    deduction_line: deduction ? deductionWords("hi", deduction) : "",
     invoice_id: invoice.$id,
     workspace_id: workspace.$id,
     call_id: callId,

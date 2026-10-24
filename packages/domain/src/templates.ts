@@ -4,6 +4,7 @@
 import { daysBetween, formatDate, formatInr, hindiDate } from "@tagada/money";
 import { spokenName } from "./call.ts";
 import type { CustomerLang } from "./language.ts";
+import type { DeductionClock } from "./msmed.ts";
 
 /** One template per message stage, stage 1 first. Stage 6, the ODR case file, has none. */
 export const REMINDER_TEMPLATES = ["heads_up", "due_today", "overdue", "firm", "final"] as const;
@@ -31,7 +32,12 @@ export type ReminderFacts = {
   payUrl: string;
   /** Who the Customer can reply to: the Owner's email or phone. */
   contact: string;
+  /** Section 43B(h), when the seller is covered (see `section43bh`). Named from the overdue reminder on. */
+  deduction?: DeductionClock | null;
 };
+
+/** The first stage that names Section 43B(h): the friendly heads-up and the due-date reminder never do. */
+const DEDUCTION_FROM_STAGE = 3;
 
 type Words = { amount: string; date: string; late: number; f: ReminderFacts };
 
@@ -129,6 +135,27 @@ const CONTACT: Record<CustomerLang, (f: ReminderFacts) => string> = {
   bn: (f) => `কোনো প্রশ্ন? ${f.contact}-এ লিখুন। ${f.businessName}`,
 };
 
+// "May": whether a buyer can deduct the bill at all depends on their own books, which Tagada does not know.
+const DEDUCTION: Record<CustomerLang, (d: DeductionClock) => string> = {
+  en: (d) =>
+    d.sameYear
+      ? `Paid by ${formatDate(d.claimBy, { weekday: false, year: true })}, you may claim this bill as an expense in FY ${d.claimYear}. Paid later, Section 43B(h) of the Income Tax Act moves the claim to the year it is paid.`
+      : `Under Section 43B(h) of the Income Tax Act, this bill may now be claimed as an expense only in the year it is paid: paid by ${formatDate(d.claimBy, { weekday: false, year: true })}, that is FY ${d.claimYear}.`,
+  hi: (d) =>
+    d.sameYear
+      ? `${hindiDate(d.claimBy)} तक भुगतान होने पर आप यह बिल FY ${d.claimYear} के खर्च में दिखा सकते हैं। बाद में भुगतान हुआ तो आयकर अधिनियम की धारा 43B(h) के तहत यह खर्च उसी साल में गिना जाएगा जिस साल भुगतान होगा।`
+      : `आयकर अधिनियम की धारा 43B(h) के तहत यह बिल अब उसी साल के खर्च में गिना जा सकता है जिस साल इसका भुगतान हो: ${hindiDate(d.claimBy)} तक भुगतान हुआ तो FY ${d.claimYear} में।`,
+  bn: (d) =>
+    d.sameYear
+      ? `${formatDate(d.claimBy, { weekday: false, year: true })}-এর মধ্যে পেমেন্ট হলে আপনি এই বিল FY ${d.claimYear}-এর খরচে দেখাতে পারেন। পরে পেমেন্ট হলে আয়কর আইনের ধারা 43B(h) অনুযায়ী খরচটি যে বছরে পেমেন্ট হবে সেই বছরে গণ্য হবে।`
+      : `আয়কর আইনের ধারা 43B(h) অনুযায়ী এই বিল এখন শুধু যে বছরে পেমেন্ট হবে সেই বছরের খরচে গণ্য হতে পারে: ${formatDate(d.claimBy, { weekday: false, year: true })}-এর মধ্যে পেমেন্ট হলে FY ${d.claimYear}-এ।`,
+};
+
+/** The Section 43B(h) sentence the reminders carry, for Munim to say too. */
+export function deductionWords(lang: CustomerLang, clock: DeductionClock): string {
+  return DEDUCTION[lang](clock);
+}
+
 const BY_LANG: Record<CustomerLang, typeof EN> = { en: EN, hi: HI, bn: BN };
 
 /** The reminder for one Ladder stage (1 to 5): an email subject, and the text for email and WhatsApp alike. */
@@ -141,5 +168,6 @@ export function reminderMessage(f: ReminderFacts): { subject: string; text: stri
     late: Math.max(0, daysBetween(f.dueDate, f.today)),
     f,
   });
-  return { subject, text: `${body}\n\n${CONTACT[f.lang](f)}` };
+  const deduction = f.deduction && f.stage >= DEDUCTION_FROM_STAGE ? `\n\n${deductionWords(f.lang, f.deduction)}` : "";
+  return { subject, text: `${body}${deduction}\n\n${CONTACT[f.lang](f)}` };
 }

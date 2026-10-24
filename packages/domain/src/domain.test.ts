@@ -6,6 +6,7 @@ import {
   ladderRungs,
   matchesFilter,
   msmedInterest,
+  section43bh,
   type InvoiceFacts,
 } from "./index.ts";
 
@@ -157,5 +158,50 @@ describe("MSMED §16 interest meter", () => {
     expect(msmedInterest(seller, notDue, invoiceStanding(notDue, [], TODAY), TODAY)).toBeNull();
     const paid = { ...gupta, status: "paid" as const, paidPaise: 11_800_000 };
     expect(msmedInterest(seller, paid, invoiceStanding(paid, [], TODAY), TODAY)).toBeNull();
+  });
+});
+
+describe("Income Tax Act §43B(h) deduction clock", () => {
+  const seller = { udyamType: "micro" as const, isTrader: false };
+
+  it("keeps the Invoice's own year until 31 March of that year, even past the appointed day", () => {
+    // Issued 26 Aug 2026, due 25 Sep: late, but paid by 31 Mar 2027 it is still FY 26-27.
+    expect(section43bh(seller, gupta, TODAY)).toEqual({
+      appointed: "2026-09-25",
+      claimBy: "2027-03-31",
+      claimYear: "26-27",
+      sameYear: true,
+    });
+    expect(section43bh(seller, gupta, "2027-03-31")?.sameYear).toBe(true);
+  });
+
+  it("moves the claim to the year it is paid once that 31 March has passed", () => {
+    expect(section43bh(seller, gupta, "2027-04-01")).toEqual({
+      appointed: "2026-09-25",
+      claimBy: "2028-03-31",
+      claimYear: "27-28",
+      sameYear: false,
+    });
+  });
+
+  it("keeps the Invoice's year up to the appointed day when that falls after 31 March", () => {
+    // Issued 20 Mar 2027 with 30 days: paid by 19 Apr, §15 is met and the bill stays in FY 26-27.
+    const march = { issueDate: "2027-03-20", dueDate: "2027-04-19" };
+    expect(section43bh(seller, march, "2027-04-10")).toMatchObject({ claimBy: "2027-04-19", claimYear: "26-27", sameYear: true });
+    expect(section43bh(seller, march, "2027-04-20")).toMatchObject({ claimBy: "2028-03-31", claimYear: "27-28", sameYear: false });
+  });
+
+  it("caps longer terms at 45 days after the Invoice date (§15)", () => {
+    const long = { issueDate: "2027-02-20", dueDate: "2027-05-21" };
+    expect(section43bh(seller, long, "2027-04-01")).toMatchObject({ appointed: "2027-04-06", claimBy: "2027-04-06", sameYear: true });
+    expect(section43bh(seller, long, "2027-04-07")?.sameYear).toBe(false);
+  });
+
+  it("covers a small enterprise, and not a trader, a medium enterprise or a seller without Udyam", () => {
+    expect(section43bh({ udyamType: "small", isTrader: false }, gupta, TODAY)).not.toBeNull();
+    expect(section43bh({ udyamType: "micro", isTrader: true }, gupta, TODAY)).toBeNull();
+    expect(section43bh({ udyamType: "medium", isTrader: false }, gupta, TODAY)).toBeNull();
+    expect(section43bh({ udyamType: "none", isTrader: false }, gupta, TODAY)).toBeNull();
+    expect(section43bh({ udyamType: null, isTrader: false }, gupta, TODAY)).toBeNull();
   });
 });

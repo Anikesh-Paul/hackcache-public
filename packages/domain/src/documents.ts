@@ -22,7 +22,7 @@ import { stripTags } from "./call.ts";
 import { docPhrases, type DocLang, type DocPhrases } from "./doc-copy.ts";
 import { invoiceStanding, type InvoiceFacts, type PromiseFacts } from "./invoice.ts";
 import { stageName } from "./ladder.ts";
-import { msmedInterest, type SellerFacts } from "./msmed.ts";
+import { msmedInterest, section43bh, type SellerFacts } from "./msmed.ts";
 
 export const LETTER_TITLE = "Payment Demand Letter";
 export const LETTER_DISCLAIMER = "This is not a GST or legal notice.";
@@ -146,6 +146,12 @@ export type DemandLetter = {
     lines: string[];
     aside: string;
   };
+  /** Section 43B(h), one line per Invoice demanded, when the seller is covered. */
+  deduction: null | {
+    heading: string;
+    explanation: string;
+    lines: string[];
+  };
 };
 
 export type CaseReminderLine = { when: string; text: string };
@@ -232,6 +238,7 @@ function prepare(
   const lines: LetterInvoiceLine[] = [];
   const balances: number[] = [];
   const workings: string[] = [];
+  const deductions: string[] = [];
   const interests: number[] = [];
   const principals: number[] = [];
   const agreed: DocumentPromise[] = [];
@@ -249,6 +256,8 @@ function prepare(
       note: due.agreed ? phrases.instalmentNote(kindOf(due.agreed)) : null,
     });
     balances.push(due.paise);
+    const clock = section43bh(seller, invoice, today);
+    if (clock) deductions.push(phrases.deductionLine(invoice.number, dated(clock.claimBy, lang), clock.claimYear, clock.sameYear));
     const meter = msmedInterest(seller, invoice, standing, today);
     if (!meter) continue;
     interests.push(meter.interestPaise);
@@ -267,6 +276,7 @@ function prepare(
     outstanding: formatInr(outstandingPaise),
     outstandingWords: phrases.amountWords(outstandingPaise),
     workings,
+    deductions,
     interestTotal,
     nothingDue: listed.length === 0 ? phrases.nothingDue(customer.name) : null,
     planBanner: first ? phrases.planBanner(kindOf(first), customer.name, what) : null,
@@ -336,7 +346,7 @@ export function demandLetter(input: {
 }): DemandLetter {
   const lang: DocLang = input.lang === "hi" || input.lang === "bn" ? input.lang : "en";
   const phrases = docPhrases(lang);
-  const { listed, lines, outstandingPaise, outstanding, outstandingWords, workings, interestTotal, nothingDue, planBanner } = prepare(
+  const { listed, lines, outstandingPaise, outstanding, outstandingWords, workings, deductions, interestTotal, nothingDue, planBanner } = prepare(
     input.invoices,
     input.promises ?? [],
     input.customer,
@@ -392,6 +402,10 @@ export function demandLetter(input: {
             lines: workings,
             aside: phrases.interestAside,
           },
+    deduction:
+      deductions.length === 0
+        ? null
+        : { heading: phrases.deductionHeading, explanation: phrases.deductionExplain, lines: deductions },
   };
 }
 
@@ -491,6 +505,9 @@ export function letterText(letter: DemandLetter): string {
     letter.msmed?.totalLine ?? "",
     ...(letter.msmed?.lines ?? []),
     letter.msmed?.aside ?? "",
+    letter.deduction?.heading ?? "",
+    letter.deduction?.explanation ?? "",
+    ...(letter.deduction?.lines ?? []),
   ].join("\n");
 }
 
