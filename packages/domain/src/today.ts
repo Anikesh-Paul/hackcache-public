@@ -20,8 +20,11 @@ import { invoiceStanding, type InvoiceFacts, type PromiseFacts } from "./invoice
 export type BookInvoice = InvoiceFacts & { $id: string; customerId: string; number: string; issueDate: string };
 export type BookCustomer = { $id: string; name: string; consentCalls: boolean };
 export type BookPromise = PromiseFacts & { invoiceId: string };
-/** A Bank credit with its match parsed. Only suggested matches say the money is already in the bank. */
-export type BookCredit = BankSuggestion;
+/**
+ * A Bank credit with its match parsed. Only suggested matches say the money is
+ * already in the bank. Dated credits since `cashAsOf` are in the bank today.
+ */
+export type BookCredit = BankSuggestion & { date?: string };
 export type CashItem = {
   kind: "salary" | "rent" | "supplier" | "other";
   label: string | null;
@@ -33,8 +36,10 @@ export type CashItem = {
 export type BookInput = {
   /** The Demo date. */
   today: string;
-  /** In the bank on the Demo date. */
+  /** In the bank at the start of `cashAsOf`, or of the Demo date when that is not given. */
   openingCashPaise: number;
+  /** The day `openingCashPaise` was counted. Credits from then on are added, and payments out before the Demo date taken off. */
+  cashAsOf?: string;
   customers: readonly BookCustomer[];
   invoices: readonly BookInvoice[];
   promises: readonly BookPromise[];
@@ -80,6 +85,8 @@ export type ForecastWeek = {
   end: string;
   inPaise: number;
   outPaise: number;
+  /** Expected new sales: Invoices not raised yet, paid at the usual pace. Not in `inPaise`. */
+  newSalesPaise: number;
   /** Cash at the end of the week. Negative is short. */
   closePaise: number;
   /** Salaries go out this week. */
@@ -138,7 +145,12 @@ export type DaysToGetPaid = {
   promisedCount: number;
 };
 
+/** What the last 3 months of invoicing say will come in each week from Invoices not raised yet. */
+export type NewSales = { weeklyPaise: number; fromDate: string };
+
 export type TodayBook = {
+  /** In the bank on the Demo date. */
+  cashTodayPaise: number;
   receivables: Receivable[];
   /** Every receipt the 13 weeks expect, by date. */
   receipts: ExpectedReceipt[];
@@ -150,9 +162,12 @@ export type TodayBook = {
   ageing: AgeingBucket[];
   chase: ChaseRow[];
   daysToGetPaid: DaysToGetPaid;
+  newSales: NewSales;
 };
 
 export const FORECAST_WEEKS = 13;
+/** New Invoices are paid this many days after they are raised when the books cannot say. */
+const USUAL_PAY_DAYS = 30;
 const CHASE_ROWS = 5;
 
 /** Days past due, in four buckets. Not yet due counts as 0. */
@@ -175,9 +190,45 @@ const LIKELIHOOD: Record<CustomerGrade["grade"], number> = { A: 3, B: 2, C: 1 };
 /** Each this many days late adds the score once more. */
 const LATENESS_DAYS = 30;
 
+/** The headline while salary day is short: "Salary day tomorrow". */
+export function salaryDayIn(daysAway: number): string {
+  if (daysAway <= 0) return "Salary day today";
+  if (daysAway === 1) return "Salary day tomorrow";
+  return `Salary day in ${daysAway} days`;
+}
+
+/**
+ * Expected new sales: a week's share of what was invoiced in the 3 months
+ * before the Demo date (13 weeks), arriving from the day an Invoice raised
+ * today would be paid, at the Customers' usual pace.
+ */
+export function expectedNewSales(
+  invoices: readonly Pick<BookInvoice, "issueDate" | "status" | "totalPaise">[],
+  today: string,
+  daysToGetPaid: number | null,
+): NewSales {
+  const since = addMonths(today, -3);
+  const raised = invoices.filter((i) => i.status !== "draft" && i.issueDate >= since && i.issueDate < today);
+  return {
+    // An estimate, so to the nearest ₹100.
+    weeklyPaise: nearestPaise(sharePaise(sumPaise(raised.map((i) => i.totalPaise)), FORECAST_WEEKS), 10_000),
+    fromDate: addDays(today, daysToGetPaid ?? USUAL_PAY_DAYS),
+  };
+}
+
+/** The opening balance, plus Bank credits dated from `cashAsOf` on, less payments out from then until the Demo date. */
+function cashToday(input: BookInput): number {
+  const asOf = input.cashAsOf;
+  if (!asOf || asOf >= input.today) return input.openingCashPaise;
+  const credits = input.bankCredits.filter((c) => c.date !== undefined && c.date >= asOf).map((c) => c.amountPaise ?? 0);
+  const paidOut = expandCashItems(input.cashItems, asOf, addDays(input.today, -1)).map((o) => o.amountPaise);
+  return differencePaise(sumPaise([input.openingCashPaise, ...credits]), sumPaise(paidOut));
+}
+
 export function todayBook(input: BookInput): TodayBook {
   const { today } = input;
   const horizonEnd = addDays(today, FORECAST_WEEKS * 7 - 1);
+  const cashTodayPaise = cashToday(input);
   const customers = new Map(input.customers.map((c) => [c.$id, c]));
 
   const grades = new Map<string, CustomerGrade>();
@@ -259,8 +310,10 @@ export function todayBook(input: BookInput): TodayBook {
 
   const outflows = expandCashItems(input.cashItems, today, horizonEnd);
 
+  const gettingPaid = daysToGetPaid(input);
+  const newSales = expectedNewSales(input.invoices, today, gettingPaid.days);
   const weeks: ForecastWeek[] = [];
-  let cash = input.openingCashPaise;
+  let cash = cashTodayPaise;
   for (let w = 0; w < FORECAST_WEEKS; w++) {
     const start = addDays(today, w * 7);
     const end = addDays(start, 6);
@@ -270,8 +323,17 @@ export function todayBook(input: BookInput): TodayBook {
     const outs = within(outflows);
     const inPaise = sumPaise(ins.map((r) => r.amountPaise));
     const outPaise = sumPaise(outs.map((o) => o.amountPaise));
-    cash = differencePaise(sumPaise([cash, inPaise]), outPaise);
-    weeks.push({ start, end, inPaise, outPaise, closePaise: cash, salary: outs.some((o) => o.kind === "salary") });
+    const newSalesPaise = start >= newSales.fromDate ? newSales.weeklyPaise : 0;
+    cash = differencePaise(sumPaise([cash, inPaise, newSalesPaise]), outPaise);
+    weeks.push({
+      start,
+      end,
+      inPaise,
+      outPaise,
+      newSalesPaise,
+      closePaise: cash,
+      salary: outs.some((o) => o.kind === "salary"),
+    });
   }
 
   const salaryDate = outflows.find((o) => o.kind === "salary")?.date;
@@ -285,7 +347,7 @@ export function todayBook(input: BookInput): TodayBook {
       daysAway: daysBetween(today, salaryDate),
       salaryPaise: sumPaise(outs.filter((o) => o.date === salaryDate && o.kind === "salary").map((o) => o.amountPaise)),
       cashAfterPaise: differencePaise(
-        sumPaise([input.openingCashPaise, ...ins.map((r) => r.amountPaise)]),
+        sumPaise([cashTodayPaise, ...ins.map((r) => r.amountPaise)]),
         sumPaise(outs.map((o) => o.amountPaise)),
       ),
       receipts: ins,
@@ -313,6 +375,7 @@ export function todayBook(input: BookInput): TodayBook {
   });
 
   return {
+    cashTodayPaise,
     receivables,
     receipts,
     outflows,
@@ -321,7 +384,8 @@ export function todayBook(input: BookInput): TodayBook {
     totals,
     ageing,
     chase: chaseFirst(input, receivables, receipts, salary, customers),
-    daysToGetPaid: daysToGetPaid(input),
+    daysToGetPaid: gettingPaid,
+    newSales,
   };
 }
 

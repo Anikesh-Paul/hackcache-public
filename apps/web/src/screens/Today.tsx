@@ -1,11 +1,19 @@
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { AlertTriangle, Check, FolderOpen, Inbox, Phone } from "lucide-react";
-import { formatDate, formatInr } from "@tagada/money";
-import { CHASE_WHY, type AgeingBucket, type ExpectedReceipt, type Outflow, type TodayBook } from "@tagada/domain";
+import type { CallRow } from "@tagada/appwrite";
+import { callReturn, formatDate, formatInr } from "@tagada/money";
+import {
+  CHASE_WHY,
+  salaryDayIn,
+  type AgeingBucket,
+  type ExpectedReceipt,
+  type Outflow,
+  type TodayBook,
+} from "@tagada/domain";
 import { ForecastChart, ForecastTable, PayPackets, SalaryFigure } from "../books.tsx";
 import { useTodayBook } from "../lib/today.ts";
-import { useInbox, usePaymentHistory, useWorld } from "../lib/world.tsx";
+import { useInbox, usePaymentHistory, useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
 import { InboxLine, inboxItems } from "./Inbox.tsx";
 import { FollowUps } from "./FollowUps.tsx";
@@ -31,7 +39,7 @@ export function Today() {
   return (
     <div className="spread">
       <Paper label="Money" className="spread-main">
-        <Headline book={book} opening={world.workspace.openingCashPaise ?? 0} today={world.workspace.today} />
+        <Headline book={book} today={world.workspace.today} />
         <TotalsRow book={book} />
         <Forecast book={book} />
         <ChaseFirst book={book} />
@@ -39,6 +47,7 @@ export function Today() {
       <Paper label="Today's work">
         <FollowUps />
         <DaysToGetPaid book={book} />
+        <CallReturn />
         <LatestInbox />
       </Paper>
     </div>
@@ -53,7 +62,7 @@ function WhyButton({ open, onClick, children = "Why?" }: { open: boolean; onClic
   );
 }
 
-function Headline({ book, opening, today }: { book: TodayBook; opening: number; today: string }) {
+function Headline({ book, today }: { book: TodayBook; today: string }) {
   const [why, setWhy] = useState(false);
   const salary = book.salary;
   if (!salary) {
@@ -81,7 +90,7 @@ function Headline({ book, opening, today }: { book: TodayBook; opening: number; 
         </div>
         <div className="p">
           <h1 className="text-[28px] leading-tight">
-            {short ? `Salary day in ${salary.daysAway} ${salary.daysAway === 1 ? "day" : "days"}` : "Salary covered"}
+            {short ? salaryDayIn(salary.daysAway) : "Salary covered"}
           </h1>
           <p className="text-sm text-ink-2">
             {formatDate(salary.date)}: salaries of {formatInr(salary.salaryPaise)}.
@@ -104,7 +113,7 @@ function Headline({ book, opening, today }: { book: TodayBook; opening: number; 
       </Ln>
       {why && (
         <div className="entries working mt-2">
-          <Ln m={day(today)} a={formatInr(opening)}>
+          <Ln m={day(today)} a={formatInr(book.cashTodayPaise)}>
             In the bank today
           </Ln>
           {lines.map((line) =>
@@ -288,6 +297,12 @@ function Forecast({ book }: { book: TodayBook }) {
     <div className="sect">
       <Head title="Next 13 weeks" a="cash at week end" />
       <Ln>
+        {book.newSales.weeklyPaise > 0 && (
+          <p className="mb-1 text-[13px] text-ink-2">
+            From {formatDate(book.newSales.fromDate, { weekday: false })}, with{" "}
+            {formatInr(book.newSales.weeklyPaise)} a week of expected new sales, from your last 3 months.
+          </p>
+        )}
         <ForecastChart weeks={book.weeks} />
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-2">
           <span className="inline-flex items-center gap-1.5">
@@ -306,8 +321,9 @@ function Forecast({ book }: { book: TodayBook }) {
             <ForecastTable weeks={book.weeks} />
             <p className="mt-2 text-[13px] text-ink-2">
               Coming in: each open Invoice on its due date plus that Customer's usual delay, or on the date they
-              promised. Going out: salaries, rent, power and raw bamboo. Only what is in your books now; new sales are
-              not guessed.
+              promised. Expected new sales: a week's share of what you invoiced in the last 3 months, from the day an
+              Invoice raised today would usually be paid. Going out: salaries, rent, power and raw bamboo. The
+              salary-day headline counts only what is in your books now.
             </p>
           </>
         )}
@@ -410,6 +426,49 @@ function DaysToGetPaid({ book }: { book: TodayBook }) {
       </Ln>
     </div>
   );
+}
+
+/** What the AI calls cost against what the Plans and Promises agreed on them secured. */
+function CallReturn() {
+  const world = useWorld();
+  const calls = useWorkspaceRows<CallRow>("calls");
+  const [why, setWhy] = useState(false);
+  if (!Array.isArray(calls)) return null;
+  const roi = callReturn({
+    calls: calls.map((call) => ({ credits: creditsOf(call.transcript), durationS: call.durationS })),
+    securedPaise: world.promises
+      .filter((p) => p.source === "call" && (p.status === "approved" || p.status === "kept"))
+      .flatMap((p) => (JSON.parse(p.instalments) as { amountPaise: number }[]).map((i) => i.amountPaise)),
+  });
+  return (
+    <div className="sect">
+      <Head title="AI calls" />
+      <Ln>
+        <p className="text-[17px] leading-snug">
+          Cost <b>{formatInr(roi.costPaise)}</b>, secured <b>{formatInr(roi.securedPaise)}</b>.
+        </p>
+        <p className="mt-2">
+          <WhyButton open={why} onClick={() => setWhy((o) => !o)} />
+        </p>
+        {why && (
+          <p className="mt-2 text-sm">
+            {roi.calls} {roi.calls === 1 ? "call" : "calls"}, priced by how long each one ran. Secured is what the Plans
+            and Promises agreed on a call add up to, while they stand.
+          </p>
+        )}
+      </Ln>
+    </div>
+  );
+}
+
+/** The credits ElevenLabs reported for a call, kept with its transcript. */
+function creditsOf(transcript: string | null): number | null {
+  try {
+    const credits = (JSON.parse(transcript ?? "null") as { credits?: unknown } | null)?.credits;
+    return typeof credits === "number" && Number.isSafeInteger(credits) ? credits : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The latest 3 things Customers did on their pay links, live. */

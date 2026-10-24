@@ -69,6 +69,12 @@ describe("Gupta's ODR case file from the seed", () => {
       "Overdue reminder with pay link, sent on WhatsApp",
     ]);
     expect(file.transcriptExcerpt).toContain("I will look at it and call you back.");
+    expect(file.transcriptExcerpt).toMatch(/^Munim: नमस्ते Gupta जी, मैं Tripura Bamboo Works की ओर से AI सहायक मुनीम बोल रही हूँ।/);
     expect(world.calls).toHaveLength(1);
+    // The case file's call is on the Invoice timeline too, on the same day.
+    const [call] = world.calls;
+    const onTimeline = world.events.filter((e) => e.invoiceId === invoice.$id && e.type === "call");
+    expect(onTimeline.map((e) => e.at.slice(0, 10))).toEqual([call!.startedAt!.slice(0, 10)]);
+    expect(onTimeline[0]?.actor).toBe("ai");
   });
 });

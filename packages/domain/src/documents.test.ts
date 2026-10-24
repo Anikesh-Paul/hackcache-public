@@ -212,7 +212,7 @@ describe("ODR case file", () => {
       "Overdue reminder with pay link, sent on WhatsApp",
     ]);
     expect(file.transcriptExcerpt).toBe(
-      "Tagada: Namaste. I am an assistant from Tripura Bamboo Works.\nCustomer: I will look at it and call you back.",
+      "Munim: Namaste. I am an assistant from Tripura Bamboo Works.\nCustomer: I will look at it and call you back.",
     );
     expect(file.transcriptWhen).toBe("20 Oct 2026");
     expect(caseText(file)).toContain("I will look at it and call you back.");
@@ -282,7 +282,7 @@ describe("transcriptExcerpt", () => {
         { role: "agent", message: "Five" },
       ],
     });
-    expect(transcriptExcerpt(raw)).toBe("Tagada: One\nCustomer: Two\nTagada: Three\nCustomer: Four");
+    expect(transcriptExcerpt(raw)).toBe("Munim: One\nCustomer: Two\nMunim: Three\nCustomer: Four");
   });
 
   it("returns null when the call has not stored turns", () => {

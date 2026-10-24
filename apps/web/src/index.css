@@ -1291,6 +1291,11 @@ h3 {
   .door .ar {
     color: var(--ink-2);
   }
+  .l-hear {
+    margin-top: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
   .l-foot {
     margin-top: 22px;
     display: grid;
@@ -1522,13 +1527,43 @@ h3 {
     bottom: 16px;
     width: min(400px, calc(100vw - 32px));
     max-height: min(70dvh, 460px);
-    overflow-y: auto;
+    /* The body scrolls inside; the title and Back / Next stay in view. */
+    display: flex;
+    flex-direction: column;
     padding: 14px 16px 16px;
     border: 1px solid var(--rule-strong);
     border-radius: 6px;
     background: var(--paper);
     color: var(--ink);
     box-shadow: 0 18px 48px -16px rgba(31, 42, 36, 0.45);
+  }
+  .tour-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .tour-chip {
+    position: fixed;
+    z-index: 40;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 6px 6px 8px;
+    border: 1px solid var(--rule-strong);
+    border-radius: 6px;
+    background: var(--paper);
+    box-shadow: 0 18px 48px -16px rgba(31, 42, 36, 0.45);
+  }
+  .tour-chip .tour-x {
+    margin: 0;
+  }
+  .call-caption {
+    min-height: 2.6em;
+    margin-top: 6px;
+    font-size: 14px;
   }
   .tour-x {
     margin: -8px -8px 0 auto;
@@ -1572,11 +1607,13 @@ h3 {
     border: 2px solid var(--bamboo);
     border-radius: 8px;
     box-shadow: 0 0 0 4px color-mix(in srgb, var(--bamboo) 22%, transparent);
-    transition:
-      top 0.25s ease-out,
-      left 0.25s ease-out,
-      width 0.25s ease-out,
-      height 0.25s ease-out;
+    /* It follows its target at once: a moving ring lags behind a scroll and circles nothing. */
+    animation: tour-ring-in 0.2s ease-out;
+  }
+  @keyframes tour-ring-in {
+    from {
+      opacity: 0;
+    }
   }
   @media (max-width: 639px) {
     .tour {
@@ -1586,10 +1623,14 @@ h3 {
       width: auto;
       max-height: 52dvh;
     }
+    .tour-chip {
+      right: 8px;
+      bottom: 8px;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .tour-ring {
-      transition: none;
+      animation: none;
     }
   }
 }

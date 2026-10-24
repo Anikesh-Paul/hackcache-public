@@ -1,25 +1,29 @@
-// The 2-minute guided tour (build plan §6.5): seven coach marks over the real
+// The 2-minute guided tour (build plan §6.5): eight coach marks over the real
 // app. Each step opens its own screen and, where the story needs it, puts the
 // Demo world in the right state itself, and says so. The tour lives above the
 // router's pages, so it carries on across the Owner's books, the call and the
-// Customer's pay link.
+// Customer's pay link. Going anywhere else folds it into a "Resume tour" chip.
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
-import { planInWords } from "@tagada/domain";
-import { addDays, formatDate } from "@tagada/money";
-import { runLadder } from "./lib/appwrite.ts";
+import { bankTxnId, planInWords } from "@tagada/domain";
+import { addDays, formatDate, formatInr } from "@tagada/money";
+import { GUPTA_PLAN, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR } from "@tagada/seed";
+import { confirmBank, importBank, runLadder } from "./lib/appwrite.ts";
 import { pay } from "./lib/pay.ts";
-import { SAMPLE } from "./screens/Call.tsx";
+import { PayLinkQr } from "./pay-qr.tsx";
+import { CallPlayer } from "./sample-call.tsx";
 
 /** What the tour needs to know about the visitor's Demo world, read once on the landing page. */
-export type TourStart = { invoiceId: string; token: string | null; today: string };
+export type TourStart = { workspaceId: string; invoiceId: string; token: string | null; today: string };
 
 type TourState = TourStart & {
   step: number;
   /** What the tour did to the books, said on the step that did it. */
   plan: string | null;
   jumped: boolean;
+  /** On the way to the step's screen. Otherwise, being anywhere else folds the tour into its chip. */
+  arrive: boolean;
 };
 
 type Ctx = { start: (from: TourStart) => void; active: boolean };
@@ -27,6 +31,7 @@ type Ctx = { start: (from: TourStart) => void; active: boolean };
 const TourCtx = createContext<Ctx>({ start: () => {}, active: false });
 const KEY = "tagada.tour";
 const WEEK = 7;
+const [FIRST] = GUPTA_PLAN;
 
 function load(): TourState | null {
   try {
@@ -58,22 +63,32 @@ type Step = {
   extra?: (s: TourState) => ReactNode;
 };
 
-/** Gupta ji agrees the first Plan his pay link offers, unless a Plan is already in place. */
+/** Gupta ji agrees, on his pay link, the Plan the sample call agreed, unless a Plan is already in place. */
 async function agreePlan(s: TourState): Promise<Partial<TourState>> {
   if (!s.token) return {};
   const slip = await pay.slip(s.token);
   if (slip.state !== "owing") return {};
-  const [first] = slip.choices;
-  if (!first) return {};
-  await pay.plan(s.token, first);
-  return { plan: planInWords(first) };
+  await pay.plan(s.token, [...GUPTA_PLAN]);
+  return { plan: planInWords(GUPTA_PLAN) };
 }
 
-/** The Demo date moves on a week, and the daily Ladder runs for it, once per tour. */
+/** The week's bank statement comes in, then the Demo date moves on a week and the daily Ladder runs for it, once per tour. */
 async function aWeekLater(s: TourState): Promise<Partial<TourState>> {
   if (s.jumped) return {};
+  await importBank({ sample: true });
   await runLadder(addDays(s.today, WEEK));
   return { jumped: true };
+}
+
+/** Gupta ji's first instalment, as the statement has it. */
+function guptaCreditId(s: TourStart): string {
+  return bankTxnId({ workspaceId: s.workspaceId, date: GUPTA_PROOF_DATE, amountPaise: FIRST.amountPaise, reference: GUPTA_PROOF_UTR });
+}
+
+/** The Owner's Confirm on Gupta ji's credit. A credit already confirmed is left as it is. */
+async function confirmGupta(s: TourState): Promise<Partial<TourState>> {
+  await confirmBank({ ids: [guptaCreditId(s)] });
+  return {};
 }
 
 const STEPS: Step[] = [
@@ -117,10 +132,11 @@ const STEPS: Step[] = [
     body: () => (
       <>
         Press <b>Start call</b> and answer as Gupta ji, in Hindi or English. Offer ₹40,000 on Friday and hear Munim
-        ask for more. No microphone, or no time? Press <b>Next</b>: the tour agrees a Plan for Gupta ji.
+        ask for more. No microphone, or no time? Hear or read the call below, then press <b>Next</b>: the tour records
+        the Plan it agreed.
       </>
     ),
-    extra: () => <SampleCall />,
+    extra: () => <CallPlayer />,
   },
   {
     title: "Salary covered",
@@ -131,14 +147,14 @@ const STEPS: Step[] = [
       <>
         {s.plan ? (
           <>
-            The tour chose a Plan on Gupta ji's pay link, as he could himself: {s.plan}. It is inside your rule, so it
-            is agreed and the Ladder pauses.
+            The tour recorded the Plan the call agreed, on Gupta ji's pay link, as he could himself: {s.plan}. It is
+            inside your rule, so it is agreed and the Ladder pauses for him.
           </>
         ) : (
           <>Once a Plan from Gupta ji is agreed, the Ladder pauses for him.</>
         )}{" "}
-        His first instalment lands before salary day, so the pay packets fill and the headline turns to{" "}
-        <b>Salary covered</b>.
+        His first {formatInr(FIRST.amountPaise)} lands before salary day, so the pay packets fill and the headline turns
+        to <b>Salary covered</b>.
       </>
     ),
   },
@@ -153,26 +169,37 @@ const STEPS: Step[] = [
         paid until the bank statement shows it.
       </>
     ),
+    extra: (s) => (s.token ? <PayLinkQr token={s.token} label="Open this pay link on your phone" /> : null),
   },
   {
-    title: "A week later",
-    route: () => "/app/automation",
-    target: 'section[aria-label="Automation log"]',
+    title: "A week later: the money is in",
+    route: () => "/app/bank",
+    target: `[data-utr="${GUPTA_PROOF_UTR}"]`,
     enter: aWeekLater,
     body: (s) => (
       <>
-        The tour moved the Demo date on to {formatDate(addDays(s.today, WEEK))} and ran the daily Ladder for it: the
-        same workflow the 10:00 cron starts. The log shows every run, with retries. From an Invoice you can print the
-        Payment Demand Letter and the ODR case file.
+        The tour imported the week's bank statement, then moved the Demo date on to{" "}
+        {formatDate(addDays(s.today, WEEK))} and ran the daily Ladder for it: the same workflow the 10:00 cron starts.
+        Gupta ji's {formatInr(FIRST.amountPaise)} came in on {formatDate(GUPTA_PROOF_DATE)}, and it is matched to his
+        Invoice. Nothing is paid until you confirm it: press <b>Confirm</b>, or <b>Next</b> and the tour confirms it.
       </>
     ),
-    extra: (s) => (
-      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
-        <Link to={`/print/letter/${s.invoiceId}`} className="linkbtn">
-          Payment Demand Letter
-        </Link>
-        <Link to={`/print/case/${s.invoiceId}`} className="linkbtn">
-          ODR case file
+  },
+  {
+    title: "Salary covered ✓",
+    route: () => "/app",
+    target: '[data-tour="headline"]',
+    enter: confirmGupta,
+    body: () => (
+      <>
+        Gupta ji kept the Plan's first instalment, and the week's other payments came in, so the salaries are covered
+        with money to spare. The Automation log shows every run of the Ladder, with its retries.
+      </>
+    ),
+    extra: () => (
+      <p className="mt-2">
+        <Link to="/app/automation" className="linkbtn">
+          Automation log
         </Link>
       </p>
     ),
@@ -183,7 +210,7 @@ const STEPS: Step[] = [
 export function TourRoot() {
   const [state, setState] = useState<TourState | null>(() => load());
   const start = useCallback((from: TourStart) => {
-    const next = { ...from, step: 0, plan: null, jumped: false };
+    const next = { ...from, step: 0, plan: null, jumped: false, arrive: true };
     save(next);
     setState(next);
   }, []);
@@ -203,53 +230,60 @@ export function useTour(): Ctx {
   return useContext(TourCtx);
 }
 
-function SampleCall() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mt-2">
-      <button type="button" className="linkbtn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-        {open ? "Hide the sample call" : "Read a sample call"}
-      </button>
-      {open && (
-        <ol className="tour-sample">
-          {SAMPLE.map((line) => (
-            <li key={line.en}>
-              <b>{line.who}</b> {line.hi && <span lang="hi">{line.hi} </span>}
-              <span className="text-ink-2">{line.en}</span>
-            </li>
-          ))}
-        </ol>
-      )}
-    </div>
-  );
-}
-
-/** Finds the step's element once its screen has loaded, and keeps a ring around it. */
-function useRing(selector: string, path: string) {
+/**
+ * Finds the step's element once its screen has loaded, and keeps a ring around
+ * it. "Loaded" is when the element holds still between two looks; it is
+ * measured again on every scroll, resize and change of layout.
+ */
+function useRing(selector: string, on: boolean) {
   const [rect, setRect] = useState<DOMRect | null>(null);
   useEffect(() => {
-    let found: Element | null = null;
-    let scrolled = false;
-    const tick = () => {
-      if (!found || !found.isConnected) found = document.querySelector(selector);
-      if (found && !scrolled) {
-        scrolled = true;
-        const top = found.getBoundingClientRect().top + window.scrollY - 88;
+    setRect(null);
+    if (!on) return;
+    let settled = false;
+    let last = "";
+    let drawn = "";
+    const measure = () => {
+      const box = document.querySelector(selector)?.getBoundingClientRect();
+      if (!box || box.width === 0 || box.height === 0) {
+        settled = false;
+        last = "";
+        drawn = "";
+        setRect(null);
+        return;
+      }
+      // Where it sits on the page, not in the window, so scrolling does not count as moving.
+      const where = [box.top + window.scrollY, box.left, box.width, box.height].map(Math.round).join();
+      const seen = [box.top, box.left, box.width, box.height].map(Math.round).join();
+      if (!settled) {
+        if (where !== last) {
+          last = where;
+          return;
+        }
+        settled = true;
+        const top = box.top + window.scrollY - 88;
         const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         window.scrollTo({ top: Math.max(0, top), behavior: reduce ? "auto" : "smooth" });
       }
-      setRect(found ? found.getBoundingClientRect() : null);
+      // A new box only when it moved, so the coach is not drawn again four times a second.
+      if (seen !== drawn) {
+        drawn = seen;
+        setRect(box);
+      }
     };
-    tick();
-    const timer = window.setInterval(tick, 200);
-    window.addEventListener("scroll", tick, { passive: true });
-    window.addEventListener("resize", tick);
+    measure();
+    const timer = window.setInterval(measure, 250);
+    const layout = new ResizeObserver(measure);
+    layout.observe(document.body);
+    window.addEventListener("scroll", measure, { passive: true });
+    window.addEventListener("resize", measure);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener("scroll", tick);
-      window.removeEventListener("resize", tick);
+      layout.disconnect();
+      window.removeEventListener("scroll", measure);
+      window.removeEventListener("resize", measure);
     };
-  }, [selector, path]);
+  }, [selector, on]);
   return rect;
 }
 
@@ -258,20 +292,24 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
   const { pathname } = useLocation();
   const step = STEPS[state.step] ?? STEPS[0]!;
   const route = step.route(state);
+  const here = pathname === route;
+  const folded = !here && !state.arrive;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
-  const rect = useRing(step.target, pathname);
+  const rect = useRing(step.target, here);
   const last = state.step === STEPS.length - 1;
 
-  // Each step opens its own screen.
+  // A start, a step or a resume opens the step's screen; once there, leaving it folds the tour.
   useEffect(() => {
-    if (pathname !== route) navigate(route);
-  }, [route]);
+    if (!state.arrive) return;
+    if (here) onChange({ ...state, arrive: false });
+    else navigate(route);
+  }, [state, here, route]);
 
   useEffect(() => {
-    heading.current?.focus({ preventScroll: true });
-  }, [state.step]);
+    if (!folded) heading.current?.focus({ preventScroll: true });
+  }, [state.step, folded]);
 
   const go = async (index: number) => {
     setError(null);
@@ -289,10 +327,24 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         setBusy(false);
       }
     }
-    onChange({ ...state, ...changes, step: index });
+    onChange({ ...state, ...changes, step: index, arrive: true });
   };
 
   const end = () => onChange(null);
+  const progress = `step ${state.step + 1} of ${STEPS.length}`;
+
+  if (folded) {
+    return (
+      <div className="tour-chip no-print">
+        <button type="button" className="btn primary" onClick={() => onChange({ ...state, arrive: true })}>
+          Resume tour ({progress})
+        </button>
+        <button type="button" className="tour-x" onClick={end} aria-label="End the tour">
+          <X size={16} aria-hidden />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -311,9 +363,7 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         onKeyDown={(e) => e.key === "Escape" && end()}
       >
         <div className="flex items-start gap-2">
-          <p className="text-xs text-ink-2">
-            Tour, step {state.step + 1} of {STEPS.length}
-          </p>
+          <p className="text-xs text-ink-2">Tour, {progress}</p>
           <button type="button" className="tour-x" onClick={end} aria-label="End the tour">
             <X size={16} aria-hidden />
           </button>
@@ -321,6 +371,7 @@ function Coach({ state, onChange }: { state: TourState; onChange: (next: TourSta
         <h2 id="tour-title" ref={heading} tabIndex={-1} className="text-lg leading-snug font-semibold">
           {step.title}
         </h2>
+        {/* Only the body scrolls, so Back and Next stay in view under a long sample call. */}
         <div className="tour-body mt-1 text-[14.5px]">
           <p>{step.body(state)}</p>
           {step.extra?.(state)}

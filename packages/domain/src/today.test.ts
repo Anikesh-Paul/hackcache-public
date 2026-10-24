@@ -4,7 +4,9 @@ import {
   AGEING_BUCKETS,
   CHASE_WHY,
   ageingBucket,
+  expectedNewSales,
   payPackets,
+  salaryDayIn,
   todayBook,
   type BookInput,
   type BookInvoice,
@@ -159,7 +161,7 @@ describe("13-week forecast", () => {
     ]);
     let cash = 5_000_000;
     for (const week of b.weeks) {
-      cash = differencePaise(sumPaise([cash, week.inPaise]), week.outPaise);
+      cash = differencePaise(sumPaise([cash, week.inPaise, week.newSalesPaise]), week.outPaise);
       expect(week.closePaise).toBe(cash);
     }
   });
@@ -190,6 +192,82 @@ describe("salary day", () => {
       promises: [{ invoiceId: "i1", status: "approved", instalments: [{ amountPaise: 6_000_000, date: "2026-11-06" }] }],
     });
     expect(promised.salary?.cashAfterPaise).toBe(1_000_000);
+  });
+});
+
+describe("cash on the Demo date", () => {
+  const credit = (date: string, amountPaise: number, matchStatus: "suggested" | "confirmed" = "confirmed") => ({
+    date,
+    amountPaise,
+    matchStatus,
+    allocations: [],
+  });
+
+  it("is the opening balance, plus credits since its date, less what has already gone out", () => {
+    const b = todayBook(
+      book({
+        today: "2026-11-09",
+        cashAsOf: "2026-11-02",
+        // 30 Oct is in the opening balance already; 6 Nov came in since.
+        bankCredits: [credit("2026-10-30", 1_000_000), credit("2026-11-06", 6_000_000, "suggested")],
+        cashItems: [
+          { kind: "salary", label: "Salaries", amountPaise: 10_000_000, date: "2026-11-10", recurrence: "monthly" },
+          { kind: "rent", label: "Rent", amountPaise: 1_800_000, date: "2026-11-05", recurrence: null },
+        ],
+      }),
+    );
+    expect(b.cashTodayPaise).toBe(9_200_000);
+    expect(b.salary?.cashAfterPaise).toBe(-800_000);
+    expect(b.weeks[0]?.closePaise).toBe(-800_000);
+  });
+
+  it("is the opening balance when the books do not say when it was counted", () => {
+    const b = todayBook(book({ bankCredits: [credit("2026-11-06", 6_000_000)] }));
+    expect(b.cashTodayPaise).toBe(5_000_000);
+  });
+});
+
+describe("salaryDayIn", () => {
+  it("says today, tomorrow, or in so many days", () => {
+    expect(salaryDayIn(0)).toBe("Salary day today");
+    expect(salaryDayIn(1)).toBe("Salary day tomorrow");
+    expect(salaryDayIn(8)).toBe("Salary day in 8 days");
+  });
+});
+
+describe("expected new sales", () => {
+  // ₹13,00,000 invoiced in the 3 months before 2 Nov: ₹1,00,000 a week.
+  const recent = [
+    invoice("n1", { issueDate: "2026-08-10", totalPaise: 6_500_000, status: "paid", paidPaise: 6_500_000 }),
+    invoice("n2", { issueDate: "2026-10-20", totalPaise: 6_500_000 }),
+    invoice("old", { issueDate: "2026-07-01", totalPaise: 9_900_000, status: "paid", paidPaise: 9_900_000 }),
+    invoice("draft", { issueDate: "2026-10-25", totalPaise: 9_900_000, status: "draft" }),
+  ];
+
+  it("is a week's share of the last 3 months' invoicing, from when new Invoices would be paid", () => {
+    expect(expectedNewSales(recent, TODAY, 30)).toEqual({ weeklyPaise: 1_000_000, fromDate: "2026-12-02" });
+  });
+
+  it("is an estimate, so it is rounded to ₹100", () => {
+    const odd = [invoice("o1", { issueDate: "2026-10-20", totalPaise: 1_234_567 })];
+    expect(expectedNewSales(odd, TODAY, 30).weeklyPaise).toBe(90_000); // ₹12,345.67 / 13 = ₹949.67
+  });
+
+  it("waits 30 days when the books do not know how long Customers take", () => {
+    expect(expectedNewSales(recent, TODAY, null).fromDate).toBe("2026-12-02");
+  });
+
+  it("adds to the forecast weeks from that date, but never to the salary-day headline", () => {
+    const b = todayBook(book({ invoices: recent }));
+    expect(b.weeks[12]?.newSalesPaise).toBe(1_000_000);
+    expect(b.weeks[0]?.newSalesPaise).toBe(0);
+    expect(b.newSales.weeklyPaise).toBe(1_000_000);
+    expect(b.salary?.cashAfterPaise).toBe(todayBook(book()).salary?.cashAfterPaise);
+    let cash = 5_000_000;
+    for (const week of b.weeks) {
+      cash = differencePaise(sumPaise([cash, week.inPaise, week.newSalesPaise]), week.outPaise);
+      expect(week.closePaise).toBe(cash);
+    }
   });
 });
 

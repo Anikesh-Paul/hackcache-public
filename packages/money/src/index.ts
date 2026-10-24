@@ -13,7 +13,7 @@ export {
 } from "./config.ts";
 export type { GstRate } from "./config.ts";
 
-export { callCostPaise, callCredits, paiseFromRupees, rupeesFromPaise } from "./call-cost.ts";
+export { callCostPaise, callCredits, callReturn, paiseFromRupees, rupeesFromPaise } from "./call-cost.ts";
 
 export { addDays, addMonths, daysBetween, formatDate, isCivilDate, weekday } from "./date.ts";
 
