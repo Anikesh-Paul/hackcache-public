@@ -75,7 +75,7 @@ async function sessionJwt(): Promise<string> {
   return (await account.createJWT()).jwt;
 }
 
-async function demoCall(path: "start" | "reset"): Promise<DemoStarted> {
+async function demoCall(path: "start" | "reset" | "delete"): Promise<DemoStarted> {
   const jwt = await sessionJwt();
   const res = await fetch(`${SERVER_URL}/api/demo/${path}`, {
     method: "POST",
@@ -100,6 +100,17 @@ export function startDemo(): Promise<DemoStarted> {
 export function resetDemo(): Promise<DemoStarted> {
   started = demoCall("reset");
   return started;
+}
+
+/** Delete my workspace: every row and stored file of this visitor's world, then a fresh one. */
+export function deleteWorkspace(): Promise<DemoStarted> {
+  const deleting = demoCall("delete");
+  // A failed delete leaves the visitor's world as it was, so the next start reads it again.
+  started = deleting.catch((e: unknown) => {
+    started = null;
+    throw e;
+  });
+  return deleting;
 }
 
 export class SaveError extends Error {

@@ -9,7 +9,7 @@ A collections desk for India's small manufacturers: it ranks who to chase, calls
 **[Open the live app](https://app-web-dlk4.onrender.com)** · **[See every rupee checked](https://app-web-dlk4.onrender.com/proof)** · No login, no setup
 
 [![CI](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/unit%20tests-577%20passing-3f6b35)
+![Tests](https://img.shields.io/badge/unit%20tests-583%20passing-3f6b35)
 ![Proof](https://img.shields.io/badge/%2Fproof-45%20of%2045-3f6b35)
 ![Languages](https://img.shields.io/badge/English%20%C2%B7%20%E0%A4%B9%E0%A4%BF%E0%A4%A8%E0%A5%8D%E0%A4%A6%E0%A5%80%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-c9952b)
 
@@ -193,13 +193,66 @@ flowchart LR
 |---|---|
 | GST and interest maths, the AI call, the daily Ladder workflow, reminder emails, bank matching, screenshot reading | The bank feed, the UPI ID, WhatsApp sending (one-tap links only), and the history before the demo date |
 
+## Your data
+
+Tagada is built to the [Digital Personal Data Protection Act, 2023](https://www.meity.gov.in/data-protection-framework): it keeps what the job needs, says where, and lets you delete it.
+
+**What is stored.** No login: the app opens an anonymous Appwrite session, so it never asks for your name or email. Your workspace holds your business details and settings, your Customers (name, phone, email, GSTIN, and whether and when they agreed to reminder calls), Invoices, payments, Promises and Plans, the bank lines you import, the Reminders sent, Inbox messages from the pay link, the AI calls (duration, outcome, transcript and whether the consent check was shown), and the UPI screenshots Customers upload with what was read from them. Every row carries your user's permissions, so no other visitor can read it.
+
+**Where.** Appwrite Cloud in **Singapore**, and the server, workflow and cron on Render, also in Singapore. Secrets stay on the server.
+
+**Call consent.** Munim calls only a Customer whose consent is recorded with its date, only within calling hours (10 AM–6 PM on the demo clock), and says it is an AI in its first line. The call row keeps that the check was shown.
+
+**Screenshots read by Gemini.** A UPI screenshot is sent to Google's Gemini API once, to read its UTR, amount, date and payee as text; our code parses the amount. The image stays in a Storage bucket only you can read, and the fields read are kept with the Invoice.
+
+**Other services.** ElevenLabs runs the voice of the call; Resend delivers reminder emails, in this demo only to the one Demo inbox. Read-aloud clips on the pay link are stored by the words spoken, not by workspace, so a repeat listen costs nothing.
+
+**How long a demo workspace lives.** Until you delete it: nothing expires it on its own yet (an automatic clean-up after 30 days is the next step, not built for the hackathon). Pay links are signed to expire after 60 days.
+
+**How to delete it.** **Settings → Your data → Delete my workspace** (हिन्दी: **मेरा वर्कस्पेस मिटाएँ**, বাংলা: **আমার ওয়ার্কস্পেস মুছুন**), then confirm. The server deletes every UPI screenshot your Customers sent, then every row of your workspace in every table, and opens a fresh copy of the demo books. It acts only on the workspace your own session names; the browser's word is never taken for it. **Reset demo** in the header puts the starting story back too, but leaves stored screenshots in place.
+
 ## Tested
 
 | | |
 |---|---|
-| **577 unit tests** (Vitest) | Every money and domain rule, the server's routes, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
-| **45 live cases** on `/proof` | The brief's cases, from the same packages, in the judge's own browser |
+| **583 unit tests** (Vitest) | Every money and domain rule, the server's routes (Delete my workspace among them: every table and file, and only the visitor's own), the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
+| **45 live cases** on `/proof` | The brief's cases and Section 43B(h), from the same packages, in the judge's own browser |
 | **5 end-to-end tests** (Playwright), run against the live site | A customer's "already paid" reaching the owner's Inbox; the tour to *Salary covered ✓* and `/proof`; the tour twice in a row from a reset with no failed send; `/proof` typed mid-tour; the language switch |
+
+## The business case
+
+**Who pays, and how.** The owner, either way they prefer:
+
+- **A flat ₹499 a month** for up to 50 active Customers; or
+- **1% of money recovered on Invoices already 60 or more days overdue**, charged only when the Bank screen confirms it arrived. Owners who doubt it pay nothing until it works.
+
+**What it costs us.** A minute of Call with AI is 450 ElevenLabs credits, about **₹8.71**, so a two-minute call is about ₹17.40. A reminder email is about 3.5 paise on Resend. WhatsApp reminders are one-tap links from the owner's own phone, so they cost nothing. Chasing one Customer through a month (four emails and one call) costs about **₹18**, and Today's *What Tagada changed* shows the real cost per ₹100 collected.
+
+**The market.** India's micro and small enterprises are owed **₹8.1 lakh crore** in late payments ([Economic Survey 2025-26](https://www.indiabudget.gov.in/economicsurvey/), Box VIII.11). The Udyam registry counts them in crores; Tagada's first users are the manufacturers and traders among them who sell on credit to bigger buyers.
+
+**The competition.** Khatabook, Vyapar, OkCredit and Tally **record** what's owed. Tagada **collects** it: it ranks who to chase, calls politely in Hindi, takes the payment on a pay link, matches the bank statement, and turns MSMED Act interest and Section 43B(h) into reasons to pay on time. It sits beside the books an owner already keeps.
+
+**How it reaches owners.** Through **CA firms**, who already see their clients' receivables at GST filing time, and through **industry associations** and MSME clusters, where one owner's "salary covered" travels by word of mouth. The pay link itself is a quiet advert: every Customer who opens one sees what a collections desk looks like.
+
+## Questions judges ask
+
+**Why one-tap WhatsApp links, not the WhatsApp Business API?**
+The Business API needs a verified business, pre-approved templates and a per-message fee, and it sends from a number the Customer doesn't know. A one-tap link opens WhatsApp on the owner's phone with the message written, in the Customer's language, from the number the Customer already trusts. The owner presses send. The Business API is a later step for owners who want reminders fully automatic.
+
+**What if the AI mishears an amount?**
+It can't move money. The AI never decides an amount: the Plan rule is code. Every offer the agent hears goes to the server, which checks it against the owner's rule in integer paise and answers *agreed* or *needs your decision*; a plan outside the rule, or one missing a date, is refused with a sentence telling the agent what to say instead. The owner approves, counters or declines, and nothing is marked paid until the Bank screen's Confirm.
+
+**Is it legal to call a customer?**
+Munim calls only a Customer whose consent to reminder calls is recorded with its date, only within calling hours, and says it is an AI in its first line. It never threatens, and never mentions courts, police or credit scores. The Payment Demand Letter is never called a legal notice and is never sent automatically.
+
+**What does it cost to run per customer?**
+About ₹18 a month for a Customer chased with four emails and one two-minute call (see *What it costs us* above). Today shows the cost per ₹100 collected, from the real call durations.
+
+**What's real and what's simulated?**
+See [Real and simulated](#real-and-simulated): the maths, the AI call, the daily workflow, the emails, bank matching and screenshot reading are real; the bank feed, the UPI ID, WhatsApp sending and the history before the demo date are simulated.
+
+**How does an owner bring their existing books?**
+Today: add Customers and Invoices by hand (GSTIN checked live), and import bank statements as CSV on the Bank screen. A Tally or Excel invoice import is the next step, not built for the hackathon.
 
 ## Run it yourself
 
