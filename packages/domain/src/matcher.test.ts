@@ -5,11 +5,9 @@ import {
   importCount,
   importSummary,
   invoicesForMatch,
-  bankNarration,
   matchCredit,
   matchForCustomer,
   matcherBrief,
-  narrationAssignedTo,
   overpayPaise,
   parseStatement,
   type MatchInvoice,
@@ -326,12 +324,6 @@ describe("matchCredit", () => {
     expect(full.kind).toBe("exact");
     expect(full.allocations).toEqual([{ invoiceId: "sen", amountPaise: 1_500_000 }]);
     expect(JSON.stringify(part)).not.toMatch(NO_FAKE);
-    const stored = narrationAssignedTo(phonepe.narration, "Gupta Traders");
-    expect(bankNarration(stored)).toBe(phonepe.narration);
-    expect(matchCredit({ ...phonepe, narration: stored }, [gupta, exact]).allocations).toEqual([
-      { invoiceId: "gupta", amountPaise: 1_500_000 },
-    ]);
-    expect(bankNarration(narrationAssignedTo(stored, "Sen Handicrafts"))).toBe(phonepe.narration);
   });
 
   it("keeps an overpayment's extra, in paise, off the Invoice", () => {

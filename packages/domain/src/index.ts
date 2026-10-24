@@ -2,7 +2,7 @@ export { CUSTOMER_LANGS, isCustomerLang } from "./language.ts";
 export type { CustomerLang } from "./language.ts";
 
 export { GRADE_WHY, grade, gradeCustomer, paymentHabit } from "./grade.ts";
-export type { CustomerGrade, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
+export type { CustomerGrade, GradeFacts, GradeInput, GradeLetter, HistoryEvent, HistoryInvoice, HistoryPromise } from "./grade.ts";
 
 export { INVOICE_FILTERS, invoiceStanding, isInvoiceFilter, matchesFilter } from "./invoice.ts";
 export type { InvoiceFacts, InvoiceFilter, InvoiceStanding, InvoiceState, PromiseFacts } from "./invoice.ts";
@@ -49,6 +49,7 @@ export type {
   NewSales,
   CashItem,
   ChaseRow,
+  ChaseWhy,
   Counted,
   DaysToGetPaid,
   ExpectedReceipt,
@@ -85,11 +86,9 @@ export {
   importCount,
   importSummary,
   invoicesForMatch,
-  bankNarration,
   matchCredit,
   matchForCustomer,
   matcherBrief,
-  narrationAssignedTo,
   overpayPaise,
   parseStatement,
 } from "./matcher.ts";
@@ -142,3 +141,4 @@ export type {
 } from "./documents.ts";
 
 export { runDomainCases } from "./proof-cases.ts";
+export { DOC_PHRASES, docPhrases, type DocLang, type DocPhrases } from "./doc-copy.ts";

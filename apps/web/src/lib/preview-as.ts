@@ -124,12 +124,11 @@ export function priceDraft(input: {
   return { saves, sampleCustomer: sampleCustomerNeeded, workspace, customer, lines, totals };
 }
 
-/** Null when the field is empty or the GSTIN is valid. A wrong check digit says so. */
-export function gstinMessage(value: string): string | null {
+/** Null when the field is empty or the GSTIN is valid; otherwise what is wrong, for the screen to word. */
+export function gstinMessage(value: string): "check-digit" | "shape" | null {
   const gstin = value.trim();
   if (!gstin) return null;
   const check = checkGstin(gstin);
   if (check.ok) return null;
-  if (check.reason === "check-digit") return "The check digit does not match. Check the GSTIN.";
-  return "A GSTIN is 15 letters and digits.";
+  return check.reason === "check-digit" ? "check-digit" : "shape";
 }

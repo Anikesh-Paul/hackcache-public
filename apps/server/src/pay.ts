@@ -4,7 +4,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Permission, Role } from "node-appwrite";
 import type { EventActor, InboxKind, PayInstalment, PaySlip } from "@tagada/appwrite";
-import { differencePaise, formatInr, hindiDate, hindiRupees } from "@tagada/money";
+import { bengaliDate, differencePaise, formatAmountInput, formatDate, formatInr, hindiDate, hindiRupees } from "@tagada/money";
 import {
   PROOF_LABEL,
   checkProof,
@@ -434,14 +434,6 @@ export function raiseDispute(worlds: WorldStore, ref: Ref, body: unknown, actor:
   });
 }
 
-const BN_MONTHS = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন", "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
-
-function bengaliDate(iso: string): string {
-  const [, month, day] = iso.split("-").map(Number);
-  const name = BN_MONTHS[(month ?? 1) - 1] ?? "";
-  return `${day} ${name}`;
-}
-
 /** What the read-aloud button says, in the page's language. Hindi amounts use Hindi words. */
 export function spokenSlip(slip: PaySlip, language: SpeakLanguage): string {
   if (language === "bn") return spokenBengali(slip);
@@ -451,7 +443,8 @@ export function spokenSlip(slip: PaySlip, language: SpeakLanguage): string {
 
 function spokenBengali(slip: PaySlip): string {
   const hello = `নমস্কার, ${slip.customer.name}। ${slip.from.businessName}-এর বার্তা।`;
-  const money = (paise: number) => `${formatInr(paise)} টাকা`;
+  // The number and the word টাকা, with no ₹ sign: the sign would be read as a second currency word.
+  const money = (paise: number) => `${formatAmountInput(paise)} টাকা`;
   if (slip.state === "paid") return `${hello} আপনার বিল পুরো মিটে গেছে। ধন্যবাদ।`;
   if (slip.state === "paid_claim") return `${hello} ধন্যবাদ। ব্যাংকে নিশ্চিত হলেই আপনাকে জানাব।`;
   if (slip.state === "disputed") return `${hello} আপনার কথা পৌঁছেছে। উত্তর আসা পর্যন্ত কোনো অনুস্মারক পাঠানো হবে না।`;
@@ -473,12 +466,12 @@ function spokenEnglish(slip: PaySlip): string {
   if (slip.state === "paid_claim") return `${hello} Thank you. We'll let you know as soon as the bank confirms it.`;
   if (slip.state === "disputed") return `${hello} Your message has reached them. No reminders are sent meanwhile.`;
   if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
-    const lines = slip.plan.map((i) => `${formatInr(i.amountPaise)} by ${i.date}`).join(". ");
+    const lines = slip.plan.map((i) => `${formatInr(i.amountPaise)} by ${formatDate(i.date, { weekday: false })}`).join(". ");
     return `${hello} Your instalments: ${lines}.`;
   }
   return (
     `${hello} ${formatInr(slip.invoice.balancePaise)} is still due on this Invoice. ` +
-    `The last date is ${slip.invoice.dueDate}. ` +
+    `The last date is ${formatDate(slip.invoice.dueDate, { weekday: false })}. ` +
     "Use the buttons below to pay by UPI, pick instalments, or tell us what is wrong with the bill."
   );
 }
@@ -488,7 +481,7 @@ export function spokenHindi(slip: PaySlip): string {
   const hello = `नमस्ते, ${slip.customer.name}। ${slip.from.businessName} का संदेश।`;
   if (slip.state === "paid") return `${hello} आपका बिल पूरा भर दिया गया है। धन्यवाद।`;
   if (slip.state === "paid_claim") return `${hello} धन्यवाद। बैंक में पुष्टि होते ही हम आपको बताएंगे।`;
-  if (slip.state === "disputed") return `${hello} आपकी शिकायत हमें मिल गई है। जवाब आने तक कोई याद नहीं भेजी जाएगी।`;
+  if (slip.state === "disputed") return `${hello} आपकी शिकायत हमें मिल गई है। जवाब आने तक कोई अनुस्मारक नहीं भेजा जाएगा।`;
   if (slip.plan && (slip.state === "plan" || slip.state === "asked")) {
     const lines = slip.plan.map((i) => `${hindiRupees(i.amountPaise)}, ${hindiDate(i.date)} तक`).join("। ");
     return `${hello} आपकी किश्तें: ${lines}।`;

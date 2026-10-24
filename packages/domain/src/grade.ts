@@ -21,6 +21,20 @@ export type CustomerGrade = {
   reason: string;
   /** Mean days late on paid Invoices, rounded half up. Null when none were paid. */
   avgDelayDays: number | null;
+  /** Each part of the reason, so a screen can word it in the Owner's language. */
+  facts: GradeFacts;
+};
+
+export type GradeFacts = {
+  avgDelayDays: number | null;
+  /** Days past due of the latest open Invoice; 0 when none is overdue. */
+  worstLateDays: number;
+  overdueCount: number;
+  /** An Invoice is still open three months or more past its due date. */
+  threeMonthsOpen: boolean;
+  brokenOn: string | null;
+  /** A Dispute in the last 6 months, said only when it cost the A. */
+  disputed: boolean;
 };
 
 /**
@@ -28,7 +42,7 @@ export type CustomerGrade = {
  * A 90-day window here is this Customer's own history, not an MSMED council deadline.
  */
 export const GRADE_WHY =
-  "A means they are 7 days late or less on average, and raised no Dispute in the last 6 months. C means they are more than 30 days late on average, broke a Promise in the last 90 days, or still have an Invoice open 90 or more days past its due date. Everyone else is B. The average uses Invoices already paid, not one that is only overdue today.";
+  "A means they are 7 days late or less on average, and raised no Dispute in the last 6 months. C means they are more than 30 days late on average, broke a Promise in the last three months, or still have an Invoice open three months or more past its due date. Everyone else is B. The average uses Invoices already paid, not one that is only overdue today.";
 
 export type HistoryInvoice = {
   id: string;
@@ -145,7 +159,7 @@ export function grade(input: GradeInput): CustomerGrade {
     open90 || (avg !== null && avg > 30) || broken ? "C" : avg !== null && avg <= 7 && !disputed ? "A" : "B";
 
   const parts = [paymentHabit(avg)];
-  if (open90) parts.push(`an Invoice is ${worst} days past due`);
+  if (open90) parts.push("an Invoice is three months or more past due");
   else if (worst > 0) {
     const unit = worst === 1 ? "day" : "days";
     parts.push(overdueCount === 1 ? `this one is ${worst} ${unit} late` : `one is ${worst} ${unit} late`);
@@ -153,5 +167,13 @@ export function grade(input: GradeInput): CustomerGrade {
   // The day, not the window: the copy never says "90 days" (that number belongs to MSMED timelines).
   if (brokenOn) parts.push(`a Promise was broken on ${formatDate(brokenOn, { weekday: false })}`);
   if (disputed && letter !== "A") parts.push("a Dispute in the last 6 months");
-  return { grade: letter, avgDelayDays: avg, reason: parts.join("; ") };
+  const facts: GradeFacts = {
+    avgDelayDays: avg,
+    worstLateDays: worst,
+    overdueCount,
+    threeMonthsOpen: open90,
+    brokenOn: brokenOn ?? null,
+    disputed: disputed && letter !== "A",
+  };
+  return { grade: letter, avgDelayDays: avg, reason: parts.join("; "), facts };
 }

@@ -1,12 +1,6 @@
 import { Link } from "react-router";
 import { AlertTriangle, ArrowLeft, Printer } from "lucide-react";
-import { useLang } from "../lib/prefs.ts";
-
-const BAR = {
-  en: { back: "Back to the Invoice", print: "Print or save as PDF", english: "English copy", customer: "Customer's language" },
-  hi: { back: "बिल पर वापस", print: "छापें या PDF सहेजें", english: "अंग्रेज़ी प्रति", customer: "ग्राहक की भाषा" },
-  bn: { back: "বিলে ফিরে যান", print: "ছাপুন বা PDF সেভ করুন", english: "ইংরেজি কপি", customer: "গ্রাহকের ভাষা" },
-};
+import { useT } from "../i18n/index.ts";
 
 /** Screen-only controls. Print CSS hides `.no-print`, so the A4 page has no app chrome. */
 export function PrintBar({
@@ -20,8 +14,7 @@ export function PrintBar({
   englishCopy?: boolean;
   onEnglishCopy?: () => void;
 }) {
-  const { lang } = useLang();
-  const t = BAR[lang];
+  const t = useT().print;
   return (
     <div className="no-print mx-auto mb-4 flex max-w-[210mm] flex-wrap gap-2">
       <Link to={`/app/invoices/${invoiceId}`} className="btn secondary">

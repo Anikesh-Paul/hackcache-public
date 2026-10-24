@@ -214,20 +214,6 @@ function unknown(paidUp?: MatchInvoice): Match {
 export type AssignedCustomer = { id: string; name: string };
 
 /**
- * The bank's own words. An assigned credit stores the Customer on the first
- * line, so the statement text is everything after that line.
- */
-export function bankNarration(narration: string): string {
-  const split = narration.indexOf("\n");
-  return split < 0 ? narration : narration.slice(split + 1);
-}
-
-/** Stored narration after the Owner assigns the credit. A later match still names that Customer. */
-export function narrationAssignedTo(narration: string, customerName: string): string {
-  return `${customerName}\n${bankNarration(narration)}`;
-}
-
-/**
  * Suggest a match as if the narration named this Customer, and no one else.
  * The Owner confirms the suggestion the same way as any other credit.
  */
@@ -241,7 +227,7 @@ export function matchForCustomer(credit: MatchCredit, invoices: readonly MatchIn
       tds: null,
     };
   }
-  return matchCredit({ ...credit, narration: `${customer.name} ${bankNarration(credit.narration)}` }, theirs);
+  return matchCredit({ ...credit, narration: `${customer.name} ${credit.narration}` }, theirs);
 }
 
 /** Paise of a credit that the match does not put on an Invoice. Zero when nothing is left over. */

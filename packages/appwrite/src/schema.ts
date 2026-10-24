@@ -179,6 +179,8 @@ export const tables = {
     oneOf("matchStatus", ["unmatched", "suggested", "confirmed"]),
     oneOf("matchKind", ["exact", "part", "multi", "overpay", "unknown", "tds"], false),
     json("allocations"),
+    // The Customer the Owner named for a deposit the matcher could not place.
+    id("assignedCustomerId", false),
   ], [key("workspaceId_matchStatus", "workspaceId", "matchStatus"), key("utr", "utr")]),
 
   proof_checks: table("proof_checks", [

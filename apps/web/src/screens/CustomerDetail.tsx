@@ -1,20 +1,15 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import type { CallRow, ReminderRow } from "@tagada/appwrite";
-import { GRADE_WHY, LADDER_STAGES } from "@tagada/domain";
-import { formatDate, formatInr } from "@tagada/money";
-import { amountOwed, daysLatePhrase, gradeFor, gradeSentence } from "../lib/customer-grade.ts";
-import { languageName } from "../lib/languages.ts";
+import { formatInr } from "@tagada/money";
+import { amountOwed, gradeFor } from "../lib/customer-grade.ts";
+import { LANGUAGES } from "../lib/languages.ts";
+import { useT } from "../i18n/index.ts";
+import { eventText } from "../lib/history.ts";
 import { istDay } from "../lib/pricing.ts";
 import { usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper, StatusWord } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
-
-const CHANNEL: Record<ReminderRow["channel"], string> = {
-  email: "email",
-  whatsapp_link: "WhatsApp",
-  call: "call",
-};
 
 function stageOf(payload: string | null): number | null {
   if (!payload) return null;
@@ -37,6 +32,7 @@ export function CustomerDetail() {
   const calls = useWorkspaceRows<CallRow>("calls");
   const reminders = useWorkspaceRows<ReminderRow>("reminders");
   const [why, setWhy] = useState(false);
+  const t = useT();
   if (!customer) return <NotFound what="Customer" />;
 
   const today = world.workspace.today;
@@ -54,13 +50,13 @@ export function CustomerDetail() {
   const reminderEvents = history.filter((event) => event.type === "reminder");
   const logged = new Set(reminderEvents.map((event) => `${event.invoiceId}|${stageOf(event.payload)}`));
   const reminderLines = [
-    ...reminderEvents.map((event) => ({ key: event.$id, day: istDay(event.at), text: event.summary })),
+    ...reminderEvents.map((event) => ({ key: event.$id, day: istDay(event.at), text: eventText(t, event, world.promises) })),
     ...(reminders && reminders !== "failed" ? reminders : [])
       .filter((row) => row.customerId === customer.$id && !logged.has(`${row.invoiceId}|${row.stage}`))
       .map((row) => ({
         key: row.$id,
         day: row.sentDate ?? "",
-        text: `${LADDER_STAGES[row.stage - 1]?.name ?? "Reminder"} by ${CHANNEL[row.channel]}`,
+        text: t.customer.reminderBy(t.ladder.stages[row.stage - 1]?.name ?? t.ladder.reminder, t.customer.channels[row.channel]),
       })),
   ].sort((a, b) => b.day.localeCompare(a.day));
   const callEvents = history.filter((event) => event.type === "call");
@@ -73,40 +69,45 @@ export function CustomerDetail() {
           <div className="m" />
           <div className="p">
             <p className="text-[13px] text-ink-2">
-              <Link to="/app/customers">Customers</Link> / {customer.place}
+              <Link to="/app/customers">{t.customers.title}</Link> / {customer.place}
             </p>
             <h1 className="mt-1 text-[30px] leading-tight sm:text-[34px]">{customer.name}</h1>
             <p className="mt-2 max-w-[62ch] text-sm">
-              {grade ? gradeSentence(grade) : events === "loading" ? "Reading payment history…" : "Grade unavailable."}{" "}
+              {grade
+                ? t.customers.grade(grade.grade, grade.facts)
+                : events === "loading"
+                  ? t.customers.reading
+                  : `${t.customers.unavailable}.`}{" "}
               <button type="button" className="linkbtn" aria-expanded={why} onClick={() => setWhy((open) => !open)}>
-                Why?
+                {t.common.why}
               </button>
             </p>
-            {why && <p className="mt-2 max-w-[68ch] text-sm">{GRADE_WHY}</p>}
+            {why && <p className="mt-2 max-w-[68ch] text-sm">{t.customers.gradeWhy}</p>}
             <p className="mt-3 text-sm text-ink-2">
-              {customer.creditDays ?? 0} days' credit.
+              {t.customers.credit(customer.creditDays ?? 0)}
               <br />
-              Reminders and the pay link use {languageName(customer.lang)}.
+              {t.customer.language(LANGUAGES.find((language) => language.id === customer.lang)?.name ?? t.customer.notSet)}
               {grade?.avgDelayDays != null && (
                 <>
                   <br />
-                  {daysLatePhrase(grade.avgDelayDays)}, on Invoices already paid.
+                  {t.customers.delay(grade.avgDelayDays)}
+                  {t.customer.onPaid}
                 </>
               )}
             </p>
           </div>
           <div className="a border-l-0 max-sm:col-span-full max-sm:mt-3 max-sm:pl-[calc(var(--margin)+14px)] max-sm:text-left">
             <span className="figure dbl">{formatInr(owed)}</span>
-            <p className="mt-2 text-[13px] text-ink-2">still owed</p>
+            <p className="mt-2 text-[13px] text-ink-2">{t.customer.stillOwed}</p>
           </div>
         </div>
       </Paper>
 
-      <Paper label="Invoices">
-        <Head title="Invoices" m="issued" a="owed" />
+      <Paper label={t.invoices.title}>
+        <Head title={t.invoices.title} m={t.customer.issued} a={t.invoices.owed} />
         {invoices.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No Invoices yet.</p>
+            <p className="text-ink-2">{t.customer.noInvoices}</p>
           </Ln>
         ) : (
           <ul className="entries">
@@ -114,7 +115,7 @@ export function CustomerDetail() {
               const view = viewOf(world, invoice);
               return (
                 <li key={invoice.$id} className="ln ruler relative">
-                  <div className="m">{formatDate(invoice.issueDate, { weekday: false })}</div>
+                  <div className="m">{t.date(invoice.issueDate, { weekday: false })}</div>
                   <div className="p">
                     <Link to={`/app/invoices/${invoice.$id}`} className="font-medium no-underline after:absolute after:inset-0">
                       <span className="mono">{invoice.number}</span>
@@ -133,15 +134,15 @@ export function CustomerDetail() {
         )}
       </Paper>
 
-      <Paper label="Payments">
-        <Head title="Payments" />
+      <Paper label={t.customer.payments}>
+        <Head title={t.customer.payments} />
         {events === "loading" ? (
           <Ln>
-            <p className="text-ink-2">Reading payments…</p>
+            <p className="text-ink-2">{t.customer.readingPayments}</p>
           </Ln>
         ) : payments.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No payments confirmed yet.</p>
+            <p className="text-ink-2">{t.customer.noPayments}</p>
           </Ln>
         ) : (
           <ul className="entries">
@@ -149,8 +150,8 @@ export function CustomerDetail() {
               const amount = amountOf(event.payload);
               return (
                 <li key={event.$id} className={`ln ${amount === null ? "wide" : ""}`}>
-                  <div className="m">{formatDate(istDay(event.at), { weekday: false })}</div>
-                  <div className="p">{event.summary}</div>
+                  <div className="m">{t.date(istDay(event.at), { weekday: false })}</div>
+                  <div className="p">{eventText(t, event, world.promises)}</div>
                   {amount !== null && <div className="a">{formatInr(amount)}</div>}
                 </li>
               );
@@ -159,15 +160,15 @@ export function CustomerDetail() {
         )}
       </Paper>
 
-      <Paper label="Advance">
-        <Head title="Advance" />
+      <Paper label={t.customer.advance}>
+        <Head title={t.customer.advance} />
         {events === "loading" ? (
           <Ln>
-            <p className="text-ink-2">Reading the advance…</p>
+            <p className="text-ink-2">{t.customer.readingAdvance}</p>
           </Ln>
         ) : advances.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No advance kept yet.</p>
+            <p className="text-ink-2">{t.customer.noAdvance}</p>
           </Ln>
         ) : (
           <ul className="entries">
@@ -175,8 +176,8 @@ export function CustomerDetail() {
               const amount = amountOf(event.payload);
               return (
                 <li key={event.$id} className={`ln ${amount === null ? "wide" : ""}`}>
-                  <div className="m">{formatDate(istDay(event.at), { weekday: false })}</div>
-                  <div className="p">{event.summary}</div>
+                  <div className="m">{t.date(istDay(event.at), { weekday: false })}</div>
+                  <div className="p">{eventText(t, event, world.promises)}</div>
                   {amount !== null && <div className="a">{formatInr(amount)}</div>}
                 </li>
               );
@@ -185,21 +186,21 @@ export function CustomerDetail() {
         )}
       </Paper>
 
-      <Paper label="Reminders">
-        <Head title="Reminders" />
+      <Paper label={t.customer.reminders}>
+        <Head title={t.customer.reminders} />
         {events === "loading" ? (
           <Ln>
-            <p className="text-ink-2">Reading reminders…</p>
+            <p className="text-ink-2">{t.customer.readingReminders}</p>
           </Ln>
         ) : reminderLines.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No Reminders yet.</p>
+            <p className="text-ink-2">{t.customer.noReminders}</p>
           </Ln>
         ) : (
           <ul className="entries">
             {reminderLines.map((line) => (
               <li key={line.key} className="ln wide">
-                <div className="m">{line.day ? formatDate(line.day, { weekday: false }) : ""}</div>
+                <div className="m">{line.day ? t.date(line.day, { weekday: false }) : ""}</div>
                 <div className="p">{line.text}</div>
               </li>
             ))}
@@ -207,26 +208,26 @@ export function CustomerDetail() {
         )}
       </Paper>
 
-      <Paper label="Calls">
-        <Head title="Calls" />
+      <Paper label={t.customer.calls}>
+        <Head title={t.customer.calls} />
         {callEvents.length === 0 && callRows.length === 0 ? (
           <Ln>
-            <p className="text-ink-2">No calls yet.</p>
+            <p className="text-ink-2">{t.customer.noCalls}</p>
           </Ln>
         ) : (
           <ul className="entries">
             {callEvents.map((event) => (
               <li key={event.$id} className="ln wide">
-                <div className="m">{formatDate(istDay(event.at), { weekday: false })}</div>
-                <div className="p">{event.summary}</div>
+                <div className="m">{t.date(istDay(event.at), { weekday: false })}</div>
+                <div className="p">{eventText(t, event, world.promises)}</div>
               </li>
             ))}
             {callRows.map((row) => (
               <li key={row.$id} className="ln wide">
-                <div className="m">{row.startedAt ? formatDate(istDay(row.startedAt), { weekday: false }) : ""}</div>
+                <div className="m">{row.startedAt ? t.date(istDay(row.startedAt), { weekday: false }) : ""}</div>
                 <div className="p">
-                  {(row.outcome ?? "Call").replaceAll("_", " ")}
-                  {row.durationS ? `, ${row.durationS} seconds` : ""}
+                  {t.customer.call}
+                  {row.durationS ? t.customer.seconds(row.durationS) : ""}
                 </div>
               </li>
             ))}

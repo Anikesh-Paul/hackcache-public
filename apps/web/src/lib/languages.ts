@@ -9,7 +9,3 @@ const NAMES: Record<CustomerLang, string> = {
 export const LANGUAGES = CUSTOMER_LANGS.map((id) => ({ id, name: NAMES[id] }));
 
 export type LanguageId = CustomerLang;
-
-export function languageName(id: string | null | undefined): string {
-  return LANGUAGES.find((language) => language.id === id)?.name ?? "Not set";
-}

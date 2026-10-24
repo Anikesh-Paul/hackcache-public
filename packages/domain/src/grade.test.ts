@@ -101,7 +101,8 @@ describe("grade", () => {
       ...NONE,
     });
     expect(result.grade).toBe("C");
-    expect(result.reason).toContain("an Invoice is 90 days past due");
+    expect(result.reason).toContain("an Invoice is three months or more past due");
+    expect(result.reason).not.toMatch(/90 days/);
   });
 
   it("stays A when the open Invoice is 89 days late and they pay on time", () => {
@@ -111,7 +112,7 @@ describe("grade", () => {
   });
 
   it("is B, with no invented average, when nothing has been paid and nothing is 90 days open", () => {
-    expect(grade({ today: TODAY, paidDaysLate: [], openDueDates: [], ...NONE })).toEqual({
+    expect(grade({ today: TODAY, paidDaysLate: [], openDueDates: [], ...NONE })).toMatchObject({
       grade: "B",
       avgDelayDays: null,
       reason: "no Invoice paid yet",
@@ -122,6 +123,31 @@ describe("grade", () => {
     const result = grade({ today: TODAY, paidDaysLate: [], openDueDates: ["2026-08-04"], ...NONE });
     expect(result.grade).toBe("C");
     expect(result.reason).toContain("no Invoice paid yet");
+  });
+});
+
+describe("grade facts", () => {
+  it("states each part of the reason, so a screen can word it in any language", () => {
+    const result = grade({
+      today: TODAY,
+      paidDaysLate: [12],
+      openDueDates: ["2026-09-25", "2026-10-20"],
+      disputeDates: ["2026-10-01"],
+      brokenPromiseDates: ["2026-10-10"],
+    });
+    expect(result.facts).toEqual({
+      avgDelayDays: 12,
+      worstLateDays: 38,
+      overdueCount: 2,
+      threeMonthsOpen: false,
+      brokenOn: "2026-10-10",
+      disputed: true,
+    });
+  });
+
+  it("marks an Invoice open three months or more", () => {
+    const result = grade({ today: TODAY, paidDaysLate: [0], openDueDates: ["2026-08-04"], ...NONE });
+    expect(result.facts).toMatchObject({ threeMonthsOpen: true, worstLateDays: 90, disputed: false, brokenOn: null });
   });
 });
 

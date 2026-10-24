@@ -5,7 +5,6 @@ import {
   DEMO_CLOCK,
   callConfirmation,
   callGuard,
-  planInWords,
   planRule,
   spokenName,
   whatsappLink,
@@ -13,15 +12,16 @@ import {
   type CallOutcome,
   type Instalment,
 } from "@tagada/domain";
-import { callCostPaise, callCredits, formatDate, formatInr } from "@tagada/money";
+import { callCostPaise, callCredits, formatInr } from "@tagada/money";
 import { WorldGate } from "../AppShell.tsx";
 import { PayPackets, SalaryFigure } from "../books.tsx";
+import { salaryHeadline, useT } from "../i18n/index.ts";
 import { decidePromise, glossOf, useCall, type Decision, type Line, type Recorded } from "../lib/call.ts";
 import { clockOf, personas, type PersonaKey } from "../lib/call-script.ts";
 import { useTodayBook } from "../lib/today.ts";
 import { useWorld, useWorldState, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
-import { SAMPLE } from "../sample-call.tsx";
+import { SAMPLE, sampleText } from "../sample-call.tsx";
 
 /** /call/:invoiceId, "Be Gupta ji": the call, with the Owner's books live beside it. */
 export function CallScreen() {
@@ -36,8 +36,6 @@ type Decided = { status: "approved" | "declined"; counter: Instalment[] | null; 
 
 const planOf = (o: CallOutcome | undefined): Instalment[] | null =>
   o && (o.kind === "plan" || o.kind === "plan_needs_owner" || o.kind === "promise") ? o.instalments : null;
-
-const words = planInWords;
 
 /** The credits ElevenLabs reported for this call, once its webhook is in. */
 function creditsOf(events: ReturnType<typeof useWorldState>["events"], callId: string | null): number | null {
@@ -54,6 +52,7 @@ function CallPage() {
   const { invoiceId = "" } = useParams();
   const world = useWorld();
   const { events } = useWorldState();
+  const t = useT();
   const invoice = world.invoices.find((i) => i.$id === invoiceId);
   const call = useCall(invoiceId);
   const [decided, setDecided] = useState<Decided | null>(null);
@@ -67,11 +66,11 @@ function CallPage() {
 
   if (!invoice) {
     return (
-      <Paper label="Call with AI">
+      <Paper label={t.call.label}>
         <Ln>
-          <p>There is no such Invoice in your books.</p>
+          <p>{t.call.noInvoice}</p>
           <Link to="/app/invoices" className="btn secondary mt-3">
-            Open the Invoices
+            {t.call.openInvoices}
           </Link>
         </Ln>
       </Paper>
@@ -79,7 +78,7 @@ function CallPage() {
   }
   const view = viewOf(world, invoice);
   const customer = view.customer;
-  const name = customer?.name ?? "the Customer";
+  const name = customer?.name ?? t.invoice.theCustomer;
   const rule = planRule.parse(world.workspace.planRule);
   const clock = world.workspace.clock ?? DEMO_CLOCK;
   const guard = callGuard({
@@ -99,12 +98,12 @@ function CallPage() {
     <div className="pb-20 lg:pb-0">
       <p className="mb-3 text-sm">
         <Link to={`/app/invoices/${invoiceId}`} className="linkbtn">
-          ‹ Back to {invoice.number}
+          {t.call.back(invoice.number)}
         </Link>
       </p>
       <div className="call-grid">
-        <Paper label="Call with AI" className="call-leaf">
-          <Head title={`Call with AI: ${name}`} a={formatInr(view.standing.balancePaise)} />
+        <Paper label={t.call.label} className="call-leaf">
+          <Head title={t.call.title(name)} a={formatInr(view.standing.balancePaise)} />
           {phase.name === "ready" && !call.recorded && (
             <Setup
               name={name}
@@ -135,17 +134,15 @@ function CallPage() {
             />
           )}
         </Paper>
-        <Paper label="Your books, live" className="books">
-          <Head title="Your books, live" />
+        <Paper label={t.call.books} className="books">
+          <Head title={t.call.books} />
           {salary ? (
             <>
               <Ln className="hl-row" a={<SalaryFigure cashAfterPaise={salary.cashAfterPaise} />}>
                 <p className="text-lg font-semibold">
-                  {salary.cashAfterPaise < 0
-                    ? `Salary day in ${salary.daysAway} ${salary.daysAway === 1 ? "day" : "days"}`
-                    : "Salary covered ✓"}
+                  {salary.cashAfterPaise < 0 ? salaryHeadline(salary.daysAway, false, t) : t.salary.coveredTick}
                 </p>
-                <small className="text-ink-2">{formatDate(salary.date)}: salaries of {formatInr(salary.salaryPaise)}</small>
+                <small className="text-ink-2">{t.salary.of(t.date(salary.date), formatInr(salary.salaryPaise))}</small>
               </Ln>
               <Ln>
                 <PayPackets salary={salary} />
@@ -154,7 +151,7 @@ function CallPage() {
           ) : (
             <Ln>
               <p className="text-ink-2" role="status">
-                {book.status === "failed" ? "Your books could not be read." : "Adding up your books…"}
+                {book.status === "failed" ? t.call.booksFailed : t.today.adding}
               </p>
             </Ln>
           )}
@@ -164,12 +161,12 @@ function CallPage() {
         <div className="statusbar" role="status">
           <span className="text-sm">
             {salary.cashAfterPaise < 0
-              ? `${formatInr(-salary.cashAfterPaise)} short on salary day`
-              : `Salary covered, ${formatInr(salary.cashAfterPaise)} spare`}
+              ? t.salary.shortBy(formatInr(-salary.cashAfterPaise))
+              : t.salary.spare(formatInr(salary.cashAfterPaise))}
           </span>
           {waiting && (
             <a href="#outcome" className="btn primary">
-              Decide
+              {t.call.decide}
             </a>
           )}
         </div>
@@ -189,41 +186,35 @@ function Setup(props: {
   onStart: () => void;
 }) {
   const { name, consentAt, clock, rule, guard, owedPaise, today, onStart } = props;
+  const t = useT();
   const cards = useMemo(() => personas({ owedPaise, today, rule }), [owedPaise, today, rule]);
   const [persona, setPersona] = useState<PersonaKey>("short");
   const blocked = guard.ok ? null : guard;
   const insideHours = guard.ok || guard.block !== "outside_hours";
   const items: { ok: boolean; text: string }[] = [
     consentAt
-      ? { ok: true, text: `${name} agreed to reminder calls on ${formatDate(consentAt.slice(0, 10))}.` }
-      : { ok: false, text: `${name} has not agreed to reminder calls.` },
-    insideHours
-      ? { ok: true, text: `Now ${clock}, inside calling hours (10 AM to 6 PM).` }
-      : { ok: false, text: `Now ${clock}, outside calling hours (10 AM to 6 PM).` },
-    { ok: true, text: "Munim says it is an AI in its first line." },
-    { ok: true, text: "No threats, and no talk of courts, the police or credit scores." },
-    {
-      ok: true,
-      text: `Your rule: a first instalment of at least ${rule.minFirstPct}% within ${rule.firstWithinDays} days, the rest within ${rule.restWithinDays} days. Code checks it, not the AI.`,
-    },
+      ? { ok: true, text: t.call.consented(name, t.date(consentAt.slice(0, 10))) }
+      : { ok: false, text: t.call.notConsented(name) },
+    insideHours ? { ok: true, text: t.call.inside(clock) } : { ok: false, text: t.call.outside(clock) },
+    { ok: true, text: t.call.saysAi },
+    { ok: true, text: t.call.noThreats },
+    { ok: true, text: t.call.rule(rule.minFirstPct, rule.firstWithinDays, rule.restWithinDays) },
   ];
   return (
     <>
-      <Ln m="Before the call">
+      <Ln m={t.call.beforeCall}>
         <ul className="guard" data-tour="guard">
           {items.map((item) => (
             <li key={item.text} className={item.ok ? "" : "no"}>
-              {item.ok ? <Check aria-label="Yes" /> : <X aria-label="No" />}
+              {item.ok ? <Check aria-label={t.call.yes} /> : <X aria-label={t.call.no} />}
               <span>{item.text}</span>
             </li>
           ))}
         </ul>
       </Ln>
-      <Ln m="Be the Customer">
+      <Ln m={t.call.beCustomer}>
         <fieldset>
-          <legend className="mb-2">
-            Play {spokenName(name)} ji. Pick how you will answer; your books change with what you say.
-          </legend>
+          <legend className="mb-2">{t.call.play(spokenName(name))}</legend>
           <div className="personas">
             {cards.map((p) => (
               <label key={p.key} className="persona relative">
@@ -234,12 +225,12 @@ function Setup(props: {
                   checked={persona === p.key}
                   onChange={() => setPersona(p.key)}
                 />
-                <b>{p.title}</b>
-                <small className="block text-ink-2">{p.what}</small>
+                <b>{t.call.personas[p.key].title}</b>
+                <small className="block text-ink-2">{t.call.personas[p.key].what}</small>
                 {p.lines.map((line) => (
                   <q key={line.en}>
                     <span lang="hi">{line.hi}</span>
-                    <small className="block text-ink-2">{line.en}</small>
+                    {t.lang === "en" && <small className="block text-ink-2">{line.en}</small>}
                   </q>
                 ))}
               </label>
@@ -250,16 +241,14 @@ function Setup(props: {
       <Ln>
         {blocked ? (
           <p role="alert" className="word short">
-            <X aria-hidden /> {blocked.message}
+            <X aria-hidden /> {t.call.blocked[blocked.block](name, clock)}
           </p>
         ) : (
           <>
             <button type="button" className="btn primary px-4 py-3 text-[15px]" onClick={onStart} data-tour="start">
-              <Phone aria-hidden /> Start call
+              <Phone aria-hidden /> {t.call.start}
             </button>
-            <small className="mt-2 block text-ink-2">
-              The browser asks for your microphone. Munim speaks Hindi; answer as {spokenName(name)} ji would.
-            </small>
+            <small className="mt-2 block text-ink-2">{t.call.mic(spokenName(name))}</small>
           </>
         )}
       </Ln>
@@ -269,19 +258,21 @@ function Setup(props: {
 
 function Failed({ why, message, onRetry }: { why: string; message: string; onRetry: () => void }) {
   const [sample, setSample] = useState(false);
+  const t = useT();
+  const label = why === "mic_denied" ? t.call.failedLabel.mic_denied : why === "no_answer" ? t.call.failedLabel.no_answer : t.call.failedLabel.other;
   return (
     <>
-      <Ln m={why === "mic_denied" ? "Microphone" : why === "no_answer" ? "No answer" : "Not now"}>
-        <p role="alert">{message}</p>
+      <Ln m={label}>
+        <p role="alert">{t.common.saveError(message)}</p>
         <p className="mt-3 flex flex-wrap gap-2">
           {why !== "blocked" && (
             <button type="button" className="btn primary" onClick={onRetry}>
-              {why === "mic_denied" ? <Mic aria-hidden /> : <Phone aria-hidden />} Try again
+              {why === "mic_denied" ? <Mic aria-hidden /> : <Phone aria-hidden />} {t.common.tryAgain}
             </button>
           )}
           {why === "mic_denied" && (
             <button type="button" className="btn secondary" aria-expanded={sample} onClick={() => setSample((s) => !s)}>
-              {sample ? "Hide the sample call" : "Read a sample call instead"}
+              {sample ? t.call.hideSample : t.call.readSample}
             </button>
           )}
         </p>
@@ -289,12 +280,12 @@ function Failed({ why, message, onRetry }: { why: string; message: string; onRet
       {sample && (
         <div className="entries transcript">
           <Ln>
-            <small className="text-ink-2">A sample of how the call goes, written out. Not a recording.</small>
+            <small className="text-ink-2">{t.call.sampleNote}</small>
           </Ln>
           {SAMPLE.map((s) => (
-            <Ln key={s.en} m={s.who} className={s.who === "Rule check" ? "check" : ""}>
+            <Ln key={`${s.who}${s.en}`} m={t.sample.who[s.who]} className={s.who === "check" ? "check" : ""}>
               {s.hi && <span lang="hi">{s.hi}</span>}
-              <span className={s.hi ? "gloss" : ""}>{s.en}</span>
+              <span className={s.hi ? "gloss" : ""}>{sampleText(t, s)}</span>
             </Ln>
           ))}
         </div>
@@ -314,6 +305,7 @@ function Live({
   name: string;
   onEnd: () => void;
 }) {
+  const t = useT();
   const [gloss, setGloss] = useState(false);
   const [english, setEnglish] = useState<Map<string, string>>(new Map());
   const [glossFailed, setGlossFailed] = useState(false);
@@ -341,35 +333,35 @@ function Live({
 
   const state =
     phase.name === "connecting"
-      ? "Connecting…"
+      ? t.call.connecting
       : phase.name === "live"
         ? phase.mode === "speaking"
-          ? "Munim is speaking"
-          : "Listening…"
+          ? t.call.speaking
+          : t.call.listening
         : phase.name === "ended"
-          ? `Call ended after ${clockOf(phase.seconds)}`
-          : "Call ended";
+          ? t.call.endedAfter(clockOf(phase.seconds))
+          : t.call.ended;
   return (
     <>
-      <Ln m="Call">
+      <Ln m={t.call.callLabel}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="font-semibold" role="status">
             {state}
           </span>
           <span className="flex gap-2">
             <button type="button" className="btn bare" aria-pressed={gloss} onClick={() => setGloss((g) => !g)}>
-              <Languages aria-hidden /> English gloss
+              <Languages aria-hidden /> {t.call.gloss}
             </button>
             {(phase.name === "live" || phase.name === "connecting") && (
               <button type="button" className="btn secondary" onClick={onEnd}>
-                <PhoneOff aria-hidden /> End call
+                <PhoneOff aria-hidden /> {t.call.endCall}
               </button>
             )}
           </span>
         </div>
-        {gloss && glossFailed && <small className="text-ink-2">The English gloss is not available right now.</small>}
+        {gloss && glossFailed && <small className="text-ink-2">{t.call.glossFailed}</small>}
       </Ln>
-      <div className="entries transcript" role="log" aria-live="polite" aria-label="Call transcript">
+      <div className="entries transcript" role="log" aria-live="polite" aria-label={t.call.transcript}>
         {lines.map((line) =>
           line.kind === "check" ? (
             <Ln
@@ -377,7 +369,7 @@ function Live({
               className="check"
               m={
                 <>
-                  Rule check
+                  {t.call.ruleCheck}
                   <br />
                   {clockOf(line.at)}
                 </>
@@ -392,7 +384,7 @@ function Live({
               key={line.id}
               m={
                 <>
-                  <b>{line.kind === "agent" ? "Munim" : `${name} ji`}</b>
+                  <b>{line.kind === "agent" ? t.sample.who.munim : `${name} ji`}</b>
                   <br />
                   {clockOf(line.at)}
                 </>
@@ -421,6 +413,7 @@ function Outcome(props: {
   payToken: string | null;
 }) {
   const { recorded, decided, onDecided, seconds, credits, customerName, phone, businessName, payToken } = props;
+  const t = useT();
   const [busy, setBusy] = useState<Decision | null>(null);
   const [error, setError] = useState<string | null>(null);
   const o = recorded.outcome;
@@ -441,7 +434,7 @@ function Outcome(props: {
       onDecided(r.status === "needs_owner" ? null : { status: r.status as Decided["status"], counter: r.counter, action });
     } catch {
       onDecided(before);
-      setError("That did not save. Try again.");
+      setError(t.call.notSaved);
     } finally {
       setBusy(null);
     }
@@ -451,14 +444,14 @@ function Outcome(props: {
   const used = credits ?? (seconds === null ? null : callCredits(seconds));
   const cost =
     used === null ? null : (
-      <Ln m="Cost" a={formatInr(callCostPaise(used))}>
-        This call cost {credits === null ? "about " : ""}
-        {formatInr(callCostPaise(used))}
-        {decided?.status === "approved" && first ? `; ${formatInr(first.amountPaise)} due ${formatDate(first.date)}` : ""}.
+      <Ln m={t.call.cost} a={formatInr(callCostPaise(used))}>
+        {t.call.costLine(
+          credits === null,
+          formatInr(callCostPaise(used)),
+          decided?.status === "approved" && first ? t.call.firstDue(formatInr(first.amountPaise), t.date(first.date)) : null,
+        )}
         <small>
-          {credits === null
-            ? `${clockOf(seconds ?? 0)} at about ${callCredits(60)} ElevenLabs credits a minute; the exact count follows.`
-            : `${used} ElevenLabs credits, as ElevenLabs counted them.`}
+          {credits === null ? t.call.creditsAbout(clockOf(seconds ?? 0), callCredits(60)) : t.call.creditsExact(used)}
         </small>
       </Ln>
     );
@@ -466,15 +459,15 @@ function Outcome(props: {
   if (!plan) {
     const said =
       o.kind === "already_paid"
-        ? `Says the bill is already paid${o.reference ? ` (reference ${o.reference})` : ""}. The bank statement will show it.`
+        ? t.call.alreadyPaid(o.reference ?? null)
         : o.kind === "dispute"
-          ? `Raised a Dispute: "${o.notes}". The Ladder is paused until you resolve it.`
+          ? t.call.dispute(o.notes ?? "")
           : o.kind === "callback"
-            ? `Asked to be called back${o.date ? ` on ${formatDate(o.date)}` : ""}.`
-            : "Did not commit to a date. The Ladder carries on.";
+            ? t.call.callback(o.date ? t.date(o.date) : null)
+            : t.call.noCommit;
     return (
       <div id="outcome" className="sect">
-        <Head title="What the call recorded" />
+        <Head title={t.call.recorded} />
         <Ln>{said}</Ln>
         {cost}
       </div>
@@ -483,39 +476,34 @@ function Outcome(props: {
 
   const agreed = o.kind === "plan";
   const payUrl = payToken ? `${location.origin}/pay/${payToken}` : null;
+  const until = last ? t.date(last.date) : "";
   return (
     <div id="outcome" className="sect">
-      <Head title={agreed ? "Plan agreed" : o.kind === "promise" ? "Promise made" : "Needs your decision"} />
-      <Ln m={agreed && <span className="stamp ok">Plan agreed</span>}>
-        <p className="font-semibold">{words(plan)}</p>
+      <Head title={agreed ? t.call.planAgreed : o.kind === "promise" ? t.call.promiseMade : t.call.needsDecision} />
+      <Ln m={agreed && <span className="stamp ok">{t.call.planAgreed}</span>}>
+        <p className="font-semibold">{t.call.plan(plan)}</p>
         {o.kind === "plan_needs_owner" && <p className="text-sm">{o.reasons.join(" ")}</p>}
-        {!recorded.saved && <small className="text-ink-2">Saving…</small>}
+        {!recorded.saved && <small className="text-ink-2">{t.common.saving}</small>}
       </Ln>
       {recorded.saved && !decided && (
         <Ln>
           <div className="flex flex-wrap gap-2">
             <button type="button" className="btn primary" disabled={busy !== null} onClick={() => act("approve")}>
-              <Check aria-hidden /> Approve
+              <Check aria-hidden /> {t.call.approve}
             </button>
             <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => act("counter")}>
-              Counter
+              {t.call.counter}
             </button>
             <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => act("decline")}>
-              Decline
+              {t.call.decline}
             </button>
           </div>
-          <small className="mt-2 block text-ink-2">
-            Approving pauses the Ladder till {last && formatDate(last.date)}. If a date is missed, the Ladder starts
-            again on its own.
-          </small>
+          <small className="mt-2 block text-ink-2">{t.call.approveNote(until)}</small>
         </Ln>
       )}
       {decided?.status === "approved" && (
         <Ln>
-          <p role="status">
-            Approved. The Ladder is paused till {last && formatDate(last.date)} and the pay link shows the{" "}
-            {plan.length > 1 ? "Plan" : "Promise"}.
-          </p>
+          <p role="status">{t.call.approvedNote(until, plan.length > 1)}</p>
           <p className="mt-2 flex flex-wrap gap-2">
             {payUrl && (
               <a
@@ -524,11 +512,11 @@ function Outcome(props: {
                 rel="noopener"
                 href={whatsappLink(phone, callConfirmation({ customerName, businessName, instalments: plan, payUrl }))}
               >
-                <MessageCircle aria-hidden /> Send the Hindi confirmation on WhatsApp
+                <MessageCircle aria-hidden /> {t.call.whatsapp}
               </a>
             )}
             <button type="button" className="btn bare" disabled={busy !== null} onClick={() => act("undo")}>
-              <Undo2 aria-hidden /> Undo
+              <Undo2 aria-hidden /> {t.call.undo}
             </button>
           </p>
         </Ln>
@@ -536,9 +524,7 @@ function Outcome(props: {
       {decided?.status === "declined" && (
         <Ln>
           <p role="status">
-            {decided.action === "counter" && decided.counter
-              ? `You countered with ${words(decided.counter)}. The pay link offers it.`
-              : "Declined. The Ladder carries on."}
+            {decided.action === "counter" && decided.counter ? t.call.countered(t.call.plan(decided.counter)) : t.call.declinedNote}
           </p>
         </Ln>
       )}

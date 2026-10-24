@@ -10,7 +10,6 @@ import {
   importSummary,
   matchCredit,
   matchForCustomer,
-  narrationAssignedTo,
   overpayPaise,
   parseStatement,
   proofFromModel,
@@ -114,6 +113,23 @@ function storedMatch(match: Match): { matchStatus: "unmatched" | "suggested"; ma
     return { matchStatus: "unmatched", matchKind: "unknown", allocations: null };
   }
   return { matchStatus: "suggested", matchKind: match.kind, allocations: JSON.stringify(match.allocations) };
+}
+
+/**
+ * The match for a stored credit, as Confirm will check it. A credit the Owner
+ * assigned is matched against that Customer only.
+ */
+function rematch(credit: StoredRow, loaded: Awaited<ReturnType<typeof books>>, customerId: string | null): Match {
+  const input = {
+    date: text(credit.date) ?? "",
+    narration: text(credit.narration) ?? "",
+    reference: text(credit.utr) ?? "",
+    amountPaise: whole(credit.amountPaise),
+  };
+  const rows = matchRows(loaded.customers, loaded.invoices, loaded.lines);
+  const customer = customerId ? loaded.customers.find((row) => row.$id === customerId) : undefined;
+  if (!customer) return matchCredit(input, rows);
+  return matchForCustomer(input, rows, { id: customer.$id, name: text(customer.name) ?? "" });
 }
 
 /** Import statement 2, or a CSV the Owner dropped. The same line a second time adds nothing. */
@@ -229,15 +245,7 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
 
   for (const credit of chosen) {
     // `invoices` holds these same rows, so a credit confirmed earlier in this loop is already counted.
-    const fresh = matchCredit(
-      {
-        date: text(credit.date) ?? "",
-        narration: text(credit.narration) ?? "",
-        reference: text(credit.utr) ?? "",
-        amountPaise: whole(credit.amountPaise),
-      },
-      matchRows(loaded.customers, loaded.invoices, loaded.lines),
-    );
+    const fresh = rematch(credit, loaded, text(credit.assignedCustomerId));
     if (fresh.kind !== credit.matchKind || !sameAllocations(fresh.allocations, allocationsOf(credit.allocations))) {
       await worlds.update("bank_txns", credit.$id, storedMatch(fresh));
       changed += 1;
@@ -292,19 +300,8 @@ export async function assignCredit(worlds: WorldStore, workspaceId: string, body
   const customer = loaded.customers.find((row) => row.$id === customerId);
   if (!credit || !customer) return { ok: false, status: 404, error: "not_found" };
   if (credit.matchStatus === "confirmed") return { ok: false, status: 400, error: "already_confirmed" };
-  const name = text(customer.name) ?? "";
-  const narration = narrationAssignedTo(text(credit.narration) ?? "", name);
-  const match = matchForCustomer(
-    {
-      date: text(credit.date) ?? "",
-      narration,
-      reference: text(credit.utr) ?? "",
-      amountPaise: whole(credit.amountPaise),
-    },
-    matchRows(loaded.customers, loaded.invoices, loaded.lines),
-    { id: customerId, name },
-  );
-  await worlds.update("bank_txns", credit.$id, { narration, ...storedMatch(match) });
+  const match = rematch(credit, loaded, customerId);
+  await worlds.update("bank_txns", credit.$id, { assignedCustomerId: customerId, ...storedMatch(match) });
   return { ok: true, kind: match.kind, note: match.note };
 }
 
@@ -321,6 +318,7 @@ export async function keepAdvance(worlds: WorldStore, workspaceId: string, body:
   if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
   const credit = loaded.bank.find((row) => row.$id === id);
   if (!credit) return { ok: false, status: 404, error: "not_found" };
+  if (credit.matchStatus !== "confirmed") return { ok: false, status: 400, error: "not_confirmed" };
   const shares = allocationsOf(credit.allocations);
   const extra = overpayPaise(whole(credit.amountPaise), shares);
   const invoiceId = shares[0]?.invoiceId;

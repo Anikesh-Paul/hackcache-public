@@ -84,7 +84,7 @@ type Words = {
   months: string[];
 };
 
-const WORDS: Record<Lang, Words> = {
+export const PAY_WORDS: Record<Lang, Words> = {
   hi: {
     hello: (name) => `नमस्ते, ${name}`,
     from: (business) => `${business} का संदेश`,
@@ -290,7 +290,7 @@ const WORDS: Record<Lang, Words> = {
 /** "शुक्र, 6 नवंबर" in the page's language. Latin digits on every page, so each page keeps one digit system. */
 function dateIn(lang: Lang, iso: string): string {
   if (lang === "en") return formatDate(iso);
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const [, month, day] = iso.split("-").map(Number);
   return `${t.weekdays[weekday(iso) ?? 0]}, ${day} ${t.months[(month ?? 1) - 1]}`;
 }
@@ -327,7 +327,7 @@ export function PayLink() {
     document.title = load.status === "ready" ? `${load.slip.from.businessName}: ${load.slip.invoice.number}` : "Tagada";
   }, [load]);
 
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   return (
     <div className="paydesk" lang={lang}>
       <div className="paytop">
@@ -386,7 +386,7 @@ function Slip({
   justDone: PaySlip["state"] | null;
   onChange: (slip: PaySlip) => void;
 }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const business = slip.from.businessName;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -568,7 +568,7 @@ function Slip({
 
 /** What is owed, or, once the Customer has acted, what they agreed: never both (§6.7 fix 12). */
 function Standing({ slip, lang, justDone }: { slip: PaySlip; lang: Lang; justDone: PaySlip["state"] | null }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const business = slip.from.businessName;
   switch (slip.state) {
     case "owing":
@@ -660,7 +660,7 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 function Instalments({ title, plan, lang }: { title: string; plan: readonly PayInstalment[]; lang: Lang }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   return (
     <div className="plan">
       <div className="ln wide head-line">
@@ -705,7 +705,7 @@ function PlanPicker({
   onTalk: () => void;
   onCancel: () => void;
 }) {
-  const t = WORDS[lang];
+  const t = PAY_WORDS[lang];
   const [choice, setChoice] = useState<number | "talk">(0);
   const submit = () => {
     if (choice === "talk") return onTalk();
