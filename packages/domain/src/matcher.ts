@@ -503,7 +503,8 @@ export function invoicesForMatch(input: {
 }): MatchInvoice[] {
   const customers = new Map(input.customers.map((customer) => [customer.$id, customer]));
   return input.invoices
-    .filter((invoice) => invoice.status !== "draft")
+    // A cancelled Invoice is owed nothing, so no credit is matched to it.
+    .filter((invoice) => invoice.status !== "draft" && invoice.status !== "cancelled")
     .map((invoice) => {
       const customer = customers.get(invoice.customerId);
       return {

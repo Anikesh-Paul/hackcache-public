@@ -27,6 +27,44 @@ test("a Customer's 'already paid' on the pay link reaches the Owner's Inbox", as
   await expect(page.getByText("Says already paid").first()).toBeVisible();
 });
 
+// A judge's own books: add a Customer, edit them, bill them, and record a payment by hand.
+test("a judge adds a Customer, edits them, bills them and records a payment", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("link", { name: "Or open the books yourself" }).click();
+  const nav = page.getByRole("navigation", { name: "Main" });
+
+  await nav.getByRole("link", { name: "Customers" }).click();
+  await page.getByRole("link", { name: "Add Customer" }).click();
+  await page.getByLabel("Name").fill("Judge Stores");
+  await page.getByLabel("State").selectOption("19");
+  await page.getByLabel("Email (optional)").fill("judge@example.org");
+  await page.getByLabel("Mobile (optional)").fill("98300 12345");
+  await page.getByRole("button", { name: "Save Customer" }).click();
+  await expect(page.getByRole("heading", { name: "Judge Stores" })).toBeVisible();
+  await expect(page.getByText("Email: judge@example.org.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Edit details" }).click();
+  await page.getByLabel("Credit days").fill("15");
+  await page.getByRole("button", { name: "Save Customer" }).click();
+  await expect(page.getByText("15 days' credit.")).toBeVisible();
+
+  await nav.getByRole("link", { name: "Invoices" }).click();
+  await page.getByRole("link", { name: "New invoice" }).click();
+  await page.getByLabel("Customer").selectOption({ label: "Judge Stores, West Bengal" });
+  await page.getByLabel("Description").fill("Bamboo tray");
+  await page.getByLabel("Rate (₹)").fill("1000");
+  await page.getByRole("button", { name: "Save invoice" }).click();
+  // ₹1,000 at 5% IGST: West Bengal is another state.
+  await expect(page.getByText("₹1,050").first()).toBeVisible();
+
+  await page.getByRole("button", { name: "Record a payment" }).click();
+  await page.getByLabel("How it was paid").selectOption("cash");
+  await page.getByRole("button", { name: "Save payment" }).click();
+  await expect(page.getByText(/Recorded ₹1,050 received in cash/)).toBeVisible();
+  await expect(page.getByText("Paid in full").first()).toBeVisible();
+});
+
 const TITLES = [
   "Is salary day safe?",
   "Chase these first",

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { EventRow, PromiseRow } from "@tagada/appwrite";
 import { COPY } from "../i18n/index.ts";
 import { eventText } from "./history.ts";
+import { receivedByHand } from "./today.ts";
 
 const event = (type: string, summary: string, payload: unknown = null) =>
   ({ $id: "e1", invoiceId: "i1", at: "2026-11-02T04:30:00Z", type, actor: "customer", summary, payload: payload === null ? null : JSON.stringify(payload) }) as unknown as EventRow;
@@ -34,6 +35,25 @@ describe("stored history in the Owner's language", () => {
     expect(eventText(COPY.bn, event("dispute", 'Raised a Dispute: "Two chairs broken". The Ladder is paused.'), [])).toContain(
       '"Two chairs broken"',
     );
+  });
+
+  it("words the Owner's own changes: a payment by hand, a cancellation, a correction", () => {
+    const cash = event("payment", "Recorded ₹5,000 received in cash on 30 Oct.", { amountPaise: 500_000, mode: "cash", date: "2026-10-30" });
+    expect(eventText(COPY.hi, cash, [])).toBe("आपने 30 अक्टूबर को नकद ₹5,000 मिलना दर्ज किया");
+    expect(eventText(COPY.bn, cash, [])).toContain("নগদে ₹5,000");
+    const cancelled = event("cancelled", 'Invoice cancelled: "Raised twice".', { reason: "Raised twice" });
+    expect(eventText(COPY.hi, cancelled, [])).toContain('"Raised twice"');
+    const edited = event("edited", "Invoice corrected", { fromTotalPaise: 1_180_000, totalPaise: 2_465_000, dueDate: "2026-12-15" });
+    expect(eventText(COPY.bn, edited, [])).toContain("₹11,800 থেকে ₹24,650");
+  });
+
+  it("counts only payments recorded by hand as cash received; a Bank match is in the statement already", () => {
+    const events = [
+      event("payment", "Recorded", { amountPaise: 500_000, mode: "upi", date: "2026-10-30" }),
+      event("payment", "Confirmed from the bank statement", { amountPaise: 900_000, tdsPaise: 0 }),
+      event("reminder", "sent", { stage: 1 }),
+    ];
+    expect(receivedByHand(events)).toEqual([{ date: "2026-10-30", amountPaise: 500_000 }]);
   });
 
   it("reads the channel and the reason from the payload before the stored sentence", () => {

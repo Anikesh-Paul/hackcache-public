@@ -135,6 +135,32 @@ export async function saveCustomer(customerId: string | null, body: unknown): Pr
   return { customerId: data.customer.$id };
 }
 
+/** A payment received by hand, recorded against an Invoice. The server checks it is no more than is owed. */
+export async function recordPayment(
+  invoiceId: string,
+  body: { amountPaise: number; date: string; mode: string; reference?: string },
+): Promise<void> {
+  await invoiceChange(invoiceId, "payment", body);
+}
+
+/** Cancels an Invoice with nothing paid against it. Its number stays used. */
+export async function cancelInvoice(invoiceId: string, reason: string): Promise<void> {
+  await invoiceChange(invoiceId, "cancel", { reason });
+}
+
+/** Corrects an unpaid Invoice's lines and due date. The server works the totals out again. */
+export async function editInvoice(invoiceId: string, body: { lines: unknown[]; dueDate: string }): Promise<void> {
+  await invoiceChange(invoiceId, "edit", body);
+}
+
+async function invoiceChange(invoiceId: string, action: "payment" | "cancel" | "edit", body: unknown): Promise<void> {
+  const { status, data } = await ownerApi<{ error?: string }>(`/api/invoices/${encodeURIComponent(invoiceId)}/${action}`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+  if (status !== 200) throw new SaveError(data?.error ?? "save_failed");
+}
+
 export type ImportReport = { already: number; added: number; summary: string };
 
 async function authed(path: string, body: unknown): Promise<unknown> {

@@ -32,7 +32,10 @@ export async function readExistingState(client: Client, schema: Schema): Promise
         db.listColumns({ databaseId, tableId: t.$id, queries: FIRST_100 }),
         db.listIndexes({ databaseId, tableId: t.$id, queries: FIRST_100 }),
       ]);
-      tables[t.$id] = { columns: columns.map((c) => c.key), indexes: indexes.map((i) => i.key) };
+      const enums = Object.fromEntries(
+        columns.flatMap((c) => ("elements" in c && Array.isArray(c.elements) ? [[c.key, c.elements]] : [])),
+      );
+      tables[t.$id] = { columns: columns.map((c) => c.key), indexes: indexes.map((i) => i.key), enums };
     }
   }
 
@@ -54,7 +57,7 @@ export async function setupAppwrite(
 
   // Columns first, then wait for them, then indexes: Appwrite builds columns
   // asynchronously and rejects an index on a column that is still processing.
-  const order: SetupOp["kind"][] = ["createDatabase", "createTable", "createColumn", "createBucket", "createIndex"];
+  const order: SetupOp["kind"][] = ["createDatabase", "createTable", "createColumn", "updateEnum", "createBucket", "createIndex"];
   ops.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
 
   for (const op of ops) {
@@ -79,6 +82,17 @@ export async function setupAppwrite(
         await createColumn(db, databaseId, op.tableId, op.column);
         touchedTables.add(op.tableId);
         log(`added column ${op.tableId}.${op.column.key}`);
+        break;
+      case "updateEnum":
+        await db.updateEnumColumn({
+          databaseId,
+          tableId: op.tableId,
+          key: op.column.key,
+          elements: [...op.column.elements],
+          required: op.column.required,
+          xdefault: null,
+        });
+        log(`allowed ${op.tableId}.${op.column.key}: ${op.column.elements.join(", ")}`);
         break;
       case "createBucket":
         await storage.createBucket({

@@ -23,6 +23,16 @@ const gupta: InvoiceFacts & { issueDate: string } = {
 };
 
 describe("invoiceStanding", () => {
+  it("owes nothing on a cancelled Invoice, however late it would be", () => {
+    expect(invoiceStanding({ ...gupta, status: "cancelled" }, [], TODAY)).toEqual({
+      state: "cancelled",
+      balancePaise: 0,
+      daysLate: 0,
+      daysToDue: -38,
+    });
+    expect(msmedInterest({ udyamType: "micro", isTrader: false }, gupta, invoiceStanding({ ...gupta, status: "cancelled" }, [], TODAY), TODAY)).toBeNull();
+  });
+
   it("is overdue with the whole amount owed, counted in whole days from the due date", () => {
     expect(invoiceStanding(gupta, [], TODAY)).toEqual({
       state: "overdue",

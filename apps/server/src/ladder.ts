@@ -10,6 +10,7 @@ import {
   DEFAULT_AUTO_SEND,
   REMINDER_NAMES,
   REPEAT_REFUSED,
+  isClosed,
   isCustomerLang,
   isRepeatRefused,
   ladderDay,
@@ -206,7 +207,8 @@ export async function planRun(deps: LadderDeps, workspaceId: string, demoDate: s
     worlds.list("bank_txns", workspaceId),
   ]);
   if (!workspace) throw new Error(`no workspace ${workspaceId}`);
-  const open = invoices.filter((i) => i.status !== "paid");
+  // A paid or cancelled Invoice is not chased, and no Promise on it can break.
+  const open = invoices.filter((i) => !isClosed((text(i.status) ?? "sent") as InvoiceFacts["status"]));
   const standing = await breakPromises(worlds, workspace, open, promises, suggestedInBank(bankSuggestions(bank)), demoDate);
   // Read again after breaking Promises: a broken one no longer pauses its Invoice.
   const ladderInvoices = open.map((i) => {

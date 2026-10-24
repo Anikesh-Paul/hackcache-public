@@ -43,6 +43,10 @@ export function memoryStore() {
       if (!row) throw new Error(`no row ${tableId}/${rowId}`);
       Object.assign(row, patch);
     },
+    async delete(tableId, rowId) {
+      writes++;
+      tables.get(tableId)?.delete(rowId);
+    },
     async list(tableId, workspaceId, where = {}) {
       lists++;
       return [...(tables.get(tableId)?.values() ?? [])].filter(

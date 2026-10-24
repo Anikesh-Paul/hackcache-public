@@ -1,5 +1,5 @@
 import { cloneElement, useId, type ReactElement, type ReactNode } from "react";
-import { Check, Clock, Flag, Handshake, CircleDot } from "lucide-react";
+import { Ban, Check, Clock, Flag, Handshake, CircleDot } from "lucide-react";
 import type { InvoiceStanding } from "@tagada/domain";
 import { useT } from "./i18n/index.ts";
 
@@ -50,6 +50,12 @@ export function StatusWord({ standing, dueDate }: { standing: InvoiceStanding; d
       return (
         <span className="word ok">
           <Check aria-hidden /> {t.status.paid}
+        </span>
+      );
+    case "cancelled":
+      return (
+        <span className="word plain">
+          <Ban aria-hidden /> {t.status.cancelled}
         </span>
       );
     case "disputed":

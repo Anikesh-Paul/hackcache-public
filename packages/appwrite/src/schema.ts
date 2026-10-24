@@ -123,7 +123,8 @@ export const tables = {
     paise("roundOffPaise"),
     paise("totalPaise", true),
     paise("paidPaise"),
-    oneOf("status", ["draft", "sent", "part", "paid", "disputed"]),
+    // "cancelled": under GST a saved Tax Invoice is cancelled, never deleted, and keeps its number.
+    oneOf("status", ["draft", "sent", "part", "paid", "disputed", "cancelled"]),
     { key: "ladderStage", type: "integer", required: false, min: 0, max: 6 },
     day("pausedUntil"),
     str("pauseReason", 32),

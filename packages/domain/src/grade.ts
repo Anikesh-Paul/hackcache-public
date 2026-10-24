@@ -47,7 +47,7 @@ export const GRADE_WHY =
 export type HistoryInvoice = {
   id: string;
   dueDate: string;
-  status: "draft" | "sent" | "part" | "paid" | "disputed";
+  status: "draft" | "sent" | "part" | "paid" | "disputed" | "cancelled";
 };
 
 export type HistoryEvent = {

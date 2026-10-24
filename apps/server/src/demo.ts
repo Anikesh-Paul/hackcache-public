@@ -29,6 +29,8 @@ export type WorldStore = {
   get(tableId: string, rowId: string): Promise<StoredRow | null>;
   /** Changes some columns of one row. */
   update(tableId: string, rowId: string, patch: Record<string, unknown>): Promise<void>;
+  /** Deletes one row; a row already gone is not an error. */
+  delete(tableId: string, rowId: string): Promise<void>;
   /** Every row of one table in one workspace, optionally narrowed by equal columns. A demo world fits in one page. */
   list(tableId: string, workspaceId: string, where?: Record<string, string>): Promise<StoredRow[]>;
 };

@@ -6,6 +6,7 @@ import { secureHeaders } from "hono/secure-headers";
 import { claimedUserId, resetDemo, startDemo, workspaceIdFor, type DemoDeps } from "./demo.ts";
 import { assignCredit, confirmMatches, importStatement, keepAdvance } from "./bank.ts";
 import { addCustomer, editCustomer, type CustomerFailure, type CustomerSaved } from "./customers.ts";
+import { cancelInvoice, editInvoice, recordPayment, type ChangeResult } from "./invoice-changes.ts";
 import { issueInvoice } from "./invoices.ts";
 import {
   CALL_LIMITS,
@@ -410,6 +411,18 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       return result.ok ? c.json({ ok: true }) : c.json({ error: result.error }, result.status);
     }),
   );
+
+  // The Owner's changes to a saved Invoice of their own world.
+  const invoiceChange = (path: string, change: (worlds: DemoDeps["worlds"], workspaceId: string, invoiceId: string, body: unknown) => Promise<ChangeResult>) =>
+    ownerRoute(path, "invoice_unavailable", async (workspaceId, c) => {
+      const result = await change(demo.worlds, workspaceId, c.req.param("id") ?? "", await json(c));
+      return result.ok
+        ? c.json({ status: result.status, paidPaise: result.paidPaise, totalPaise: result.totalPaise })
+        : c.json({ error: result.error }, result.status);
+    });
+  app.post("/api/invoices/:id/payment", invoiceChange("/api/invoices/:id/payment", recordPayment));
+  app.post("/api/invoices/:id/cancel", invoiceChange("/api/invoices/:id/cancel", cancelInvoice));
+  app.post("/api/invoices/:id/edit", invoiceChange("/api/invoices/:id/edit", editInvoice));
 
   app.post(
     "/api/settings",

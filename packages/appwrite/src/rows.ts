@@ -46,7 +46,7 @@ export type CustomerRow = Row<{
   gender: "male" | "female" | "neutral" | null;
 }>;
 
-export type InvoiceStatus = "draft" | "sent" | "part" | "paid" | "disputed";
+export type InvoiceStatus = "draft" | "sent" | "part" | "paid" | "disputed" | "cancelled";
 
 export type InvoiceRow = Row<{
   number: string;
@@ -220,7 +220,7 @@ export type PaySlip = {
    * What the Customer has already done here: `asked` is a Plan or a talk
    * waiting on the Owner; `paid_claim` is "already paid".
    */
-  state: "owing" | "plan" | "asked" | "paid_claim" | "disputed" | "paid";
+  state: "owing" | "plan" | "asked" | "paid_claim" | "disputed" | "paid" | "cancelled";
   /** The agreed (or asked-for) instalments, with what is still to come. */
   plan: PayInstalment[] | null;
   screenshotSent: boolean;

@@ -49,7 +49,7 @@ const LAST_MESSAGE_STAGE = 3;
 export type LadderInvoice = InvoiceFacts & { $id: string; customerId: string };
 
 export type NextAction =
-  | { kind: "wait"; why: "paid" | "disputed" | "paused" | "done" }
+  | { kind: "wait"; why: "paid" | "cancelled" | "disputed" | "paused" | "done" }
   | { kind: "wait"; why: "not_yet"; on: string }
   /** `auto`: the daily run sends it. `owner`: it waits for the Owner to send, call or print. */
   | { kind: "act"; stage: number; send: "auto" | "owner"; amountPaise: number };
@@ -81,6 +81,7 @@ export function nextAction(input: {
 }): NextAction {
   const { invoice, promises, today, autoSendStages, stageDays = LADDER_STAGE_DAYS } = input;
   const owed = differencePaise(invoice.totalPaise, invoice.paidPaise);
+  if (invoice.status === "cancelled") return { kind: "wait", why: "cancelled" };
   if (invoice.status === "paid" || owed <= 0) return { kind: "wait", why: "paid" };
   if (invoice.status === "disputed" || invoice.pauseReason === "dispute") return { kind: "wait", why: "disputed" };
   const running = promises.some(
