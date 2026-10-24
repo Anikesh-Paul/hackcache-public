@@ -148,7 +148,8 @@ export async function importStatement(worlds: WorldStore, workspaceId: string, b
   return { ok: true, already, added, summary: importSummary(already, added) };
 }
 
-async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<void> {
+/** Checks again each screenshot not found yet: after an import, and when the Demo date moves past its date. */
+export async function refreshProofs(worlds: WorldStore, workspaceId: string): Promise<void> {
   const { workspace, invoices, bank, proofs } = await books(worlds, workspaceId);
   if (!workspace) return;
   const { permissions, today } = ownerAccess(workspace, workspaceId);

@@ -5,6 +5,8 @@ import { formatDate } from "@tagada/money";
 import { DEMO_TODAY } from "@tagada/seed";
 import { useWorldState } from "./lib/world.tsx";
 import { useTour } from "./tour.tsx";
+import { PayLinkQr } from "./pay-qr.tsx";
+import { CallPlayer } from "./sample-call.tsx";
 import { Badge } from "./ui.tsx";
 
 /** How long the cover takes to turn; the door lands on its screen just after. */
@@ -13,7 +15,7 @@ const TURN_MS = 1100;
 type Door = { key: "tour" | "call" | "proof"; ribbon: string; title: string; what: string };
 
 const DOORS: Door[] = [
-  { key: "tour", ribbon: "var(--bamboo)", title: "Start the 2-minute tour", what: "Seven steps, and the app moves for you" },
+  { key: "tour", ribbon: "var(--bamboo)", title: "Start the 2-minute tour", what: "Eight steps, and the app moves for you" },
   { key: "call", ribbon: "var(--turmeric)", title: "Be Gupta ji: take the call", what: "You play the Customer, in Hindi or English" },
   { key: "proof", ribbon: "var(--ink-2)", title: "See the proof", what: "The brief's test cases, worked out live" },
 ];
@@ -52,7 +54,7 @@ export function Landing() {
     }
     if (!restarting || !world || !hero || moved) return;
     setRestarting(false);
-    tour.start({ invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
+    tour.start({ workspaceId: world.workspace.$id, invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
   }, [restarting, state.status, world, hero, moved, tour]);
 
   const go = (door: Door) => {
@@ -65,7 +67,7 @@ export function Landing() {
       return;
     }
     // Starting the tour takes the visitor to its first screen.
-    tour.start({ invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
+    tour.start({ workspaceId: world.workspace.$id, invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
   };
 
   const open = (door: Door, index: number) => {
@@ -81,7 +83,7 @@ export function Landing() {
   // The tour can start from a fresh copy; the call needs Gupta ji's open Invoice.
   const needsWorld = (door: Door) => (door.key === "tour" && !world) || (door.key === "call" && !hero);
   const what = (door: Door) =>
-    door.key === "tour" && moved ? "Seven steps, from a fresh copy of the books" : door.what;
+    door.key === "tour" && moved ? "Eight steps, from a fresh copy of the books" : door.what;
 
   return (
     <main className={`landing ${opening !== null ? "opening" : ""}`}>
@@ -118,6 +120,14 @@ export function Landing() {
             </button>
           ))}
         </nav>
+
+        <section className="l-hear" aria-labelledby="hear-call">
+          <h2 id="hear-call" className="text-[15px] font-semibold">
+            No microphone? Gupta ji's call
+          </h2>
+          <CallPlayer />
+          {hero?.payToken && <PayLinkQr token={hero.payToken} label="Open Gupta ji's pay link on your phone" />}
+        </section>
 
         <div className="l-foot">
           <p role="status" aria-live="polite">

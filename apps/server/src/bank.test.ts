@@ -49,8 +49,8 @@ const gupta = () => openInvoice("Gupta Traders");
 const txns = () => db.table("bank_txns");
 const proofs = () => db.table("proof_checks");
 
-function screenshot(amountText = GUPTA_PROOF_AMOUNT_TEXT, utr = GUPTA_PROOF_UTR) {
-  read = async () => ({ utr, amountText, dateText: "01/11/2026", payeeVpa: "tripura@upi", confidence: 60_000 });
+function screenshot(amountText = GUPTA_PROOF_AMOUNT_TEXT, utr = GUPTA_PROOF_UTR, dateText = "01/11/2026") {
+  read = async () => ({ utr, amountText, dateText, payeeVpa: "tripura@upi", confidence: 60_000 });
   const form = new FormData();
   form.append("file", new File([new Uint8Array([0xff, 0xd8, 0xff])], "upi.jpg", { type: "image/jpeg" }));
   return app.request(`/api/pay/${gupta().payToken}/screenshot`, { method: "POST", body: form });
@@ -72,6 +72,16 @@ const post = (path: string, body: unknown) =>
   app.request(path, { method: "POST", headers: { ...jwt, "content-type": "application/json" }, body: JSON.stringify(body) });
 
 describe("bank import and proof check", () => {
+  it("checks a screenshot dated after the Demo date again on the day's run, once that day has come", async () => {
+    expect((await screenshot(GUPTA_PROOF_AMOUNT_TEXT, GUPTA_PROOF_UTR, "06/11/2026")).status).toBe(200);
+    await post("/api/bank/import", { sample: true });
+    expect(proofs()[0]?.result).toBe("not_found_yet");
+
+    expect((await post("/api/ladder/run", { date: "2026-11-09" })).status).toBe(200);
+    expect(proofs()[0]?.result).toBe("found");
+    expect(db.table("events").some((event) => event.type === "proof_matched")).toBe(true);
+  });
+
   it("keeps Gupta's screenshot as not found yet, then Matched after statement 2, and unpaid until Confirm", async () => {
     const before = gupta();
     expect((await screenshot()).status).toBe(200);
@@ -80,13 +90,13 @@ describe("bank import and proof check", () => {
     expect(JSON.stringify(db.rows())).not.toMatch(/fake/i);
 
     const imported = await post("/api/bank/import", { sample: true });
-    expect(await imported.json()).toEqual({ ok: true, already: 0, added: 1, summary: "0 already imported, 1 new" });
+    expect(await imported.json()).toEqual({ ok: true, already: 0, added: 3, summary: "0 already imported, 3 new" });
     expect(proofs()[0]?.result).toBe("found");
     expect(db.table("events").some((event) => event.summary === "The UTR on the screenshot is in the bank statement. Matched ✓.")).toBe(true);
     expect(gupta()).toMatchObject({ status: "sent", paidPaise: 0 });
 
     const again = await post("/api/bank/import", { sample: true });
-    expect(await again.json()).toMatchObject({ already: 1, added: 0, summary: "1 already imported, 0 new" });
+    expect(await again.json()).toMatchObject({ already: 3, added: 0, summary: "3 already imported, 0 new" });
     expect(txns().filter((row) => row.utr === GUPTA_PROOF_UTR)).toHaveLength(1);
 
     const credit = txns().find((row) => row.utr === GUPTA_PROOF_UTR);

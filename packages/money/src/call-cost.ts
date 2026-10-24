@@ -1,5 +1,6 @@
 import { CALL_CREDITS_PER_MINUTE, CALL_CREDIT_PAISE_PER_THOUSAND } from "./config.ts";
 import { divRound, requireInt, toInt } from "./integer.ts";
+import { sumPaise } from "./ledger.ts";
 
 /** The agent's whole rupees as paise. A fraction is refused: the agent only ever names whole rupees. */
 export function paiseFromRupees(rupees: number): number {
@@ -25,4 +26,18 @@ export function callCredits(durationS: number): number {
 /** What these credits cost in paise, half up. */
 export function callCostPaise(credits: number): number {
   return toInt(divRound(count(credits, "credits") * BigInt(CALL_CREDIT_PAISE_PER_THOUSAND), 1000n), "cost");
+}
+
+/** What the AI calls cost, and what the Plans and Promises agreed on them secured: the ROI tile on Today. */
+export function callReturn(input: {
+  /** ElevenLabs' credit count for each call when it sent one; else the credits for its duration; else nothing yet. */
+  calls: readonly { credits: number | null; durationS: number | null }[];
+  securedPaise: readonly number[];
+}): { calls: number; costPaise: number; securedPaise: number } {
+  const credits = input.calls.map((call) => call.credits ?? (call.durationS === null ? 0 : callCredits(call.durationS)));
+  return {
+    calls: input.calls.length,
+    costPaise: callCostPaise(credits.reduce((sum, c) => sum + c, 0)),
+    securedPaise: sumPaise(input.securedPaise),
+  };
 }

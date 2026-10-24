@@ -28,7 +28,16 @@ export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.t
 export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS } from "./msmed.ts";
 export type { MsmedMeter, SellerFacts } from "./msmed.ts";
 
-export { AGEING_BUCKETS, CHASE_WHY, FORECAST_WEEKS, ageingBucket, payPackets, todayBook } from "./today.ts";
+export {
+  AGEING_BUCKETS,
+  CHASE_WHY,
+  FORECAST_WEEKS,
+  ageingBucket,
+  expectedNewSales,
+  payPackets,
+  salaryDayIn,
+  todayBook,
+} from "./today.ts";
 export type {
   AgeingBucket,
   AgeingKey,
@@ -37,6 +46,7 @@ export type {
   BookInput,
   BookInvoice,
   BookPromise,
+  NewSales,
   CashItem,
   ChaseRow,
   Counted,
@@ -60,6 +70,7 @@ export {
   callDay,
   callGuard,
   checkOutcome,
+  munimFirstLine,
   planInWords,
   proposePlan,
   spokenName,

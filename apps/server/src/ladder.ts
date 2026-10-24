@@ -5,7 +5,7 @@
 // anything goes out, so no Reminder is ever sent twice. An Invoice whose money
 // is already in the bank, waiting for the Owner to confirm it, is not chased.
 import { Permission, Role } from "node-appwrite";
-import { differencePaise, formatDate, formatInr, isCivilDate } from "@tagada/money";
+import { differencePaise, formatDate, formatInr, isCivilDate, sumPaise } from "@tagada/money";
 import {
   DEFAULT_AUTO_SEND,
   REMINDER_NAMES,
@@ -16,6 +16,7 @@ import {
   nextAction,
   promiseBroken,
   reminderMessage,
+  suggestedInBank,
   waitingInBank,
   type InvoiceFacts,
   type LadderInvoice,
@@ -23,6 +24,7 @@ import {
 } from "@tagada/domain";
 import { SEEDED_FAILURE, failsFirstSend } from "@tagada/seed";
 import { bankSuggestions } from "./bank-credits.ts";
+import { refreshProofs } from "./bank.ts";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import type { Mail, Mailer } from "./email.ts";
 import { newId, stamp } from "./pay.ts";
@@ -144,15 +146,24 @@ async function event(
 
 /**
  * Marks each agreed Promise broken once a date it named has passed unpaid,
- * and lifts its pause, so the Ladder resumes. Returns the Promises as they now stand.
+ * and lifts its pause, so the Ladder resumes. Money waiting in Bank for the
+ * Owner's Confirm counts as paid. Returns the Promises as they now stand.
  */
-async function breakPromises(worlds: WorldStore, workspace: StoredRow, invoices: StoredRow[], promises: StoredRow[], today: string) {
+async function breakPromises(
+  worlds: WorldStore,
+  workspace: StoredRow,
+  invoices: StoredRow[],
+  promises: StoredRow[],
+  inBank: ReadonlyMap<string, number>,
+  today: string,
+) {
   const out: (PromiseFacts & { invoiceId: string })[] = [];
   for (const row of promises) {
     const promise = promiseFacts(row);
     const invoiceId = text(row.invoiceId) ?? "";
     const invoice = invoices.find((i) => i.$id === invoiceId);
-    if (invoice && invoice.status !== "paid" && promiseBroken(promise, facts(invoice), today)) {
+    const owed = invoice && { ...facts(invoice), paidPaise: sumPaise([facts(invoice).paidPaise, inBank.get(invoiceId) ?? 0]) };
+    if (invoice && owed && invoice.status !== "paid" && promiseBroken(promise, owed, today)) {
       const missed = promise.instalments.find((i) => i.date < today);
       const what = promise.instalments.length > 1 ? "The Plan's instalment of" : "The Promise of";
       await worlds.update("promises", row.$id, { status: "broken" });
@@ -186,7 +197,7 @@ export async function planRun(deps: LadderDeps, workspaceId: string, demoDate: s
   ]);
   if (!workspace) throw new Error(`no workspace ${workspaceId}`);
   const open = invoices.filter((i) => i.status !== "paid");
-  const standing = await breakPromises(worlds, workspace, open, promises, demoDate);
+  const standing = await breakPromises(worlds, workspace, open, promises, suggestedInBank(bankSuggestions(bank)), demoDate);
   // Read again after breaking Promises: a broken one no longer pauses its Invoice.
   const ladderInvoices = open.map((i) => {
     const f = facts(i);
@@ -413,11 +424,15 @@ export function inProcessRunner(deps: LadderDeps, runId: () => string = () => ne
   return (workspaceId, demoDate) => runLadder(deps, workspaceId, demoDate, runId());
 }
 
-/** Moves the workspace's Demo date (the header's ‹ › stepper), then runs the Ladder for it. */
+/**
+ * Moves the workspace's Demo date (the header's ‹ › stepper), checks again any
+ * payment screenshot dated up to it, then runs the Ladder for it.
+ */
 export async function stepDemoDate(worlds: WorldStore, runner: LadderRunner, workspaceId: string, body: unknown) {
   const date = (body as { date?: unknown } | null)?.date;
   if (typeof date !== "string" || !isCivilDate(date)) return { ok: false as const, status: 400 as const, error: "invalid_date" };
   await worlds.update("workspaces", workspaceId, { today: date });
+  await refreshProofs(worlds, workspaceId);
   return { ok: true as const, summary: await runner(workspaceId, date) };
 }
 
