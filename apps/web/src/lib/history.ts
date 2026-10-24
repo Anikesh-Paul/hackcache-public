@@ -53,6 +53,21 @@ function planOf(t: Copy, promise: PromiseRow): string | null {
   }
 }
 
+/** Payments the Owner recorded by hand: in hand from the day each came. Bank matches have no `mode`. */
+export function receivedByHand(events: readonly EventRow[]): { date: string; amountPaise: number }[] {
+  return events.flatMap((event) => {
+    if (event.type !== "payment" || !event.payload) return [];
+    try {
+      const p = JSON.parse(event.payload) as { mode?: unknown; date?: unknown; amountPaise?: unknown };
+      return typeof p.mode === "string" && typeof p.date === "string" && typeof p.amountPaise === "number"
+        ? [{ date: p.date, amountPaise: p.amountPaise }]
+        : [];
+    } catch {
+      return [];
+    }
+  });
+}
+
 export function eventText(t: Copy, event: EventRow, promises: readonly PromiseRow[]): string {
   if (t.lang === "en") return event.summary;
   const p = payloadOf(event);

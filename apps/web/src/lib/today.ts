@@ -1,7 +1,8 @@
 import { useMemo } from "react";
-import type { BankAllocation, BankTxnRow, CashItemRow, EventRow } from "@tagada/appwrite";
+import type { BankAllocation, BankTxnRow, CashItemRow } from "@tagada/appwrite";
 import { todayBook, type BookCredit, type BookPromise, type TodayBook } from "@tagada/domain";
 import { DEMO_TODAY } from "@tagada/seed";
+import { receivedByHand } from "./history.ts";
 import { istDay } from "./pricing.ts";
 import { usePaymentHistory, useWorkspaceRows, useWorld } from "./world.tsx";
 
@@ -13,21 +14,6 @@ export function bankSuggestionsOf(rows: readonly BankTxnRow[]): BookCredit[] {
     matchStatus: t.matchStatus,
     allocations: t.allocations ? (JSON.parse(t.allocations) as BankAllocation[]) : [],
   }));
-}
-
-/** Payments the Owner recorded by hand: in hand from the day each came. Bank matches have no `mode`. */
-export function receivedByHand(events: readonly EventRow[]): { date: string; amountPaise: number }[] {
-  return events.flatMap((event) => {
-    if (event.type !== "payment" || !event.payload) return [];
-    try {
-      const p = JSON.parse(event.payload) as { mode?: unknown; date?: unknown; amountPaise?: unknown };
-      return typeof p.mode === "string" && typeof p.date === "string" && typeof p.amountPaise === "number"
-        ? [{ date: p.date, amountPaise: p.amountPaise }]
-        : [];
-    } catch {
-      return [];
-    }
-  });
 }
 
 export type TodayState = { status: "loading" } | { status: "failed" } | { status: "ready"; book: TodayBook };

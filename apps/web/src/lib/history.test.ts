@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { EventRow, PromiseRow } from "@tagada/appwrite";
 import { COPY } from "../i18n/index.ts";
-import { eventText } from "./history.ts";
-import { receivedByHand } from "./today.ts";
+import { eventText, receivedByHand } from "./history.ts";
 
 const event = (type: string, summary: string, payload: unknown = null) =>
   ({ $id: "e1", invoiceId: "i1", at: "2026-11-02T04:30:00Z", type, actor: "customer", summary, payload: payload === null ? null : JSON.stringify(payload) }) as unknown as EventRow;
