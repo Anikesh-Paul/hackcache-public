@@ -17,13 +17,14 @@ import type {
   WorkflowRunRow,
   WorkspaceRow,
 } from "@tagada/appwrite";
-import { bankTxnId } from "@tagada/domain";
+import { bankTxnId, munimFirstLine } from "@tagada/domain";
 import {
   addDays,
   differencePaise,
   formatDate,
   formatInr,
   gstinCheckDigit,
+  hindiRupees,
   invoiceNumber,
   invoiceTotals,
   lineMeasures,
@@ -33,7 +34,7 @@ import {
   type InvoiceLine,
 } from "@tagada/money";
 
-export { GUPTA_PROOF_AMOUNT_TEXT, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR, STATEMENT_2_CSV } from "./statement.ts";
+export { GUPTA_PLAN, GUPTA_PROOF_AMOUNT_TEXT, GUPTA_PROOF_DATE, GUPTA_PROOF_UTR, STATEMENT_2_CSV } from "./statement.ts";
 export { invoicesForMatch } from "./for-match.ts";
 
 export const DEMO_TODAY = "2026-11-02";
@@ -430,7 +431,10 @@ const INVOICES: InvoiceSeed[] = [
  * history, and again the first time the daily run emails them.
  */
 const FAILS_FIRST_SEND = "paul";
-/** Gupta's seeded call, kept for the case file. It is not a call the Owner placed. */
+
+/** Gupta's seeded call on 20 Oct: on his Invoice timeline and in the case file. It is not a call the Owner placed. */
+const GUPTA_CALL = { on: "2026-10-20", at: "11:40", durationS: 48 };
+/** Its conversation ID starts so, which tells it apart from a call the Owner placed. */
 const SEEDED_CALL_PREFIX = "seedgupta";
 
 export function isSeededCall(conversationId: unknown): boolean {
@@ -679,6 +683,13 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
           summary: "Opened the pay link and read it in Hindi; no reply",
           payload: null,
         },
+        {
+          at: at(GUPTA_CALL.on, GUPTA_CALL.at),
+          type: "call",
+          actor: "ai",
+          summary: `Call with AI, 0 min ${GUPTA_CALL.durationS} s. Gupta ji said he would call back; no Plan was agreed.`,
+          payload: null,
+        },
       );
     }
 
@@ -870,14 +881,18 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
           $id: id("gcall"),
           invoiceId: guptaOpen.$id,
           conversationId: `${SEEDED_CALL_PREFIX}${workspaceId}`,
-          startedAt: at("2026-10-20", "11:40"),
-          durationS: 48,
+          startedAt: at(GUPTA_CALL.on, GUPTA_CALL.at),
+          durationS: GUPTA_CALL.durationS,
           outcome: null,
           transcript: JSON.stringify({
             turns: [
               {
                 role: "agent",
-                message: "Namaste. I am an assistant from Tripura Bamboo Works, calling about an unpaid Invoice. I am not a person.",
+                message: munimFirstLine({
+                  customerName: customerOf("gupta").row.name,
+                  businessName: workspace.businessName,
+                  amountWords: hindiRupees(guptaOpen.totalPaise),
+                }),
                 t: 3,
               },
               { role: "user", message: "I will look at it and call you back.", t: 18 },

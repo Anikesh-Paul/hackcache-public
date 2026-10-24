@@ -2,7 +2,7 @@
 // them, and so will the call screen; give either a new book (say, with an
 // approved Plan) and it animates from the old figures to the new ones.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { formatDate, formatInr, formatInrShort, nearestPaise } from "@tagada/money";
+import { formatDate, formatInr, formatInrShort, nearestPaise, sumPaise } from "@tagada/money";
 import { payPackets, type ForecastWeek, type SalaryDay } from "@tagada/domain";
 
 /** 8 artisans and 1 accountant. */
@@ -240,19 +240,25 @@ export function ForecastTable({ weeks }: { weeks: readonly ForecastWeek[] }) {
         </tr>
       </thead>
       <tbody>
-        {weeks.map((week) => (
-          <tr key={week.start} className={week.closePaise < 0 ? "neg" : ""}>
-            <th scope="row">
-              {formatDate(week.start, { weekday: false })}
-              {week.salary && <small> salaries</small>}
-            </th>
-            <td data-label="Coming in">{week.inPaise ? formatInr(week.inPaise) : "—"}</td>
-            <td data-label="Going out">{week.outPaise ? `−${formatInr(week.outPaise)}` : "—"}</td>
-            <td data-label="Cash at week end" className="close">
-              {week.closePaise < 0 ? `${formatInr(-week.closePaise)} short` : formatInr(week.closePaise)}
-            </td>
-          </tr>
-        ))}
+        {weeks.map((week) => {
+          const inPaise = sumPaise([week.inPaise, week.newSalesPaise]);
+          return (
+            <tr key={week.start} className={week.closePaise < 0 ? "neg" : ""}>
+              <th scope="row">
+                {formatDate(week.start, { weekday: false })}
+                {week.salary && <small> salaries</small>}
+              </th>
+              <td data-label="Coming in">
+                {inPaise ? formatInr(inPaise) : "—"}
+                {week.newSalesPaise > 0 && <small> with {formatInr(week.newSalesPaise)} expected new sales</small>}
+              </td>
+              <td data-label="Going out">{week.outPaise ? `−${formatInr(week.outPaise)}` : "—"}</td>
+              <td data-label="Cash at week end" className="close">
+                {week.closePaise < 0 ? `${formatInr(-week.closePaise)} short` : formatInr(week.closePaise)}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

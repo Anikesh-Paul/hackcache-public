@@ -1,8 +1,8 @@
 // The forecast headline /proof shows, computed from the seeded books by the
 // same domain code Today uses. Expected text is the spec literal.
-import { todayBook, type BookInput, type BookPromise, type BriefRow, type TodayBook } from "@tagada/domain";
+import { salaryDayIn, todayBook, type BookInput, type BookPromise, type BriefRow, type TodayBook } from "@tagada/domain";
 import { formatInr } from "@tagada/money";
-import { seedWorld } from "./index.ts";
+import { GUPTA_PLAN, seedWorld } from "./index.ts";
 
 const world = seedWorld({ workspaceId: "wproof0000000000000001", ownerUserId: "proof0000000000000001" });
 const [workspace] = world.workspaces;
@@ -26,10 +26,7 @@ function bookInput(promises: BookPromise[]): BookInput {
 function headline(book: TodayBook): string {
   const salary = book.salary;
   if (!salary) return "No salary day in the next 13 weeks";
-  if (salary.cashAfterPaise < 0) {
-    const days = salary.daysAway === 1 ? "day" : "days";
-    return `Salary day in ${salary.daysAway} ${days}, ${formatInr(-salary.cashAfterPaise)} short`;
-  }
+  if (salary.cashAfterPaise < 0) return `${salaryDayIn(salary.daysAway)}, ${formatInr(-salary.cashAfterPaise)} short`;
   return `Salary covered, ${formatInr(salary.cashAfterPaise)} spare`;
 }
 
@@ -52,10 +49,7 @@ export function runForecastCases(): BriefRow[] {
       {
         invoiceId: gupta?.$id ?? "",
         status: "approved",
-        instalments: [
-          { amountPaise: 6_000_000, date: "2026-11-06" },
-          { amountPaise: 5_800_000, date: "2026-12-02" },
-        ],
+        instalments: [...GUPTA_PLAN],
       },
     ]),
   );
@@ -68,7 +62,7 @@ export function runForecastCases(): BriefRow[] {
     ),
     row(
       "forecast-spare",
-      "The same books once Gupta Traders' ₹60,000 on Fri 6 Nov is approved",
+      "The same books once Gupta Traders' Plan of ₹60,000 by Fri 6 Nov and ₹58,000 by Wed 2 Dec is approved",
       "Salary covered, ₹12,000 spare",
       headline(after),
     ),

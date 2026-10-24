@@ -80,7 +80,7 @@ export function FollowUps() {
             <span className="text-ink-2">Nothing for the Ladder today.</span>
           </Ln>
         ) : (
-          items.map((f) => <FollowUpLine key={`${f.invoiceId}:${f.stage}:${f.state}`} f={f} />)
+          items.map((f) => <FollowUpLine key={`${f.invoiceId}:${f.stage}:${f.state}:${f.amountPaise}`} f={f} />)
         )}
       </div>
     </div>

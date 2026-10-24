@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { checkGstin, invoiceTotals, sumPaise, type GstRate } from "@tagada/money";
+import { checkGstin, invoiceTotals, parseAmountPaise, sumPaise, type GstRate } from "@tagada/money";
 import { gradeCustomer, invoiceStanding, matchCredit, parseStatement } from "@tagada/domain";
 import {
   DEMO_TODAY,
+  GUPTA_PLAN,
+  GUPTA_PROOF_AMOUNT_TEXT,
+  GUPTA_PROOF_DATE,
   GUPTA_PROOF_UTR,
   STATEMENT_2_CSV,
   failsFirstSend,
@@ -284,23 +287,28 @@ describe("seedWorld", () => {
     }
   });
 
-  it("reads statement 2 as Gupta Traders' ₹60,000, which the seed does not already contain", () => {
+  it("reads statement 2 as the week to 7 Nov: Gupta Traders' first ₹60,000, the rest of Das & Sons and Kalita Traders", () => {
     const parsed = parseStatement(STATEMENT_2_CSV);
     expect(parsed.ok).toBe(true);
     if (!parsed.ok) return;
     expect(parsed.credits).toEqual([
-      expect.objectContaining({ reference: GUPTA_PROOF_UTR, amountPaise: 6_000_000 }),
+      expect.objectContaining({ date: GUPTA_PROOF_DATE, reference: GUPTA_PROOF_UTR, amountPaise: 6_000_000 }),
+      expect.objectContaining({ date: "2026-11-06", amountPaise: 1_434_000 }),
+      expect.objectContaining({ date: "2026-11-07", amountPaise: 2_750_000 }),
     ]);
     expect(world.bank_txns.some((txn) => txn.utr === GUPTA_PROOF_UTR)).toBe(false);
-    const [credit] = parsed.credits;
-    if (!credit) throw new Error("statement 2 is empty");
-    const match = matchCredit(
-      credit,
-      invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines }),
-    );
-    const [gupta] = openOf("Gupta Traders");
-    expect(match.kind).toBe("part");
-    expect(match.allocations).toEqual([{ invoiceId: gupta!.$id, amountPaise: 6_000_000 }]);
+    const invoices = invoicesForMatch({ customers: world.customers, invoices: world.invoices, lines: world.invoice_lines });
+    const [gupta, das, kalita] = parsed.credits.map((credit) => matchCredit(credit, invoices));
+    expect(gupta).toMatchObject({ kind: "part", allocations: [{ invoiceId: openOf("Gupta Traders")[0]!.$id, amountPaise: 6_000_000 }] });
+    expect(das?.allocations.map((a) => a.invoiceId)).toEqual([openOf("Das & Sons")[0]!.$id]);
+    expect(kalita).toMatchObject({ kind: "exact", allocations: [{ invoiceId: openOf("Kalita Traders")[0]!.$id, amountPaise: 2_750_000 }] });
+  });
+
+  it("lands Gupta Traders' credit as the first instalment of the Plan the sample call agrees", () => {
+    const [first] = GUPTA_PLAN;
+    expect(GUPTA_PROOF_DATE).toBe(first.date);
+    expect(parseAmountPaise(GUPTA_PROOF_AMOUNT_TEXT)).toBe(first.amountPaise);
+    expect(GUPTA_PROOF_DATE > world.workspaces[0]!.today).toBe(true);
   });
 });
 

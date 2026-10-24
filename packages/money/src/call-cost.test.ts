@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CALL_CREDITS_PER_MINUTE, callCostPaise, callCredits, formatInr, paiseFromRupees, rupeesFromPaise } from "./index.ts";
+import { CALL_CREDITS_PER_MINUTE, callCostPaise, callCredits, callReturn, formatInr, paiseFromRupees, rupeesFromPaise } from "./index.ts";
 
 describe("paiseFromRupees", () => {
   it("turns the agent's whole rupees into paise", () => {
@@ -36,5 +36,25 @@ describe("call cost", () => {
   it("refuses a negative or fractional count", () => {
     expect(() => callCredits(-1)).toThrow();
     expect(() => callCostPaise(1.5)).toThrow();
+  });
+});
+
+describe("callReturn", () => {
+  it("adds up what the AI calls cost and what Plans and Promises from calls secured", () => {
+    const roi = callReturn({
+      // ElevenLabs' own credit count when it sent one, else the credits for the duration.
+      calls: [
+        { credits: 1005, durationS: 140 },
+        { credits: null, durationS: 60 },
+        { credits: null, durationS: null },
+      ],
+      securedPaise: [6_000_000, 5_800_000],
+    });
+    expect(roi).toEqual({ calls: 3, costPaise: callCostPaise(1005 + 450), securedPaise: 11_800_000 });
+    expect(formatInr(roi.costPaise)).toBe("₹28.17");
+  });
+
+  it("is nothing for no calls", () => {
+    expect(callReturn({ calls: [], securedPaise: [] })).toEqual({ calls: 0, costPaise: 0, securedPaise: 0 });
   });
 });

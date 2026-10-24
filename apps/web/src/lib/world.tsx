@@ -60,10 +60,23 @@ function byInvoice(promises: readonly PromiseRow[]): Map<string, PromiseFacts[]>
 }
 
 let generations = 0;
+/** Seed answers already loaded. `startDemo` hands the same answer to every later mount, which must read afresh. */
+const loaded = new WeakSet<DemoStarted>();
 
-/** The rows a fresh seed handed back, or else a read of the visitor's world. */
+/**
+ * The rows a fresh seed handed back, the first time. After that a read of the
+ * visitor's world, so pages opened again (after the pay link, say) see what
+ * changed since; the seed's rows still stand in while the seed is being
+ * written, which ends with the workspace row.
+ */
 async function loadWorld(started: DemoStarted): Promise<World> {
-  const rows = started.seeded ? started.world : await readWorld(started.workspaceId);
+  let rows: FirstLoad;
+  if (started.seeded && !loaded.has(started)) rows = started.world;
+  else {
+    rows = await readWorld(started.workspaceId);
+    if (started.seeded && rows.workspaces.length === 0) rows = started.world;
+  }
+  loaded.add(started);
   const { workspaces, customers, invoices, promises } = rows;
   const [workspace] = workspaces;
   if (!workspace) throw new Error("This Demo world is still being set up.");
@@ -89,8 +102,14 @@ function merge<T extends { $id: string }>(read: readonly T[], live: readonly T[]
   return live.reduce((rows, row) => upsert(rows, row, false), [...read]);
 }
 
-/** The Owner's world with one live change applied: the Invoices and Promises the screens keep in memory. */
+/**
+ * The Owner's world with one live change applied: the workspace (a new Demo
+ * date, from the stepper or the tour) and the Invoices and Promises the screens keep in memory.
+ */
 function applyLive(world: World, row: LiveRow, deleted: boolean): World {
+  if (row.$tableId === "workspaces") {
+    return deleted || row.$id !== world.workspace.$id ? world : { ...world, workspace: row as unknown as WorkspaceRow };
+  }
   if (row.$tableId === "invoices") {
     return { ...world, invoices: upsert(world.invoices, row as unknown as InvoiceRow, deleted) };
   }
@@ -194,7 +213,7 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     setLiveEvents([]);
     setLiveInbox([]);
     setLiveReminders([]);
-    return watchRows(workspaceId, ["inbox", "events", "invoices", "promises", "reminders"], (row, deleted) => {
+    return watchRows(workspaceId, ["workspaces", "inbox", "events", "invoices", "promises", "reminders"], (row, deleted) => {
       if (row.$tableId === "inbox") {
         setLiveInbox((now) => upsert(now, row as unknown as InboxRow, deleted));
       } else if (row.$tableId === "reminders") {
