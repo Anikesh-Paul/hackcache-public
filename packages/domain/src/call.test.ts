@@ -5,6 +5,7 @@ import {
   callConfirmation,
   callGuard,
   checkOutcome,
+  munimFirstLine,
   proposePlan,
   spokenName,
   stripTags,
@@ -66,6 +67,14 @@ describe("callCalendar", () => {
     expect(days[0]).toBe("Monday 2026-11-02 (today)");
     expect(days[4]).toBe("Friday 2026-11-06");
     expect(days[14]).toBe("Monday 2026-11-16");
+  });
+});
+
+describe("munimFirstLine", () => {
+  it("is the agent's first line, as ElevenLabs fills it in: Munim says it is an AI", () => {
+    expect(munimFirstLine({ customerName: "Gupta Traders", businessName: "Tripura Bamboo Works", amountWords: "एक लाख अठारह हज़ार रुपये" })).toBe(
+      "नमस्ते Gupta जी, मैं Tripura Bamboo Works की ओर से AI सहायक मुनीम बोल रही हूँ। आपके एक लाख अठारह हज़ार रुपये के बिल के बारे में बात करनी थी, क्या अभी दो मिनट बात हो सकती है?",
+    );
   });
 });
 

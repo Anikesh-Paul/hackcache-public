@@ -274,7 +274,7 @@ export function transcriptExcerpt(raw: string | null): string | null {
     if ((role !== "agent" && role !== "user") || typeof message !== "string") continue;
     const said = stripTags(message);
     if (!said) continue;
-    lines.push(`${role === "agent" ? "Tagada" : "Customer"}: ${said}`);
+    lines.push(`${role === "agent" ? "Munim" : "Customer"}: ${said}`);
   }
   return lines.length > 0 ? lines.join("\n") : null;
 }

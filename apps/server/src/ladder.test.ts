@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createApp } from "./app.ts";
+import { GUPTA_PLAN } from "@tagada/seed";
+import { createApp, maskEmail } from "./app.ts";
 import type { Mail, Mailer } from "./email.ts";
 import { memoryFiles, memoryStore } from "./memory-store.ts";
 import { payTokens } from "./pay-token.ts";
@@ -228,6 +229,21 @@ describe("POST /api/ladder/run", () => {
     expect(reminder(das!.$id, 3)).toMatchObject({ status: "skipped_stage_off" });
   });
 
+  it("keeps a Promise or Plan whose money is already waiting in Bank, a week after the Demo date", async () => {
+    const [gupta] = openOf("Gupta Traders");
+    const token = gupta!.payToken as string;
+    const plan = await post(`/api/pay/${token}/accept-plan`, { instalments: GUPTA_PLAN }, {});
+    expect(plan.status).toBe(200);
+    await post("/api/bank/import", { sample: true });
+
+    await run("2026-11-09");
+    const [das] = openOf("Das & Sons");
+    for (const invoice of [gupta!, das!]) {
+      expect(db.table("promises").find((p) => p.invoiceId === invoice.$id)?.status, String(invoice.number)).toBe("approved");
+      expect(db.table("events").some((e) => e.invoiceId === invoice.$id && e.type === "promise_broken")).toBe(false);
+    }
+  });
+
   it("refuses a date it cannot read, and a stranger", async () => {
     expect((await post("/api/ladder/run", { date: "5 Nov" })).status).toBe(400);
     expect((await post("/api/ladder/run", { date: "2026-11-05" }, { authorization: "Bearer nope" })).status).toBe(401);
@@ -235,9 +251,19 @@ describe("POST /api/ladder/run", () => {
 });
 
 describe("GET /api/settings/email", () => {
-  it("names the Demo inbox every reminder email goes to", async () => {
+  it("names the Demo inbox every reminder email goes to, masked, and never sends the full address", async () => {
     const res = await app.request("/api/settings/email", { headers: jwt });
-    expect(await res.json()).toEqual({ demoInbox: INBOX, emailReady: true });
+    const body = await res.text();
+    expect(JSON.parse(body)).toEqual({ demoInbox: "d***@example.com", emailReady: true });
+    expect(body).not.toContain(INBOX);
+  });
+});
+
+describe("maskEmail", () => {
+  it("keeps the first letter and the domain", () => {
+    expect(maskEmail("owner.name@gmail.com")).toBe("o***@gmail.com");
+    expect(maskEmail("x@y.in")).toBe("x***@y.in");
+    expect(maskEmail("not an address")).toBe("***");
   });
 });
 

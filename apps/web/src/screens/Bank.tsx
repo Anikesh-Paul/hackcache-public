@@ -214,7 +214,7 @@ export function Bank() {
             const icon = KIND_ICON[kind];
             const shares = allocations(row);
             return (
-              <li key={row.$id} className="ln ruler">
+              <li key={row.$id} className="ln ruler" data-utr={row.utr ?? undefined}>
                 <div className="m">{formatDate(row.date, { weekday: false })}</div>
                 <div className="p">
                   <span className="block">{row.narration}</span>

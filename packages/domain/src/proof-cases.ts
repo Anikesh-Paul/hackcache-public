@@ -121,14 +121,14 @@ function chaseActual(): string {
   return book.chase.map((row) => `${formatInr(row.amountPaise)} (${row.daysLate} days late)`).join(", then ");
 }
 
-function letterActual(invoices: readonly DocumentInvoice[], promises: readonly DocumentPromise[]): string {
+function letterActual(invoices: readonly DocumentInvoice[], promises: readonly DocumentPromise[], today = "2026-11-02"): string {
   const letter = demandLetter({
     seller: { businessName: "Tripura Bamboo Works", address: null, gstin: null, upiVpa: null, ownerEmail: null, udyamType: "micro", isTrader: false },
     customer: { name: "Gupta Traders", address: null, place: "Kolkata" },
     invoices,
     promises,
     invoiceId: invoices[0]?.$id ?? "",
-    today: "2026-11-02",
+    today,
     payUrl: null,
   });
   return letter.nothingDue ?? `Demands ${letter.outstanding} for ${letter.invoices.map((line) => line.number).join(", ")}`;
@@ -140,7 +140,7 @@ const guptaPlan: DocumentPromise = {
   invoiceId: "0019",
   status: "approved",
   instalments: [
-    { amountPaise: 6_000_000, date: "2026-10-30" },
+    { amountPaise: 6_000_000, date: "2026-11-06" },
     { amountPaise: 5_800_000, date: "2026-12-02" },
   ],
 };
@@ -307,9 +307,9 @@ export function runDomainCases(): BriefRow[] {
     row(
       "letter-past-due",
       "Letter",
-      "Gupta Traders on 2 Nov: ₹1,18,000 under an agreed Plan of ₹60,000 by 30 Oct and ₹58,000 by 2 Dec, and ₹6,720 not due until 9 Dec",
+      "Gupta Traders on Mon 9 Nov: ₹1,18,000 under an agreed Plan of ₹60,000 by Fri 6 Nov (not paid) and ₹58,000 by Wed 2 Dec, and ₹6,720 not due until 9 Dec",
       "Demands ₹60,000 for TBW/26-27/0019",
-      letterActual([guptaLate, guptaNotDue], [guptaPlan]),
+      letterActual([guptaLate, guptaNotDue], [guptaPlan], "2026-11-09"),
     ),
     row(
       "letter-nothing-due",

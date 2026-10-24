@@ -21,6 +21,7 @@ import { clockOf, personas, type PersonaKey } from "../lib/call-script.ts";
 import { useTodayBook } from "../lib/today.ts";
 import { useWorld, useWorldState, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
+import { SAMPLE } from "../sample-call.tsx";
 
 /** /call/:invoiceId, "Be Gupta ji": the call, with the Owner's books live beside it. */
 export function CallScreen() {
@@ -265,16 +266,6 @@ function Setup(props: {
     </>
   );
 }
-
-/** A written sample of the call, for anyone without a microphone. Not a recording. */
-export const SAMPLE: { who: string; hi: string; en: string }[] = [
-  { who: "Munim", hi: "नमस्ते गुप्ता जी, मैं Munim, Tripura Bamboo Works की AI सहायक बोल रही हूँ।", en: "Hello Gupta ji, I'm Munim, Tripura Bamboo Works' AI assistant." },
-  { who: "Gupta ji", hi: "शुक्रवार को चालीस हज़ार दे सकता हूँ, बाकी अगले महीने।", en: "I can pay ₹40,000 on Friday, the rest next month." },
-  { who: "Rule check", hi: "", en: "₹40,000 by Fri 6 Nov: below your 50% rule (₹59,000), so the agent will counter" },
-  { who: "Munim", hi: "क्या आप शुक्रवार, छह नवंबर तक उनसठ हज़ार रुपये कर पाएँगे?", en: "Could you manage ₹59,000 by Friday 6 November?" },
-  { who: "Gupta ji", hi: "ठीक है, शुक्रवार को साठ हज़ार दे दूँगा।", en: "All right, I'll pay ₹60,000 on Friday." },
-  { who: "Rule check", hi: "", en: "₹60,000 by Fri 6 Nov, the rest by Wed 2 Dec: inside your rule" },
-];
 
 function Failed({ why, message, onRetry }: { why: string; message: string; onRetry: () => void }) {
   const [sample, setSample] = useState(false);

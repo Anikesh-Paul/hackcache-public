@@ -46,6 +46,13 @@ export type CallDeps = {
   now?: () => number;
 };
 
+/** "a***@gmail.com": enough to recognise the Demo inbox, without showing every visitor the Owner's address. */
+export function maskEmail(address: string): string {
+  const at = address.lastIndexOf("@");
+  if (at < 1 || /\s/.test(address)) return "***";
+  return `${address[0]}***${address.slice(at)}`;
+}
+
 export type LadderAppDeps = {
   mailer: Mailer | null;
   demoInbox: string | null;
@@ -341,7 +348,10 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
   app.get(
     "/api/settings/email",
     ownerRoute("/api/settings/email", "settings_unavailable", async (_workspaceId, c) =>
-      c.json({ demoInbox: ladderDeps.demoInbox, emailReady: ladderDeps.mailer !== null && ladderDeps.demoInbox !== null }),
+      c.json({
+        demoInbox: ladderDeps.demoInbox === null ? null : maskEmail(ladderDeps.demoInbox),
+        emailReady: ladderDeps.mailer !== null && ladderDeps.demoInbox !== null,
+      }),
     ),
   );
 

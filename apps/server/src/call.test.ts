@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { PaySlip } from "@tagada/appwrite";
+import { isSeededEvent } from "@tagada/seed";
 import { createApp, type CallDeps } from "./app.ts";
 import { memoryFiles, memoryStore } from "./memory-store.ts";
 import { payTokens } from "./pay-token.ts";
@@ -95,6 +96,8 @@ const decide = (promiseId: string, action: string) => postJson(`/api/promises/${
 
 const HERO_PLAN = { outcome: "plan", amount_rupees: 60000, date: "2026-11-06", rest_date: "2026-12-02" };
 const eventsOf = (invoiceId: string) => db.table("events").filter((e) => e.invoiceId === invoiceId);
+/** Call notes on Gupta's Invoice from calls placed here, not the seeded 20 Oct call. */
+const placedCalls = () => eventsOf(gupta().$id).filter((e) => e.type === "call" && !isSeededEvent(e.$id));
 const slipOf = async (token: unknown) => (await (await app.request(`/api/pay/${String(token)}`)).json()) as PaySlip;
 
 describe("GET /api/call/signed-url", () => {
@@ -339,7 +342,7 @@ describe("POST /webhooks/elevenlabs", () => {
       { role: "agent", message: "नमस्ते गुप्ता जी, मैं Munim, एक AI सहायक।", t: 0 },
       { role: "user", message: "शुक्रवार को चालीस हज़ार दे दूँगा", t: 9 },
     ]);
-    const note = eventsOf(gupta().$id).filter((e) => e.type === "call");
+    const note = placedCalls();
     expect(note).toHaveLength(1);
     expect(note[0]).toMatchObject({ actor: "ai", $permissions: OWNER });
     expect(String(note[0]?.summary)).toMatch(/2 min 14 s/);
@@ -353,7 +356,7 @@ describe("POST /webhooks/elevenlabs", () => {
     const res = await webhook(raw, header);
     expect(res.status).toBe(200);
     expect(db.writes()).toBe(writes);
-    expect(eventsOf(gupta().$id).filter((e) => e.type === "call")).toHaveLength(1);
+    expect(placedCalls()).toHaveLength(1);
   });
 
   it("rejects a bad or stale signature", async () => {
