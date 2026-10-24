@@ -67,6 +67,12 @@ const openInvoice = (name: string) => {
   return found;
 };
 const gupta = () => openInvoice("Gupta Traders");
+/** The call this test just started. The seed also stores one earlier call for the case file. */
+const callRow = (callId: string) => {
+  const found = db.table("calls").find((row) => row.$id === callId);
+  if (!found) throw new Error(`no call ${callId}`);
+  return found;
+};
 
 type Session = {
   conversationToken: string;
@@ -113,9 +119,12 @@ describe("GET /api/call/signed-url", () => {
     });
     expect(s.dynamicVariables.calendar?.split(", ")).toHaveLength(15);
     expect(s.context).toMatchObject({ owedPaise: 11_800_000, today: "2026-11-02", rule: { minFirstPct: 50 } });
-    expect(db.table("calls")).toEqual([
-      expect.objectContaining({ $id: s.callId, invoiceId: gupta().$id, consentShown: true, outcome: null, $permissions: OWNER }),
-    ]);
+    expect(callRow(s.callId)).toMatchObject({
+      invoiceId: gupta().$id,
+      consentShown: true,
+      outcome: null,
+      $permissions: OWNER,
+    });
   });
 
   it("needs the Owner's session", async () => {
@@ -142,6 +151,7 @@ describe("GET /api/call/signed-url", () => {
   });
 
   it("stops at the per-workspace limit and the global daily cap", async () => {
+    // Gupta's seeded transcript is already in the table. It does not use a slot.
     build({ limits: { perWorkspace: 2, perDay: 3 } });
     await started();
     await started();
@@ -189,7 +199,7 @@ describe("POST /api/call/outcome and the Owner's decision", () => {
     expect(agreed).toMatchObject({ actor: "ai" });
     expect(String(agreed?.summary)).toMatch(/^Plan agreed on the call: ₹60,000 by Fri 6 Nov, then ₹58,000 by Wed 2 Dec/);
     expect(db.table("inbox")).toEqual([expect.objectContaining({ kind: "plan_accepted", refId: agreed?.$id })]);
-    expect(db.table("calls")[0]).toMatchObject({ outcome: "plan" });
+    expect(callRow(s.callId)).toMatchObject({ outcome: "plan" });
 
     const ok = await decide(recorded.promiseId, "approve");
     expect(ok.status).toBe(200);
@@ -323,7 +333,7 @@ describe("POST /webhooks/elevenlabs", () => {
     const res = await webhook(raw, header);
     expect(res.status).toBe(200);
 
-    const call = db.table("calls")[0]!;
+    const call = callRow(s.callId);
     expect(call).toMatchObject({ conversationId: "conv_gupta_1", durationS: 134 });
     expect(JSON.parse(String(call.transcript)).turns).toEqual([
       { role: "agent", message: "नमस्ते गुप्ता जी, मैं Munim, एक AI सहायक।", t: 0 },
@@ -355,7 +365,7 @@ describe("POST /webhooks/elevenlabs", () => {
     expect((await webhook(JSON.stringify(body), "")).status).toBe(401);
     const good = signed(body);
     expect((await webhook(`${good.raw} `, good.header)).status).toBe(401);
-    expect(db.table("calls")[0]).toMatchObject({ conversationId: null });
+    expect(callRow(s.callId)).toMatchObject({ conversationId: null });
   });
 
   it("does not keep a transcript whose call details were changed in the browser", async () => {
@@ -365,7 +375,7 @@ describe("POST /webhooks/elevenlabs", () => {
     const res = await webhook(raw, header);
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ignored: "tampered" });
-    const call = db.table("calls")[0]!;
+    const call = callRow(s.callId);
     expect(JSON.parse(String(call.transcript)).turns).toBeUndefined();
     expect(JSON.parse(String(call.transcript)).tampered).toEqual(["amount_words"]);
   });

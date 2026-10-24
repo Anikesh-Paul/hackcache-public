@@ -3,7 +3,7 @@ import { useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router";
 import { Check, CircleDot, CircleHelp, Copy, Flag, Scale } from "lucide-react";
 import type { BankAllocation, BankTxnRow, InvoiceLineRow } from "@tagada/appwrite";
-import { MATCH_LABEL, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
+import { MATCH_LABEL, TDS_EXPLAIN, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
 import { formatDate, formatInr } from "@tagada/money";
 import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
 import { SaveError, confirmBank, importBank } from "../lib/appwrite.ts";
@@ -28,10 +28,9 @@ const KIND_ICON: Record<MatchKind, { icon: typeof Check; tone: string }> = {
 };
 
 const TDS_WHY =
-  "TDS is tax deducted at source: some Customers must keep back a small part of a payment and pay it to the tax department in your name. " +
-  "Possible TDS means the amount is short by exactly 0.1%, 1%, 2% or 10% of the taxable value. " +
+  `${TDS_EXPLAIN} ` +
   "A large buyer of goods can deduct 0.1%. Work is 1% for an individual or HUF and 2% for a company; on an Invoice with an installation line, that is a share of the installation line only. " +
-  "10% is the rate for professional or technical fees. Confirming a possible TDS covers the Invoice; the shortfall was kept back, not left owed.";
+  "10% is the rate for professional or technical fees. Confirming a possible TDS covers the Invoice; that amount was kept back, not left owed.";
 
 function allocations(row: BankTxnRow): BankAllocation[] {
   if (!row.allocations) return [];

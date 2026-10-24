@@ -347,9 +347,15 @@ describe("bank credit ids", () => {
 });
 
 describe("matcherBrief", () => {
-  it("passes the three cases /proof shows", () => {
+  it("passes the five cases /proof shows", () => {
     const rows = matcherBrief();
-    expect(rows.map((row) => row.expected)).toEqual(["i12, i12, i12", "Barua Stores", "Possible TDS"]);
+    expect(rows.map((row) => row.expected)).toEqual([
+      "i12, i12, i12",
+      "Barua Stores",
+      "Possible TDS",
+      "0008 ₹1,000, then 0009 ₹2,000",
+      "part: ₹2,000 applied, ₹3,000 still owed",
+    ]);
     expect(rows.every((row) => row.pass)).toBe(true);
   });
 });

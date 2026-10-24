@@ -25,7 +25,7 @@ import {
   SECTION16_RATE_FROM_BPS,
   stateName,
 } from "@tagada/money";
-import { ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
+import { ODR_EXPLAIN, ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
 import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
 import { markDisputed } from "../lib/appwrite.ts";
 import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
@@ -329,7 +329,8 @@ function Meter({ meter }: { meter: MsmedMeter }) {
           <Ln>
             <p className="text-sm">
               The MSMED Act lets a micro or small manufacturer charge a late buyer compound interest, with monthly
-              rests, at three times the RBI Bank Rate (§16). The Bank Rate went from{" "}
+              rests, at three times the RBI Bank Rate (§16). It runs from the day after the due date, or 45 days after
+              the Invoice date if the agreed terms are longer (§15). The Bank Rate went from{" "}
               {formatRateBps(SECTION16_RATE_BEFORE_BPS / 3)} to {formatRateBps(SECTION16_RATE_FROM_BPS / 3)} on{" "}
               {formatDate(SECTION16_RATE_CHANGE, { weekday: false, year: true })}, so each day earns the rate in force
               that day. On {formatInr(meter.principalPaise)} owed:
@@ -438,9 +439,7 @@ function Actions({
             </Link>
           )}
           {open && (
-            <small className="-mt-1 text-xs text-ink-2">
-              ODR: the government's online dispute resolution portal for small businesses, odr.msme.gov.in.
-            </small>
+            <small className="-mt-1 text-xs text-ink-2">{ODR_EXPLAIN}</small>
           )}
           <Link to={`/print/invoice/${invoiceId}`} className="btn secondary">
             <Printer aria-hidden /> Print Tax Invoice

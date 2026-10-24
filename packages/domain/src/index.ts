@@ -15,13 +15,14 @@ export {
   ladderRungs,
   nextAction,
   promiseBroken,
+  stageName,
 } from "./ladder.ts";
 export type { LadderInvoice, LadderStage, LadderStep, NextAction, Rung } from "./ladder.ts";
 
 export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
 export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
 
-export { msmedInterest } from "./msmed.ts";
+export { appointedDay, msmedInterest, MSMED_MAX_CREDIT_DAYS } from "./msmed.ts";
 export type { MsmedMeter, SellerFacts } from "./msmed.ts";
 
 export { AGEING_BUCKETS, CHASE_WHY, FORECAST_WEEKS, ageingBucket, payPackets, todayBook } from "./today.ts";
@@ -90,3 +91,32 @@ export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./pr
 
 export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";
 export type { ReminderFacts } from "./templates.ts";
+
+export {
+  LETTER_DISCLAIMER,
+  LETTER_TITLE,
+  MSMED_BOX_LABEL,
+  MSMED_EXPLAIN,
+  ODR_EXPLAIN,
+  ODR_STEPS,
+  SAMPLE_BANK,
+  TDS_EXPLAIN,
+  caseText,
+  demandLetter,
+  letterText,
+  odrCaseFile,
+  transcriptExcerpt,
+} from "./documents.ts";
+export type {
+  CaseFile,
+  CaseReminderLine,
+  DemandLetter,
+  DocumentCall,
+  DocumentCustomer,
+  DocumentInvoice,
+  DocumentReminder,
+  DocumentSeller,
+  LetterInvoiceLine,
+} from "./documents.ts";
+
+export { runDomainCases } from "./proof-cases.ts";

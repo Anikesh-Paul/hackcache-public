@@ -1,4 +1,4 @@
-import { addMonths, daysBetween } from "@tagada/money";
+import { addMonths, daysBetween, formatDate } from "@tagada/money";
 
 export type GradeLetter = "A" | "B" | "C";
 
@@ -135,7 +135,11 @@ export function grade(input: GradeInput): CustomerGrade {
     if (late > worst) worst = late;
   }
   const open90 = worst >= 90;
-  const broken = input.brokenPromiseDates.some((date) => withinLastDays(date, input.today, 90));
+  const brokenOn = input.brokenPromiseDates
+    .filter((date) => withinLastDays(date, input.today, 90))
+    .sort()
+    .at(-1);
+  const broken = brokenOn !== undefined;
   const disputed = input.disputeDates.some((date) => onOrAfter(date, addMonths(input.today, -6), input.today));
   const letter: GradeLetter =
     open90 || (avg !== null && avg > 30) || broken ? "C" : avg !== null && avg <= 7 && !disputed ? "A" : "B";
@@ -146,7 +150,8 @@ export function grade(input: GradeInput): CustomerGrade {
     const unit = worst === 1 ? "day" : "days";
     parts.push(overdueCount === 1 ? `this one is ${worst} ${unit} late` : `one is ${worst} ${unit} late`);
   }
-  if (broken) parts.push("a Promise was broken in the last 90 days");
+  // The day, not the window: the copy never says "90 days" (that number belongs to MSMED timelines).
+  if (brokenOn) parts.push(`a Promise was broken on ${formatDate(brokenOn, { weekday: false })}`);
   if (disputed && letter !== "A") parts.push("a Dispute in the last 6 months");
   return { grade: letter, avgDelayDays: avg, reason: parts.join("; ") };
 }

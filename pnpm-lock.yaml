@@ -75,6 +75,9 @@ importers:
       '@tagada/money':
         specifier: workspace:*
         version: link:../../packages/money
+      '@tagada/seed':
+        specifier: workspace:*
+        version: link:../../packages/seed
       appwrite:
         specifier: 29.1.0
         version: 29.1.0

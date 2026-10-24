@@ -18,14 +18,9 @@ import { Bank } from "./screens/Bank.tsx";
 import { Automation } from "./screens/Automation.tsx";
 import { Settings } from "./screens/Settings.tsx";
 import { DuplicatePreview, PrintInvoice } from "./screens/PrintInvoice.tsx";
+import { PrintLetter } from "./screens/PrintLetter.tsx";
+import { PrintCase } from "./screens/PrintCase.tsx";
 import "./index.css";
-
-// Every route from build plan §6.3 exists from day one, so deep links (and the
-// static site's SPA rewrite) work before each screen is built.
-const otherScreens: [path: string, name: string][] = [
-  ["/print/letter/:id", "Payment Demand Letter"],
-  ["/print/case/:id", "ODR case file"],
-];
 
 /** The Owner's side: an anonymous session and their own Demo world. */
 function Owner() {
@@ -65,13 +60,28 @@ const router = createBrowserRouter([
         ),
       },
       {
+        path: "/print/letter/:id",
+        element: (
+          <WorldGate>
+            <PrintLetter />
+          </WorldGate>
+        ),
+      },
+      {
+        path: "/print/case/:id",
+        element: (
+          <WorldGate>
+            <PrintCase />
+          </WorldGate>
+        ),
+      },
+      {
         element: <Shell />,
         children: [
           // The landing page opens the Demo world silently, so the books are ready on the first click.
           { path: "/", element: <Landing /> },
           // Not under the Owner's tabs: the call screen highlights none of them.
           { path: "/call/:invoiceId", element: <CallScreen /> },
-          ...otherScreens.map(([path, name]) => ({ path, element: <Placeholder name={name} /> })),
         ],
       },
     ],

@@ -5,6 +5,7 @@
 import type {
   BankAllocation,
   BankTxnRow,
+  CallRow,
   CashItemRow,
   CustomerRow,
   EventActor,
@@ -52,6 +53,7 @@ export type World = {
   cash_items: CashItemRow[];
   reminders: ReminderRow[];
   workflow_runs: WorkflowRunRow[];
+  calls: CallRow[];
 };
 
 // ---------------------------------------------------------------- catalogue
@@ -428,6 +430,13 @@ const INVOICES: InvoiceSeed[] = [
  * history, and again the first time the daily run emails them.
  */
 const FAILS_FIRST_SEND = "paul";
+/** Gupta's seeded call, kept for the case file. It is not a call the Owner placed. */
+const SEEDED_CALL_PREFIX = "seedgupta";
+
+export function isSeededCall(conversationId: unknown): boolean {
+  return String(conversationId ?? "").startsWith(SEEDED_CALL_PREFIX);
+}
+
 export const SEEDED_FAILURE = "The first try was refused (seeded failure, to show a retry)";
 
 /** True for the one Customer whose first live email is refused. */
@@ -844,6 +853,36 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     };
   });
 
+  // One stored call on Gupta's open Invoice, so the ODR case file has a transcript
+  // before a judge places the live call. It agrees no Plan, so the books stay as seeded.
+  const guptaOpen = invoices.find(
+    (invoice) => invoice.customerId === customerOf("gupta").row.$id && invoice.status === "sent" && invoice.totalPaise === 11_800_000,
+  );
+  const calls: CallRow[] = guptaOpen
+    ? [
+        {
+          ...base,
+          $id: id("gcall"),
+          invoiceId: guptaOpen.$id,
+          conversationId: `${SEEDED_CALL_PREFIX}${workspaceId}`,
+          startedAt: at("2026-10-20", "11:40"),
+          durationS: 48,
+          outcome: null,
+          transcript: JSON.stringify({
+            turns: [
+              {
+                role: "agent",
+                message: "Namaste. I am an assistant from Tripura Bamboo Works, calling about an unpaid Invoice. I am not a person.",
+                t: 3,
+              },
+              { role: "user", message: "I will look at it and call you back.", t: 18 },
+            ],
+          }),
+          consentShown: true,
+        },
+      ]
+    : [];
+
   return {
     workspaces: [workspace],
     customers,
@@ -855,6 +894,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     cash_items,
     reminders,
     workflow_runs,
+    calls,
   };
 }
 
