@@ -2,7 +2,7 @@
 // same keys; a test fails if one is missing. Product words follow glossary.ts.
 // Customer names, business names, UTRs, GSTINs and UPI IDs stay as they are.
 import type { ReactNode } from "react";
-import type { CallBlock, ChaseWhy, GradeFacts, Instalment, MatchKind, PlanIssue, ProofResultKind } from "@tagada/domain";
+import type { CallBlock, ChaseWhy, Dso, ForwardRow, GradeFacts, Instalment, MatchKind, PlanIssue, ProofResultKind } from "@tagada/domain";
 import { formatDate, formatInr } from "@tagada/money";
 import type { FollowUpState } from "../lib/follow-ups.ts";
 import type { Lang } from "../lib/prefs.ts";
@@ -237,6 +237,45 @@ export const en = {
     callsWhy: (n: number) =>
       `${plural(n, "call", "calls")}, priced by how long each one ran. Secured is what the Plans and Promises agreed on a call add up to, while they stand.`,
     inboxEmpty: "Replies from the pay link land here: paid claims, Disputes, Plans and screenshots.",
+  },
+  impact: {
+    title: "What Tagada changed",
+    since: (when: string) => `Since ${when}, when Tagada started chasing.`,
+    dso: "Days to get paid",
+    dsoSub: "days of sales still owed (DSO)",
+    dsoWhy: (before: Dso, after: Dso) =>
+      [before, after]
+        .map((d, n) =>
+          d.days === null
+            ? `${n === 0 ? "Before" : "Now"}: nothing was invoiced from ${date(d.from)} to ${date(d.date)}.`
+            : `${n === 0 ? `On the evening of ${date(d.date)}, before Tagada started` : `On ${date(d.date)}`}, ${formatInr(d.owedPaise)} was owed against ${formatInr(d.salesPaise)} invoiced from ${date(d.from)}: ${formatInr(d.owedPaise)} ÷ ${formatInr(d.salesPaise)} × ${d.windowDays} = ${d.days} days.`,
+        )
+        .join(" "),
+    dsoNote: "Owed means every Invoice not yet paid, by the books; money waiting in the Bank counts once you confirm it.",
+    forward: "Money brought forward",
+    forwardSub: (monthEnd: string) => `paid or promised by ${monthEnd}`,
+    forwardNone: "Nothing yet: no payment or Plan since then on an Invoice that, by its Customer's habit, would have come later.",
+    forwardWhy:
+      "Paid since Tagada started, or promised in a Plan agreed since then, inside this month, on Invoices that by the Customer's habit would have come later: their usual day, the due date plus how late they usually pay, falls after this month or had already gone by unpaid.",
+    forwardRow: (r: ForwardRow, since: string) =>
+      `${r.customerName}, ${r.number}: ${formatInr(r.countedPaise)} (${[r.paidPaise > 0 && `paid ${formatInr(r.paidPaise)}`, r.promisedPaise > 0 && `promised ${formatInr(r.promisedPaise)}`].filter(Boolean).join(", ")}). ${capital(habit(r.avgDelayDays))}, so the usual day was ${date(r.usualDate)}${r.why === "passed" ? `, already gone by on ${since}` : ", after this month"}.`,
+    forwardTotal: (total: string) => `In all, ${total}.`,
+    hours: "Hours of chasing saved",
+    hoursSub: (minutes: number) => `at ${minutes} minutes a chase`,
+    time: (minutes: number) => {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      if (h === 0) return `${m} min`;
+      return m === 0 ? plural(h, "hour", "hours") : `${h} h ${m} min`;
+    },
+    hoursWhy: (reminders: number, calls: number, per: number, minutes: number) =>
+      `${plural(reminders, "Reminder", "Reminders")} the Ladder sent and ${plural(calls, "call", "calls")} Munim made: ${reminders + calls} × ${per} minutes = ${minutes} minutes. ${per} minutes is what one chase takes by hand: finding the bill, writing the message or dialling, and noting the answer.`,
+    cost: "Cost per ₹100 collected",
+    costSub: (cost: string, collected: string) => `${cost} spent, ${collected} collected`,
+    perHundred: (paise: number | null) =>
+      paise === null ? "Nothing collected yet" : paise === 0 ? "Under 1 paisa" : paise < 100 ? `${paise} paise` : formatInr(paise),
+    costWhy: (emails: number, emailCost: string, calls: number, callCost: string, cost: string, collected: string, per: string) =>
+      `${plural(emails, "email", "emails")} at ₹35.20 per 1,000: ${emailCost}. ${plural(calls, "AI call", "AI calls")}, priced by how long each ran: ${callCost}. ${cost} spent to collect ${collected}: ${cost} ÷ ${collected} × ₹100 = ${per}.`,
   },
   followUps: {
     title: "Today's follow-ups",
@@ -987,7 +1026,8 @@ export const en = {
         body: () => (
           <>
             Gupta ji kept the Plan's first instalment, and the week's other payments came in, so the salaries are
-            covered with money to spare. The Automation log shows every run of the Ladder, with its retries.
+            covered with money to spare. <b>What Tagada changed</b> adds up the week in four numbers; press <b>Why?</b>{" "}
+            on any of them. The Automation log shows every run of the Ladder, with its retries.
           </>
         ),
       },

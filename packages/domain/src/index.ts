@@ -62,6 +62,9 @@ export type {
   TodayBook,
 } from "./today.ts";
 
+export { MINUTES_PER_CHASE, dsoOn, impact } from "./impact.ts";
+export type { Dso, ForwardRow, Impact, ImpactEvent, ImpactInput, ImpactPromise } from "./impact.ts";
+
 export {
   CALLING_HOURS,
   CALL_OUTCOMES,

@@ -228,6 +228,45 @@ export const hi: Copy = {
       `${n} कॉल, हर कॉल कितनी देर चली उसके हिसाब से दाम। पक्का हुआ वह रकम है जो कॉल पर तय किश्त योजनाओं और वादों में बनती है, जब तक वे कायम हैं।`,
     inboxEmpty: "भुगतान लिंक से आए जवाब यहाँ दिखते हैं: भुगतान के दावे, आपत्तियाँ, किश्त योजनाएँ और स्क्रीनशॉट।",
   },
+  impact: {
+    title: "Tagada से क्या बदला",
+    since: (when) => `${when} से, जब Tagada ने तगादा शुरू किया।`,
+    dso: "भुगतान आने में दिन",
+    dsoSub: "बिक्री के कितने दिन का पैसा बाकी है",
+    dsoWhy: (before, after) =>
+      [before, after]
+        .map((d, n) =>
+          d.days === null
+            ? `${n === 0 ? "पहले" : "अभी"}: ${date(d.from)} से ${date(d.date)} तक कोई बिल नहीं बना।`
+            : `${n === 0 ? `${date(d.date)} की शाम, Tagada के शुरू होने से पहले` : date(d.date)}, ${formatInr(d.owedPaise)} लेना बाकी था, और ${date(d.from)} से ${formatInr(d.salesPaise)} के बिल बने: ${formatInr(d.owedPaise)} ÷ ${formatInr(d.salesPaise)} × ${d.windowDays} = ${d.days} दिन।`,
+        )
+        .join(" "),
+    dsoNote: "लेना बाकी मतलब बही के हिसाब से हर बिल जो अभी चुकाया नहीं गया; बैंक में आया पैसा आपकी पुष्टि के बाद गिना जाता है।",
+    forward: "पहले आया पैसा",
+    forwardSub: (monthEnd) => `${monthEnd} तक चुकाया या वादा किया`,
+    forwardNone: "अभी कुछ नहीं: तब से ऐसे किसी बिल पर भुगतान या किश्त योजना नहीं आई जो ग्राहक की आदत से बाद में आता।",
+    forwardWhy:
+      "Tagada के शुरू होने के बाद चुकाया गया, या तब से तय किश्त योजना में इसी महीने का वादा, उन बिलों पर जो ग्राहक की आदत से बाद में आते: उनका आम दिन, यानी आखिरी तारीख और वे आमतौर पर जितनी देर करते हैं, इस महीने के बाद पड़ता है या बिना भुगतान के निकल चुका था।",
+    forwardRow: (r, since) =>
+      `${r.customerName}, ${r.number}: ${formatInr(r.countedPaise)} (${[r.paidPaise > 0 && `चुकाया ${formatInr(r.paidPaise)}`, r.promisedPaise > 0 && `वादा ${formatInr(r.promisedPaise)}`].filter(Boolean).join(", ")})। ${habit(r.avgDelayDays)}, इसलिए आम दिन ${date(r.usualDate)} था${r.why === "passed" ? `, जो ${since} तक निकल चुका था` : ", जो इस महीने के बाद है"}।`,
+    forwardTotal: (total) => `कुल ${total}।`,
+    hours: "तगादे के बचे घंटे",
+    hoursSub: (minutes) => `हर तगादे के ${minutes} मिनट`,
+    time: (minutes) => {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      if (h === 0) return `${m} मिनट`;
+      return m === 0 ? `${h} घंटे` : `${h} घंटे ${m} मिनट`;
+    },
+    hoursWhy: (reminders, calls, per, minutes) =>
+      `अनुस्मारक सीढ़ी ने ${reminders} अनुस्मारक भेजे और मुनीम ने ${calls} कॉल किए: ${reminders + calls} × ${per} मिनट = ${minutes} मिनट। हाथ से एक तगादे में ${per} मिनट लगते हैं: बिल ढूँढना, संदेश लिखना या फ़ोन मिलाना, और जवाब लिखकर रखना।`,
+    cost: "हर ₹100 वसूलने का खर्च",
+    costSub: (cost, collected) => `खर्च ${cost}, वसूला ${collected}`,
+    perHundred: (paise) =>
+      paise === null ? "अभी कुछ नहीं वसूला" : paise === 0 ? "1 पैसे से कम" : paise < 100 ? `${paise} पैसे` : formatInr(paise),
+    costWhy: (emails, emailCost, calls, callCost, cost, collected, per) =>
+      `${emails} ईमेल, ₹35.20 प्रति 1,000: ${emailCost}। ${calls} AI कॉल, हर कॉल कितनी देर चली उसके हिसाब से: ${callCost}। ${collected} वसूलने में ${cost} खर्च: ${cost} ÷ ${collected} × ₹100 = ${per}।`,
+  },
   followUps: {
     title: "आज के काम",
     reading: "अनुस्मारक सीढ़ी पढ़ी जा रही है…",
@@ -974,7 +1013,8 @@ export const hi: Copy = {
         body: () => (
           <>
             गुप्ता जी ने किश्त योजना की पहली किश्त चुका दी, और हफ़्ते के दूसरे भुगतान भी आ गए, इसलिए वेतन का इंतज़ाम हो गया
-            और पैसा बचता भी है। ऑटोमेशन लॉग में अनुस्मारक सीढ़ी की हर प्रक्रिया दिखती है, दोबारा कोशिशों के साथ।
+            और पैसा बचता भी है। <b>Tagada से क्या बदला</b> इस हफ़्ते को चार आंकड़ों में जोड़ता है; किसी पर भी{" "}
+            <b>क्यों?</b> दबाएँ। ऑटोमेशन लॉग में अनुस्मारक सीढ़ी की हर प्रक्रिया दिखती है, दोबारा कोशिशों के साथ।
           </>
         ),
       },
