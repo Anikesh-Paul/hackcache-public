@@ -156,6 +156,16 @@ export function deductionWords(lang: CustomerLang, clock: DeductionClock): strin
   return DEDUCTION[lang](clock);
 }
 
+/**
+ * The same fact for Munim to say aloud, in Hindi: the date in words and no
+ * year digits, since Munim never reads digits out.
+ */
+export function deductionSpoken(clock: DeductionClock): string {
+  return clock.sameYear
+    ? `${hindiDate(clock.claimBy)} तक भुगतान हो जाए तो आप यह बिल उसी वित्त वर्ष के खर्च में दिखा सकते हैं जिसका यह बिल है। बाद में भुगतान होने पर आयकर की धारा 43B(h) के तहत यह खर्च भुगतान वाले साल में गिना जाता है।`
+    : `आयकर की धारा 43B(h) के तहत यह बिल अब उसी साल के खर्च में गिना जा सकता है जिस साल इसका भुगतान हो। ${hindiDate(clock.claimBy)} तक भुगतान हो जाए तो इसी वित्त वर्ष में।`;
+}
+
 const BY_LANG: Record<CustomerLang, typeof EN> = { en: EN, hi: HI, bn: BN };
 
 /** The reminder for one Ladder stage (1 to 5): an email subject, and the text for email and WhatsApp alike. */

@@ -109,7 +109,7 @@ export type {
 export { PROOF_LABEL, checkProof, proofBankLine, proofFromModel } from "./proof-check.ts";
 export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";
 
-export { REMINDER_NAMES, REMINDER_TEMPLATES, deductionWords, reminderMessage } from "./templates.ts";
+export { REMINDER_NAMES, REMINDER_TEMPLATES, deductionSpoken, deductionWords, reminderMessage } from "./templates.ts";
 export type { ReminderFacts } from "./templates.ts";
 
 export { REPEAT_REFUSED, REPEAT_REFUSED_WORDS, SEND_FAILED_WORDS, isRepeatRefused, sendFailureWords } from "./send-failure.ts";
