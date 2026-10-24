@@ -116,6 +116,7 @@ describe("GET /api/call/signed-url", () => {
       rule_min_first_pct: "50",
       rule_first_within_days: "7",
       rule_rest_within_days: "30",
+      deduction_line: expect.stringContaining("धारा 43B(h)"),
       invoice_id: gupta().$id,
       workspace_id: WORKSPACE,
       call_id: s.callId,
@@ -128,6 +129,11 @@ describe("GET /api/call/signed-url", () => {
       outcome: null,
       $permissions: OWNER,
     });
+  });
+
+  it("tells Munim nothing about Section 43B(h) when the seller is a trader", async () => {
+    await db.store.update("workspaces", WORKSPACE, { isTrader: true });
+    expect((await started()).dynamicVariables.deduction_line).toBe("");
   });
 
   it("needs the Owner's session", async () => {

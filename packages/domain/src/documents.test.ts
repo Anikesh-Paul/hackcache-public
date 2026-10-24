@@ -139,6 +139,7 @@ describe("Payment Demand Letter", () => {
       expect(none.invoices).toEqual([]);
       expect(none.upiUri).toBeNull();
       expect(none.msmed).toBeNull();
+      expect(none.deduction).toBeNull();
     }
   });
 
@@ -173,6 +174,18 @@ describe("Payment Demand Letter", () => {
     expect(letterText(letter)).toContain("₹2,057.65");
   });
 
+  it("names Section 43B(h) for each Invoice demanded, in a box of its own", () => {
+    expect(letter.deduction?.heading).toBe("Section 43B(h) of the Income Tax Act");
+    expect(letter.deduction?.explanation).toContain("depends on the buyer's own accounts");
+    expect(letter.deduction?.lines).toEqual(["TBW/26-27/0018: paid by 31 Mar 2027, it may be claimed in FY 26-27."]);
+    expect(letterText(letter)).toContain("Section 43B(h)");
+    for (const lang of ["hi", "bn"] as const) {
+      const local = demandLetter({ seller, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null, lang });
+      expect(local.deduction?.heading).toContain("43B(h)");
+      expect(local.deduction?.lines[0]).toContain("FY 26-27");
+    }
+  });
+
   it("hides the MSMED box for a trader, a medium enterprise and a seller without Udyam", () => {
     for (const facts of [
       { udyamType: "micro" as const, isTrader: true },
@@ -188,7 +201,9 @@ describe("Payment Demand Letter", () => {
         payUrl: null,
       });
       expect(hidden.msmed).toBeNull();
+      expect(hidden.deduction).toBeNull();
       const text = letterText(hidden);
+      expect(text).not.toContain("43B(h)");
       expect(text).not.toContain("general information, not legal advice");
       expect(text).not.toContain("₹2,057.65");
       expect(text.match(/legal notice/gi)).toEqual(["legal notice"]);

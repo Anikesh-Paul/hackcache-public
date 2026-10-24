@@ -215,6 +215,32 @@ describe("POST /api/ladder/run", () => {
     expect(summary.ready).toBeGreaterThan(0);
   });
 
+  describe("Section 43B(h) in reminder emails", () => {
+    const WEEK = ["2026-11-05", "2026-11-06", "2026-11-07", "2026-11-08", "2026-11-09", "2026-11-10"];
+    const sentEmails = () =>
+      db
+        .table("events")
+        .filter((e) => e.type === "reminder" && e.actor === "workflow")
+        .map((e) => JSON.parse(e.payload as string) as { stage: number; email?: { text: string } })
+        .flatMap((m) => (m.email ? [{ stage: m.stage, text: m.email.text }] : []));
+
+    it("is named in every overdue email from a micro seller, and in no earlier one", async () => {
+      await db.store.update("workspaces", WS, { autoSendStages: [1, 2, 3, 4, 5] });
+      for (const date of WEEK) await run(date);
+      const sent = sentEmails();
+      expect(sent.some((m) => m.stage >= 3)).toBe(true);
+      for (const m of sent) expect(m.text.includes("43B(h)")).toBe(m.stage >= 3);
+    });
+
+    it("is never named when the seller is a trader", async () => {
+      await db.store.update("workspaces", WS, { autoSendStages: [1, 2, 3, 4, 5], isTrader: true });
+      for (const date of WEEK) await run(date);
+      const sent = sentEmails();
+      expect(sent.some((m) => m.stage >= 3)).toBe(true);
+      expect(sent.some((m) => m.text.includes("43B(h)"))).toBe(false);
+    });
+  });
+
   it("marks Das & Sons' Promise broken the day after its date, and the Ladder resumes", async () => {
     await run("2026-11-06");
     const [das] = openOf("Das & Sons");
