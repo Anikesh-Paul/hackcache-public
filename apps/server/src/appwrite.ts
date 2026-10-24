@@ -191,6 +191,11 @@ export function appwriteFiles(client: Client): FileStore {
         (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
       );
     },
+    async deleteScreenshot(fileId) {
+      await withRetry(() => storage.deleteFile({ bucketId: "screenshots", fileId })).catch((e: unknown) => {
+        if (!isNotFound(e)) throw e;
+      });
+    },
     async saveAudio(fileId, bytes) {
       if (heard.size >= 500) heard.delete(heard.keys().next().value ?? "");
       heard.set(fileId, bytes);

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { tables } from "@tagada/appwrite";
 import { createApp } from "./app.ts";
 import type { DemoStarted } from "./demo.ts";
 import { memoryFiles, memoryStore } from "./memory-store.ts";
@@ -7,6 +8,7 @@ import { payTokens } from "./pay-token.ts";
 const USERS: Record<string, string> = { "jwt-asha": "64f0c2a91be7d3e85f10", "jwt-ravi": "64f0c2a91be7d3e85f20" };
 
 let db: ReturnType<typeof memoryStore>;
+let files: ReturnType<typeof memoryFiles>;
 let app: ReturnType<typeof createApp>;
 /** Work the server does after answering; tests wait for it with settle(). */
 let pending: Promise<void>[];
@@ -16,6 +18,7 @@ const settle = async () => {
 
 beforeEach(() => {
   db = memoryStore();
+  files = memoryFiles();
   pending = [];
   app = createApp({
     probeAppwrite: async () => {},
@@ -26,7 +29,7 @@ beforeEach(() => {
       // A fixed clock: a reset that falls in the next second would otherwise sign different pay links.
       tokens: payTokens("test-secret", () => Date.parse("2026-11-02T06:00:00Z")),
     },
-    files: memoryFiles().files,
+    files: files.files,
     voice: { speak: async () => new Uint8Array() },
   });
 });
@@ -173,5 +176,82 @@ describe("POST /api/demo/reset", () => {
     await settle();
     expect(story("w64f0c2a91be7d3e85f10")).toBe(startingStory);
     expect(JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f20"))).toBe(ravisWorld);
+  });
+});
+
+describe("POST /api/demo/delete", () => {
+  const ASHA = "w64f0c2a91be7d3e85f10";
+  const RAVI = "w64f0c2a91be7d3e85f20";
+  const story = (workspaceId: string) => JSON.stringify(db.rowsOf(workspaceId).map(({ $createdAt: _, ...row }) => row));
+
+  /** A row of the visitor's own in every table, and a screenshot a Customer sent. */
+  const experiment = async (workspaceId: string, userId: string) => {
+    const permissions = [`read("user:${userId}")`];
+    await db.store.write(
+      Object.fromEntries(
+        Object.keys(tables).map((tableId) => [
+          tableId,
+          [{ $id: `mine_${tableId}_${workspaceId}`, workspaceId, $permissions: permissions, fileId: `s_${workspaceId}` }],
+        ]),
+      ),
+    );
+    await files.files.saveScreenshot({ fileId: `s_${workspaceId}`, ownerUserId: userId, name: "paid.png", bytes: new Uint8Array([1]) });
+  };
+
+  beforeEach(async () => {
+    await post("/api/demo/start", "jwt-asha");
+    await post("/api/demo/start", "jwt-ravi");
+    await settle();
+  });
+
+  it("is 401 without a session JWT, or with one Appwrite does not know, and deletes nothing", async () => {
+    await experiment(ASHA, "64f0c2a91be7d3e85f10");
+    const rows = db.rows().length;
+    expect((await post("/api/demo/delete")).status).toBe(401);
+    expect((await post("/api/demo/delete", "jwt-forged")).status).toBe(401);
+    expect(db.rows()).toHaveLength(rows);
+    expect(files.screenshots.size).toBe(1);
+  });
+
+  it("deletes a row of the visitor's in every table, and every screenshot, then starts a fresh world", async () => {
+    const startingStory = story(ASHA);
+    await experiment(ASHA, "64f0c2a91be7d3e85f10");
+    expect(db.rowsOf(ASHA).filter((row) => row.$id.startsWith("mine_"))).toHaveLength(Object.keys(tables).length);
+
+    const res = await post("/api/demo/delete", "jwt-asha");
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ workspaceId: ASHA, seeded: true });
+    await settle();
+
+    for (const tableId of Object.keys(tables)) {
+      expect(db.table(tableId).some((row) => row.$id === `mine_${tableId}_${ASHA}`), tableId).toBe(false);
+    }
+    expect(files.screenshots.has(`s_${ASHA}`)).toBe(false);
+    // The fresh world is the starting story, and it counts as there.
+    expect(story(ASHA)).toBe(startingStory);
+    expect(await db.store.exists(ASHA)).toBe(true);
+  });
+
+  it("touches no other visitor's rows or files", async () => {
+    await experiment(ASHA, "64f0c2a91be7d3e85f10");
+    await experiment(RAVI, "64f0c2a91be7d3e85f20");
+    const ravisWorld = JSON.stringify(db.rowsOf(RAVI));
+
+    await post("/api/demo/delete", "jwt-asha");
+    await settle();
+
+    expect(JSON.stringify(db.rowsOf(RAVI))).toBe(ravisWorld);
+    expect(files.screenshots.has(`s_${RAVI}`)).toBe(true);
+  });
+
+  it("deletes no row while a screenshot could not be deleted, so it can be asked again", async () => {
+    await experiment(ASHA, "64f0c2a91be7d3e85f10");
+    const rows = db.rowsOf(ASHA).length;
+    files.files.deleteScreenshot = async () => {
+      throw new Error("storage unavailable");
+    };
+    const res = await post("/api/demo/delete", "jwt-asha");
+    expect(res.status).toBe(500);
+    expect(db.rowsOf(ASHA)).toHaveLength(rows);
   });
 });
