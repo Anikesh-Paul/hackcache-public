@@ -138,7 +138,7 @@ function CallPage() {
           <Head title="Your books, live" />
           {salary ? (
             <>
-              <Ln a={<SalaryFigure cashAfterPaise={salary.cashAfterPaise} />}>
+              <Ln className="hl-row" a={<SalaryFigure cashAfterPaise={salary.cashAfterPaise} />}>
                 <p className="text-lg font-semibold">
                   {salary.cashAfterPaise < 0
                     ? `Salary day in ${salary.daysAway} ${salary.daysAway === 1 ? "day" : "days"}`

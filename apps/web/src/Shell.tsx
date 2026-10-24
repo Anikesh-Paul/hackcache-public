@@ -5,8 +5,8 @@ export function Shell() {
   return (
     <div className="min-h-dvh">
       <header className="cover bg-cover text-on-cover">
-        <div className="mx-auto flex max-w-5xl items-baseline gap-3 px-4 py-4">
-          <Link to="/" className="rounded text-2xl font-semibold no-underline">
+        <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-2">
+          <Link to="/" className="flex min-h-11 items-center rounded text-2xl font-semibold no-underline">
             <span lang="hi">तगादा</span>
           </Link>
           <span className="text-sm text-on-cover-2">Tagada, bina jhagda</span>

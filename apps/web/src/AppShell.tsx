@@ -147,7 +147,7 @@ export function AppShell() {
                 lang={l}
                 aria-pressed={lang === l}
                 onClick={() => choose(l)}
-                className={`min-h-11 px-3 text-[13px] ${lang === l ? "bg-on-cover text-cover" : "text-on-cover-2"}`}
+                className={`min-h-11 min-w-11 px-3 text-[13px] ${lang === l ? "bg-on-cover text-cover" : "text-on-cover-2"}`}
               >
                 {l === "en" ? "EN" : "हिं"}
               </button>
