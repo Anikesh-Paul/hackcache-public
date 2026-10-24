@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkProof, proofFromModel, type ProofExtract } from "./index.ts";
+import { checkProof, proofBankLine, proofFromModel, type ProofExtract } from "./index.ts";
 
 const TODAY = "2026-11-02";
 const GUPTA_BALANCE = 11_800_000; // ₹1,18,000
@@ -17,6 +17,25 @@ function extracted(over: Partial<ProofExtract> = {}): ProofExtract {
 }
 
 const noCredits: { utr: string | null; amountPaise: number }[] = [];
+
+describe("proofBankLine", () => {
+  const line = { utr: UTR, amountPaise: 6_000_000, narration: "UPI GUPTA TRADERS" };
+  const other = { utr: "111122223333", amountPaise: 1_500_000, narration: "PHONEPE" };
+
+  it("names the bank line whose UTR the screenshot was checked against", () => {
+    expect(proofBankLine(extracted(), [other, line])).toEqual(line);
+  });
+
+  it("names that line even when the amount differs", () => {
+    const wrong = { utr: UTR, amountPaise: 15_000_000, narration: "UPI GUPTA TRADERS" };
+    expect(proofBankLine(extracted(), [wrong])).toEqual(wrong);
+  });
+
+  it("names no line when the UTR is not in the statement", () => {
+    expect(proofBankLine(extracted(), [other])).toBeNull();
+    expect(proofBankLine(extracted({ utr: "not-a-utr" }), [line])).toBeNull();
+  });
+});
 
 describe("checkProof", () => {
   it("says not found yet when the amount is part of the Invoice and the UTR is not in the bank", () => {

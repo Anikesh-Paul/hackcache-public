@@ -31,7 +31,15 @@ function headline(book: TodayBook): string {
 }
 
 function row(id: string, input: string, expected: string, actual: string): BriefRow {
-  return { id, area: "Forecast", input, expected, actual, pass: actual === expected };
+  return {
+    id,
+    area: "Forecast",
+    input,
+    expected,
+    actual,
+    pass: actual === expected,
+    source: "packages/seed/src/proof-cases.test.ts",
+  };
 }
 
 /** Salary-day headline before Gupta's Plan, and after the ₹60,000 instalment is approved. */

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { MSMED_EXPLAIN, ODR_EXPLAIN, TDS_EXPLAIN } from "@tagada/domain";
+import { proofHref } from "./lib/proof-link.ts";
 import { runShownProof } from "./lib/proof-run.ts";
 
 function measure() {
@@ -25,6 +26,10 @@ export function Proof() {
         The brief's money cases, and the domain cases for the Ladder, matching, the Plan rule, Grade, Ageing, the chase
         order, the letter and the forecast headline. Computed in this browser from the same packages the app uses.
       </p>
+      <p className="mt-2 max-w-2xl text-sm text-ink-2">
+        Built from <span className="mono">{__TAGADA_COMMIT__}</span>. Each case links to the test that locks it, at that
+        commit.
+      </p>
       <div className="mt-4 max-w-2xl space-y-2 text-sm">
         <p>{ODR_EXPLAIN}</p>
         <p>{MSMED_EXPLAIN}</p>
@@ -47,7 +52,11 @@ export function Proof() {
           <li key={result.id} className="grid gap-1 py-3 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:gap-x-4">
             <p className="text-sm text-ink-2">{result.area}</p>
             <div className="min-w-0">
-              <p className="break-words">{result.input}</p>
+              <p className="break-words">
+                <a href={proofHref(__TAGADA_COMMIT__, result.source)} className="break-all">
+                  {result.input}
+                </a>
+              </p>
               <p className="mt-1 break-words text-sm text-ink-2">Expected {result.expected}</p>
               <p className="break-words text-sm">Got {result.actual}</p>
             </div>

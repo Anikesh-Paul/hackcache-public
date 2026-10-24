@@ -50,8 +50,27 @@ function appointedWords(): string {
   return meter ? `interest from ${formatDate(meter.from, { weekday: false, year: true })}` : "no interest";
 }
 
+const SOURCE: Record<string, string> = {
+  Ladder: "packages/domain/src/ladder.test.ts",
+  Match: "packages/domain/src/matcher.test.ts",
+  "Plan rule": "packages/domain/src/plan-rule.test.ts",
+  Grade: "packages/domain/src/grade.test.ts",
+  Interest: "packages/domain/src/proof-cases.test.ts",
+  Ageing: "packages/domain/src/today.test.ts",
+  Chase: "packages/domain/src/today.test.ts",
+  Letter: "packages/domain/src/documents.test.ts",
+};
+
 function row(id: string, area: string, input: string, expected: string, actual: string): BriefRow {
-  return { id, area, input, expected, actual, pass: actual === expected };
+  return {
+    id,
+    area,
+    input,
+    expected,
+    actual,
+    pass: actual === expected,
+    source: SOURCE[area] ?? "packages/domain/src/proof-cases.test.ts",
+  };
 }
 
 function ageingActual(): string {

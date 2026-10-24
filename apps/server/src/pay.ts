@@ -32,6 +32,8 @@ export type FileStore = {
   /** A read-aloud clip stored earlier, or null. */
   audio(fileId: string): Promise<Uint8Array | null>;
   saveAudio(fileId: string, bytes: Uint8Array): Promise<void>;
+  /** A screenshot the Owner uploaded, or null when the file is gone. */
+  readScreenshot(fileId: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
 };
 
 /** Text to speech: MP3 bytes. */
