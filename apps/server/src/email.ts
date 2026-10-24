@@ -12,12 +12,15 @@ export type Mail = {
   /**
    * Resend keeps it 24 hours and drops a second request under it, so an
    * email whose send was not noted (the process died) is not sent again.
+   * A second request with a different body is refused (409), so the key
+   * names the seeding of the world as well as the Reminder.
    */
   idempotencyKey: string;
 };
 
+/** `repeat`: Resend already holds the key for another request, so trying again cannot help. */
 export type Mailer = {
-  send(mail: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string }>;
+  send(mail: Mail): Promise<{ ok: true; id: string } | { ok: false; error: string; repeat?: boolean }>;
 };
 
 /** A display name Resend takes as is: no quotes, angle brackets or line breaks. */
@@ -47,9 +50,12 @@ export function resendMailer(apiKey: string | undefined, fromDomain: string | un
           }),
           signal: AbortSignal.timeout(15_000),
         });
-        const body = (await res.json().catch(() => null)) as { id?: unknown; message?: unknown } | null;
+        const body = (await res.json().catch(() => null)) as { id?: unknown; message?: unknown; name?: unknown } | null;
         if (res.ok && typeof body?.id === "string") return { ok: true, id: body.id };
-        return { ok: false, error: `Resend ${res.status}: ${typeof body?.message === "string" ? body.message : "no reason given"}` };
+        const error = `Resend ${res.status}: ${typeof body?.message === "string" ? body.message : "no reason given"}`;
+        // A 409 is a used key; only "concurrent_idempotent_requests" (one still in flight) is worth another try.
+        if (res.status === 409 && body?.name !== "concurrent_idempotent_requests") return { ok: false, error, repeat: true };
+        return { ok: false, error };
       } catch (e) {
         return { ok: false, error: `Resend unreachable: ${e instanceof Error ? e.message : String(e)}` };
       }

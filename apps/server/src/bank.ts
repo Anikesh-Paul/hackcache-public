@@ -16,6 +16,7 @@ import {
 } from "@tagada/domain";
 import { differencePaise, formatInr, sumPaise } from "@tagada/money";
 import { STATEMENT_2_CSV, invoicesForMatch } from "@tagada/seed";
+import { allocationsOf, readJson } from "./bank-credits.ts";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import { newId, proofCredits, stamp } from "./pay.ts";
 
@@ -37,30 +38,6 @@ function permissionsOf(userId: string): string[] {
 function ownerAccess(workspace: StoredRow, workspaceId: string): { permissions: string[]; today: string } {
   const userId = text(workspace.ownerUserId) ?? workspaceId.slice(1);
   return { permissions: permissionsOf(userId), today: text(workspace.today) ?? "" };
-}
-
-function readJson(value: unknown): unknown {
-  if (typeof value !== "string") return value;
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function allocationsOf(value: unknown): BankAllocation[] {
-  const parsed = readJson(value);
-  if (!Array.isArray(parsed)) return [];
-  const out: BankAllocation[] = [];
-  for (const item of parsed) {
-    if (typeof item !== "object" || item === null) continue;
-    const row = item as Record<string, unknown>;
-    if (typeof row.invoiceId !== "string" || !Number.isSafeInteger(row.amountPaise)) continue;
-    const allocation: BankAllocation = { invoiceId: row.invoiceId, amountPaise: row.amountPaise as number };
-    if (Number.isSafeInteger(row.tdsPaise)) allocation.tdsPaise = row.tdsPaise as number;
-    out.push(allocation);
-  }
-  return out;
 }
 
 async function books(worlds: WorldStore, workspaceId: string) {

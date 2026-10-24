@@ -1,5 +1,5 @@
 import type { CustomerRow, InvoiceRow, WorkspaceRow } from "@tagada/appwrite";
-import type { DocumentCustomer, DocumentInvoice, DocumentSeller } from "@tagada/domain";
+import type { DocumentCustomer, DocumentInvoice, DocumentPromise, DocumentSeller, PromiseFacts } from "@tagada/domain";
 
 export function sellerOf(workspace: WorkspaceRow): DocumentSeller {
   return {
@@ -32,7 +32,12 @@ export function invoiceOf(invoice: InvoiceRow): DocumentInvoice {
   };
 }
 
-/** The Invoice this page was opened from, plus the Customer's other unpaid Invoices. */
+/** Every Promise and Plan in the world, each with its Invoice, so a document demands only what is past due. */
+export function promisesForDocument(byInvoice: ReadonlyMap<string, readonly PromiseFacts[]>): DocumentPromise[] {
+  return [...byInvoice].flatMap(([invoiceId, list]) => list.map((promise) => ({ invoiceId, ...promise })));
+}
+
+/** The Invoice this page was opened from, plus the Customer's other unpaid Invoices. The document keeps only what is past due. */
 export function invoicesForDocument(invoices: readonly InvoiceRow[], current: InvoiceRow): InvoiceRow[] {
   if (current.status === "paid" || current.status === "draft") return [current];
   const others = invoices.filter(

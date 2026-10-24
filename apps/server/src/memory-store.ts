@@ -6,6 +6,9 @@ export function memoryStore() {
   const tables = new Map<string, Map<string, OwnedRow>>();
   let writes = 0;
   let lists = 0;
+  // Like Appwrite, a new row gets `$createdAt`; an overwrite keeps it. Each one later than the last.
+  let lastCreated = 0;
+  const created = () => new Date((lastCreated = Math.max(Date.now(), lastCreated + 1))).toISOString();
   const store: WorldStore = {
     async exists(workspaceId) {
       return tables.get("workspaces")?.has(workspaceId) ?? false;
@@ -19,7 +22,7 @@ export function memoryStore() {
       writes++;
       for (const [tableId, rows] of Object.entries(world)) {
         const table = tables.get(tableId) ?? new Map<string, OwnedRow>();
-        for (const row of rows) table.set(row.$id, row);
+        for (const row of rows) table.set(row.$id, Object.assign(row, { $createdAt: table.get(row.$id)?.$createdAt ?? created() }));
         tables.set(tableId, table);
       }
     },
@@ -28,7 +31,7 @@ export function memoryStore() {
       tables.set(tableId, table);
       if (table.has(row.$id)) return "exists";
       writes++;
-      table.set(row.$id, { ...row });
+      table.set(row.$id, { ...row, $createdAt: created() });
       return "created";
     },
     async get(tableId, rowId) {

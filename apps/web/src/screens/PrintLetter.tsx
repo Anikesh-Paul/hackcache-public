@@ -1,10 +1,10 @@
 import { useParams } from "react-router";
 import { demandLetter } from "@tagada/domain";
 import { useWorld } from "../lib/world.tsx";
-import { customerOf, invoiceOf, invoicesForDocument, sellerOf } from "../lib/documents.ts";
+import { customerOf, invoiceOf, invoicesForDocument, promisesForDocument, sellerOf } from "../lib/documents.ts";
 import { Badge } from "../ui.tsx";
 import { NotFound } from "./NotFound.tsx";
-import { PrintBar } from "./PrintBar.tsx";
+import { NothingDue, PlanBanner, PrintBar } from "./PrintBar.tsx";
 import { UpiQr } from "./TaxInvoice.tsx";
 
 const sheet =
@@ -23,14 +23,17 @@ export function PrintLetter() {
     seller: sellerOf(world.workspace),
     customer: customerOf(customer),
     invoices: invoicesForDocument(world.invoices, invoice).map(invoiceOf),
+    promises: promisesForDocument(world.promisesByInvoice),
     invoiceId: invoice.$id,
     today: world.workspace.today,
     payUrl,
   });
+  if (letter.nothingDue) return <NothingDue invoiceId={invoice.$id} text={letter.nothingDue} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
       <PrintBar invoiceId={invoice.$id} />
+      <PlanBanner text={letter.planBanner} />
       <article className={sheet}>
         <header className="border-b-2 border-ink pb-3">
           <p className="text-lg font-semibold">{letter.fromName}</p>
@@ -63,6 +66,7 @@ export function PrintLetter() {
                   <span className="mt-0.5 block text-ink-2">
                     Issued {line.issued}. Due {line.due}.
                   </span>
+                  {line.note && <span className="mt-0.5 block text-ink-2">{line.note}.</span>}
                 </p>
                 <p className="font-medium">{line.outstanding}</p>
               </li>

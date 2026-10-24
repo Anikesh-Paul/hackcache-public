@@ -44,6 +44,15 @@ const guptaInvoice: DocumentInvoice = {
   pauseReason: null,
 };
 
+const notDue: DocumentInvoice = {
+  ...guptaInvoice,
+  $id: "i30",
+  number: "TBW/26-27/0030",
+  issueDate: "2026-10-20",
+  dueDate: "2026-11-19",
+  totalPaise: 504_000,
+};
+
 const reminders: DocumentReminder[] = [
   { invoiceId: "i18", sentDate: "2026-09-22", stage: 1, channel: "email", status: "sent" },
   { invoiceId: "i18", sentDate: "2026-09-25", stage: 2, channel: "email", status: "sent" },
@@ -85,15 +94,7 @@ describe("Payment Demand Letter", () => {
     expect(text).toContain("Pay link: https://tagada.example/pay/abc");
   });
 
-  it("names only the late amount in the interest total, not Invoices still inside their terms", () => {
-    const notDue: DocumentInvoice = {
-      ...guptaInvoice,
-      $id: "i30",
-      number: "TBW/26-27/0030",
-      issueDate: "2026-10-20",
-      dueDate: "2026-11-19",
-      totalPaise: 504_000,
-    };
+  it("leaves out an Invoice not yet due, from the lines, the amount and the interest", () => {
     const both = demandLetter({
       seller,
       customer: guptaCustomer,
@@ -102,8 +103,56 @@ describe("Payment Demand Letter", () => {
       today: TODAY,
       payUrl: null,
     });
-    expect(both.outstanding).toBe("₹1,23,040");
+    expect(both.invoices.map((line) => line.number)).toEqual(["TBW/26-27/0018"]);
+    expect(both.outstanding).toBe("₹1,18,000");
+    expect(letterText(both)).not.toContain("TBW/26-27/0030");
     expect(both.msmed?.totalLine).toBe("Interest so far ₹2,057.65, on ₹1,18,000 owed past the MSMED due date.");
+    expect(both.nothingDue).toBeNull();
+    expect(both.planBanner).toBeNull();
+  });
+
+  it("under an agreed Plan, demands only the instalments whose date has passed, and warns on screen", () => {
+    const planned = demandLetter({
+      seller,
+      customer: guptaCustomer,
+      invoices: [guptaInvoice],
+      promises: [{ invoiceId: "i18", status: "approved", instalments: [{ amountPaise: 6_000_000, date: "2026-10-30" }, { amountPaise: 5_800_000, date: "2026-12-02" }] }],
+      invoiceId: "i18",
+      today: TODAY,
+      payUrl: null,
+    });
+    expect(planned.outstanding).toBe("₹60,000");
+    expect(planned.deadlineLine).toBe("Please pay ₹60,000 by Mon 9 Nov 2026.");
+    expect(planned.invoices[0]).toMatchObject({ outstanding: "₹60,000", note: "Instalments past their date under the agreed Plan" });
+    expect(planned.planBanner).toBe("A Plan is agreed with Gupta Traders. This letter goes against it.");
+    expect(planned.nothingDue).toBeNull();
+  });
+
+  it("says when nothing is past due, and demands nothing", () => {
+    for (const input of [
+      { invoices: [notDue], promises: [] },
+      { invoices: [guptaInvoice], promises: [{ invoiceId: "i18", status: "approved" as const, instalments: [{ amountPaise: 6_000_000, date: "2026-11-06" }, { amountPaise: 5_800_000, date: "2026-12-02" }] }] },
+    ]) {
+      const none = demandLetter({ seller, customer: guptaCustomer, ...input, invoiceId: input.invoices[0]!.$id, today: TODAY, payUrl: null });
+      expect(none.nothingDue).toBe("Nothing is past due for Gupta Traders.");
+      expect(none.invoices).toEqual([]);
+      expect(none.upiUri).toBeNull();
+      expect(none.msmed).toBeNull();
+    }
+  });
+
+  it("demands the whole amount once the Plan is broken, with no banner", () => {
+    const broken = demandLetter({
+      seller,
+      customer: guptaCustomer,
+      invoices: [guptaInvoice],
+      promises: [{ invoiceId: "i18", status: "broken", instalments: [{ amountPaise: 6_000_000, date: "2026-10-30" }, { amountPaise: 5_800_000, date: "2026-12-02" }] }],
+      invoiceId: "i18",
+      today: TODAY,
+      payUrl: null,
+    });
+    expect(broken.outstanding).toBe("₹1,18,000");
+    expect(broken.planBanner).toBeNull();
   });
 
   it("keeps legal notice inside the disclaimer, and never says 90 days", () => {
@@ -185,6 +234,26 @@ describe("ODR case file", () => {
     expect(text).not.toMatch(/legal notice/i);
     expect(text).not.toMatch(/\bdebtor\b/i);
     expect(text).not.toMatch(/\bfake\b/i);
+  });
+
+  it("follows the letter's rules: no Invoice not yet due, past-date instalments only, and a note when nothing is due", () => {
+    const both = odrCaseFile({ seller, customer: guptaCustomer, invoices: [guptaInvoice, notDue], reminders, calls: [], today: TODAY });
+    expect(both.invoices.map((line) => line.number)).toEqual(["TBW/26-27/0018"]);
+    expect(caseText(both)).not.toContain("TBW/26-27/0030");
+    const planned = odrCaseFile({
+      seller,
+      customer: guptaCustomer,
+      invoices: [guptaInvoice],
+      promises: [{ invoiceId: "i18", status: "approved", instalments: [{ amountPaise: 6_000_000, date: "2026-10-30" }, { amountPaise: 5_800_000, date: "2026-12-02" }] }],
+      reminders,
+      calls: [],
+      today: TODAY,
+    });
+    expect(planned.invoices[0]?.outstanding).toBe("₹60,000");
+    expect(planned.planBanner).toBe("A Plan is agreed with Gupta Traders. This case file goes against it.");
+    const none = odrCaseFile({ seller, customer: guptaCustomer, invoices: [notDue], reminders, calls: [], today: TODAY });
+    expect(none.nothingDue).toBe("Nothing is past due for Gupta Traders.");
+    expect(none.invoices).toEqual([]);
   });
 
   it("says when no call transcript is stored", () => {

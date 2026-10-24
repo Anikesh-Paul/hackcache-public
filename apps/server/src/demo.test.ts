@@ -23,7 +23,8 @@ beforeEach(() => {
       userFromJwt: async (jwt) => USERS[jwt] ?? null,
       worlds: db.store,
       later: (task) => void pending.push(task),
-      tokens: payTokens("test-secret"),
+      // A fixed clock: a reset that falls in the next second would otherwise sign different pay links.
+      tokens: payTokens("test-secret", () => Date.parse("2026-11-02T06:00:00Z")),
     },
     files: memoryFiles().files,
     voice: { speak: async () => new Uint8Array() },
@@ -156,7 +157,9 @@ describe("POST /api/demo/reset", () => {
     await post("/api/demo/start", "jwt-asha");
     await post("/api/demo/start", "jwt-ravi");
     await settle();
-    const startingStory = JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f10"));
+    // A reset writes new rows, so only their creation time differs.
+    const story = (workspaceId: string) => JSON.stringify(db.rowsOf(workspaceId).map(({ $createdAt: _, ...row }) => row));
+    const startingStory = story("w64f0c2a91be7d3e85f10");
     const ravisWorld = JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f20"));
 
     // Asha experiments: pays an invoice and adds a stray row.
@@ -168,7 +171,7 @@ describe("POST /api/demo/reset", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ workspaceId: "w64f0c2a91be7d3e85f10", seeded: true });
     await settle();
-    expect(JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f10"))).toBe(startingStory);
+    expect(story("w64f0c2a91be7d3e85f10")).toBe(startingStory);
     expect(JSON.stringify(db.rowsOf("w64f0c2a91be7d3e85f20"))).toBe(ravisWorld);
   });
 });

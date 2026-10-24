@@ -12,11 +12,13 @@ import {
   planInWords,
   planRule,
   proofFromModel,
+  waitingInBank,
   type InvoiceFacts,
   type PromiseFacts,
   type ProofCredit,
   type ProofResultKind,
 } from "@tagada/domain";
+import { bankSuggestions } from "./bank-credits.ts";
 import type { OwnedRow, StoredRow, WorldStore } from "./demo.ts";
 import type { PayRef } from "./pay-token.ts";
 import type { ProofReader } from "./proof-read.ts";
@@ -53,6 +55,8 @@ export type Book = {
   customer: StoredRow | undefined;
   promises: StoredRow[];
   events: StoredRow[];
+  /** The world's Bank credits: a suggested match against this Invoice means the money is in the bank. */
+  bank: StoredRow[];
 };
 
 const text = (value: unknown): string | null => (typeof value === "string" ? value : null);
@@ -65,19 +69,20 @@ const whole = (value: unknown): number => (typeof value === "number" && Number.i
  */
 export async function open(worlds: WorldStore, { workspaceId, invoiceId, token }: Ref): Promise<Book | null> {
   // One round trip: every Customer of the world (a dozen rows) rather than waiting for the Invoice's customerId.
-  const [workspaces, invoices, promises, events, customers] = await Promise.all([
+  const [workspaces, invoices, promises, events, customers, bank] = await Promise.all([
     worlds.list("workspaces", workspaceId),
     worlds.list("invoices", workspaceId, { $id: invoiceId }),
     worlds.list("promises", workspaceId, { invoiceId }),
     worlds.list("events", workspaceId, { invoiceId }),
     worlds.list("customers", workspaceId),
+    worlds.list("bank_txns", workspaceId),
   ]);
   const [workspace] = workspaces;
   const invoice = invoices.find((i) => i.$id === invoiceId);
   if (!workspace || !invoice) return null;
   if (token !== undefined && invoice.payToken !== token) return null;
   const customer = customers.find((c) => c.$id === invoice.customerId);
-  return { workspace, invoice, customer, promises, events };
+  return { workspace, invoice, customer, promises, events, bank };
 }
 
 function facts(invoice: StoredRow): InvoiceFacts {
@@ -99,21 +104,27 @@ function promiseFacts(row: StoredRow): PromiseFacts {
   };
 }
 
-/** The Invoice as its Customer sees it on the Demo date. */
-export function slipOf({ workspace, invoice, customer, promises, events }: Book): PaySlip {
+/**
+ * The Invoice as its Customer sees it on the Demo date. Money in the bank,
+ * waiting for the Owner to confirm it, reads as "waiting for the bank to
+ * confirm", the same as an "already paid": never as late.
+ */
+export function slipOf({ workspace, invoice, customer, promises, events, bank }: Book): PaySlip {
   const today = text(workspace.today) ?? "";
   const known = promises.map(promiseFacts);
   const standing = invoiceStanding(facts(invoice), known, today);
+  const inBank = waitingInBank(bankSuggestions(bank), [{ $id: invoice.$id, ...facts(invoice) }]).has(invoice.$id);
   const rule = planRule.parse(text(workspace.planRule));
   const has = (type: string) => events.some((e) => e.type === type);
   const agreed = known.find((p) => p.status === "approved");
   const waiting = known.find((p) => p.status === "needs_owner");
 
+  const claimed = has("paid_claim") || has("proof_uploaded");
   let state: PaySlip["state"] = "owing";
   let plan: PayInstalment[] | null = null;
   if (standing.state === "paid") state = "paid";
   else if (standing.state === "disputed") state = "disputed";
-  else if (has("paid_claim") || has("proof_uploaded")) state = "paid_claim";
+  else if (inBank || claimed) state = "paid_claim";
   else if (agreed) [state, plan] = ["plan", agreed.instalments];
   else if (waiting) [state, plan] = ["asked", waiting.instalments];
   else if (has("talk_requested")) state = "asked";
@@ -137,6 +148,7 @@ export function slipOf({ workspace, invoice, customer, promises, events }: Book)
     state,
     plan,
     screenshotSent: has("proof_uploaded"),
+    inBank: state === "paid_claim" && !claimed,
     choices: standing.balancePaise > 0 ? planRule.choices(rule, { owedPaise: standing.balancePaise, today }) : [],
     rule,
   };
@@ -285,7 +297,7 @@ async function readProof(
     }
   }
   if (!extracted) return { result: "not_found_yet", label: PROOF_LABEL.not_found_yet, extracted: null };
-  const credits = await deps.worlds.list("bank_txns", book.workspace.$id);
+  const credits = book.bank;
   const view = checkProof({
     extracted,
     today: text(book.workspace.today) ?? "",

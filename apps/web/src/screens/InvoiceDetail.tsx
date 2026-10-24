@@ -26,6 +26,7 @@ import {
   stateName,
 } from "@tagada/money";
 import { ODR_EXPLAIN, ladderRungs, msmedInterest, type InvoiceState, type MsmedMeter, type ProofResultKind } from "@tagada/domain";
+import { isSeededEvent } from "@tagada/seed";
 import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
 import { markDisputed } from "../lib/appwrite.ts";
 import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
@@ -113,6 +114,7 @@ export function InvoiceDetail() {
           customerName={customer?.name ?? "the Customer"}
           payToken={invoice.payToken}
           open={standing.state !== "paid"}
+          overdue={standing.daysLate > 0}
           disputed={standing.state === "disputed"}
         />
         <div className="lg:order-first">
@@ -148,7 +150,10 @@ export function InvoiceDetail() {
         {meter && <Meter meter={meter} />}
 
         <div className="sect">
-          <Head title="What has happened" a={<Badge kind="sim">seeded history</Badge>} />
+          <Head
+            title="What has happened"
+            a={Array.isArray(events) && events.some((e) => isSeededEvent(e.$id)) ? <Badge kind="sim">seeded history</Badge> : undefined}
+          />
           <ol className="entries">
             {events === "failed" ? (
               <Ln>
@@ -371,14 +376,18 @@ function Actions({
   customerName,
   payToken,
   open,
+  overdue,
   disputed,
 }: {
   invoiceId: string;
   customerName: string;
   payToken: string | null;
   open: boolean;
+  /** Past its due date: only then are the call, the letter and the case file offered. */
+  overdue: boolean;
   disputed: boolean;
 }) {
+  const late = open && overdue;
   const [copied, setCopied] = useState<"yes" | "failed" | null>(null);
   const [disputing, setDisputing] = useState(false);
   const payLink = payToken ? `${location.origin}/pay/${payToken}` : null;
@@ -397,7 +406,7 @@ function Actions({
       <div className="ln wide">
         <div className="m" />
         <div className="p mt-4 grid gap-2">
-          {open && (
+          {late && !disputed && (
             <Link to={`/call/${invoiceId}`} className="btn primary px-4 py-3 text-[15px]">
               <Phone aria-hidden /> Call with AI
             </Link>
@@ -428,17 +437,17 @@ function Actions({
               This Demo world was made before pay links existed. Reset demo to give every Invoice one.
             </small>
           )}
-          {open && (
+          {late && (
             <Link to={`/print/letter/${invoiceId}`} className="btn secondary">
               <FileText aria-hidden /> Payment Demand Letter
             </Link>
           )}
-          {open && (
+          {late && (
             <Link to={`/print/case/${invoiceId}`} className="btn secondary">
               <Scale aria-hidden /> ODR case file
             </Link>
           )}
-          {open && (
+          {late && (
             <small className="-mt-1 text-xs text-ink-2">{ODR_EXPLAIN}</small>
           )}
           <Link to={`/print/invoice/${invoiceId}`} className="btn secondary">

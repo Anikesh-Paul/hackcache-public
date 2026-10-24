@@ -1,5 +1,6 @@
 // Today's follow-ups: what the Ladder wants on the Demo date, each with its
-// ready message, and what the daily run already did about it.
+// ready message, and what the daily run already did about it. An Invoice whose
+// money is already in the bank is not chased: its line asks the Owner to confirm it.
 import type { CustomerRow, EventRow, InvoiceRow, ReminderRow, WorkspaceRow } from "@tagada/appwrite";
 import {
   LADDER_STAGES,
@@ -7,18 +8,22 @@ import {
   isCustomerLang,
   ladderDay,
   reminderMessage,
+  sendFailureWords,
+  waitingInBank,
   whatsappLink,
+  type BankSuggestion,
   type PromiseFacts,
 } from "@tagada/domain";
-import { differencePaise } from "@tagada/money";
+import { differencePaise, formatInr, sumPaise } from "@tagada/money";
 import { istTime } from "./pricing.ts";
 
 /**
  * `sent`: went out today. `failed`: the last try failed; the run tries again.
+ * `in_bank`: the money is in the bank, waiting for the Owner to confirm it.
  * `ready`: waits for the Owner. `capped`: the Customer already had a message
  * today. `due`: an automatic stage the daily run has not reached yet.
  */
-export type FollowUpState = "failed" | "ready" | "capped" | "due" | "sent";
+export type FollowUpState = "failed" | "in_bank" | "ready" | "capped" | "due" | "sent";
 
 export type FollowUp = {
   invoiceId: string;
@@ -31,7 +36,10 @@ export type FollowUp = {
   /** "HH:MM" IST, when sent. */
   sentAt: string | null;
   channel: ReminderRow["channel"] | null;
+  /** One plain sentence; the provider's own error stays on the Reminder row. */
   error: string | null;
+  /** For `in_bank`, one line per Bank credit: "₹23,810 from Roy Furnishings is in your bank." */
+  inBankLine: string | null;
   subject: string;
   text: string;
   whatsapp: string;
@@ -49,10 +57,11 @@ export type FollowUpInput = {
   promisesByInvoice: ReadonlyMap<string, PromiseFacts[]>;
   reminders: readonly ReminderRow[];
   events: readonly EventRow[];
+  bankCredits: readonly BankSuggestion[];
   payUrl: (token: string | null) => string;
 };
 
-const ORDER: FollowUpState[] = ["failed", "ready", "capped", "due", "sent"];
+const ORDER: FollowUpState[] = ["failed", "in_bank", "ready", "capped", "due", "sent"];
 
 export function followUps(input: FollowUpInput): FollowUp[] {
   const { workspace, customers } = input;
@@ -65,7 +74,7 @@ export function followUps(input: FollowUpInput): FollowUp[] {
     const amountPaise = differencePaise(invoice.totalPaise, invoice.paidPaise);
     const lang = customer?.lang ?? "en";
     const message =
-      stage <= REMINDER_NAMES.length
+      stage >= 1 && stage <= REMINDER_NAMES.length
         ? reminderMessage({
             stage,
             lang: isCustomerLang(lang) ? lang : "en",
@@ -90,7 +99,8 @@ export function followUps(input: FollowUpInput): FollowUp[] {
       state,
       sentAt: state === "sent" && sentEvent ? istTime(sentEvent.at) : null,
       channel: reminder?.channel ?? null,
-      error: state === "failed" ? (reminder?.error ?? null) : null,
+      error: state === "failed" ? sendFailureWords(reminder?.error) : null,
+      inBankLine: null,
       subject: message.subject,
       text: message.text,
       whatsapp: whatsappLink(customer?.phone ?? null, message.text),
@@ -106,8 +116,29 @@ export function followUps(input: FollowUpInput): FollowUp[] {
     const invoice = input.invoices.find((i) => i.$id === r.invoiceId);
     if (invoice) out.push(item(invoice, r.stage, "sent", r));
   }
+  const waiting = waitingInBank(input.bankCredits, input.invoices);
+  // One line per credit, for the money as it came in, naming the Invoices it pays.
+  for (const credit of input.bankCredits) {
+    if (credit.matchStatus !== "suggested") continue;
+    const paid = credit.allocations
+      .map((a) => input.invoices.find((i) => i.$id === a.invoiceId))
+      .filter((i): i is InvoiceRow => i !== undefined && waiting.has(i.$id));
+    const [first] = paid;
+    if (!first) continue;
+    const inBankPaise = credit.amountPaise ?? sumPaise(credit.allocations.map((a) => a.amountPaise));
+    const line = item(first, 0, "in_bank", undefined);
+    out.push({
+      ...line,
+      number: paid.map((i) => i.number).join(", "),
+      stageName: "",
+      amountPaise: inBankPaise,
+      subject: "",
+      text: "",
+      inBankLine: `${formatInr(inBankPaise)} from ${line.customerName} is in your bank.`,
+    });
+  }
   const steps = ladderDay({
-    invoices: input.invoices,
+    invoices: input.invoices.filter((i) => !waiting.has(i.$id)),
     promises: input.invoices.flatMap((i) => (input.promisesByInvoice.get(i.$id) ?? []).map((p) => ({ ...p, invoiceId: i.$id }))),
     today,
     autoSendStages: workspace.autoSendStages,

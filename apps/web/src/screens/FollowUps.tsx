@@ -1,18 +1,22 @@
 // Today's follow-ups (build plan §6.3, Today): what the Ladder wants on the
 // Demo date, each with its ready message and a WhatsApp or email button; what
-// the 10:00 run already sent; failed sends and their retry.
+// the 10:00 run already sent; failed sends and their retry; money already in
+// the bank, to confirm rather than chase.
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { AlertTriangle, Check, Clock, FileText, Mail, MessageCircle, Phone, Send } from "lucide-react";
+import { AlertTriangle, Check, Clock, FileText, Landmark, Mail, MessageCircle, Phone, Send } from "lucide-react";
+import type { BankTxnRow } from "@tagada/appwrite";
 import { formatInr } from "@tagada/money";
 import { followUps, type FollowUp, type FollowUpState } from "../lib/follow-ups.ts";
 import { markReminderSent } from "../lib/appwrite.ts";
-import { usePaymentHistory, useReminders, useWorld } from "../lib/world.tsx";
+import { bankSuggestionsOf } from "../lib/today.ts";
+import { usePaymentHistory, useReminders, useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { Head, Ln } from "../ui.tsx";
 
 const STATE: Record<FollowUpState, { icon: typeof Check; tone: "ok" | "warn" | "short" | "plain"; word: (f: FollowUp) => string }> = {
   sent: { icon: Check, tone: "ok", word: (f) => (f.sentAt ? `Sent ${f.sentAt}` : "Sent") },
-  failed: { icon: AlertTriangle, tone: "short", word: () => "Failed, retrying" },
+  failed: { icon: AlertTriangle, tone: "short", word: () => "Not sent" },
+  in_bank: { icon: Landmark, tone: "ok", word: () => "In your bank" },
   ready: { icon: Send, tone: "warn", word: () => "Ready to send" },
   capped: { icon: Clock, tone: "plain", word: () => "Tomorrow" },
   due: { icon: Clock, tone: "plain", word: () => "Goes at 10:00" },
@@ -23,7 +27,9 @@ function explain(f: FollowUp): string {
     case "sent":
       return f.channel === "email" ? "Emailed by the daily run." : "You sent it.";
     case "failed":
-      return `Email to ${f.customerName} failed, retrying${f.error ? `: ${f.error}` : ""}.`;
+      return f.error ?? "";
+    case "in_bank":
+      return "No reminder goes while it waits for you to confirm it.";
     case "ready":
       return f.stage <= 3 ? "Switched off in Settings, so it waits for you." : "This step is always yours to take.";
     case "capped":
@@ -37,9 +43,12 @@ export function FollowUps() {
   const world = useWorld();
   const reminders = useReminders();
   const history = usePaymentHistory();
+  const credits = useWorkspaceRows<BankTxnRow>("bank_txns", true);
+  // Wait for the bank too, so a Customer whose money is there is never shown a reminder first.
+  const status = reminders === "failed" || credits === "failed" ? "failed" : reminders === "loading" || credits === null ? "loading" : "ready";
   const items = useMemo(
     () =>
-      Array.isArray(reminders)
+      Array.isArray(reminders) && Array.isArray(credits)
         ? followUps({
             workspace: world.workspace,
             invoices: world.invoices,
@@ -47,21 +56,22 @@ export function FollowUps() {
             promisesByInvoice: world.promisesByInvoice,
             reminders,
             events: Array.isArray(history) ? history : [],
+            bankCredits: bankSuggestionsOf(credits),
             payUrl: (token) => `${window.location.origin}/pay/${token ?? ""}`,
           })
         : [],
-    [world, reminders, history],
+    [world, reminders, history, credits],
   );
 
   return (
     <div className="sect">
-      <Head title="Today's follow-ups" a={reminders === "loading" ? undefined : String(items.length)} />
+      <Head title="Today's follow-ups" a={status === "ready" ? String(items.length) : undefined} />
       <div className="entries" aria-live="polite">
-        {reminders === "loading" ? (
+        {status === "loading" ? (
           <Ln>
             <span className="text-ink-2">Reading the Ladder…</span>
           </Ln>
-        ) : reminders === "failed" ? (
+        ) : status === "failed" ? (
           <Ln>
             <span className="word short">The follow-ups could not be read. Reload the page to try again.</span>
           </Ln>
@@ -82,7 +92,7 @@ function FollowUpLine({ f }: { f: FollowUp }) {
   const [problem, setProblem] = useState<string | null>(null);
   const state = STATE[f.state];
   // Stage 6 has no message, only the ODR case file, so its line shows just that link.
-  const canSend = f.state !== "sent" && f.state !== "capped";
+  const canSend = f.state !== "sent" && f.state !== "capped" && f.state !== "in_bank";
 
   // The link opens on its own; the Ladder only moves on once the server has it.
   const sent = async (channel: "whatsapp_link" | "email") => {
@@ -103,10 +113,21 @@ function FollowUpLine({ f }: { f: FollowUp }) {
       <span className={`word ${state.tone}`}>
         <state.icon aria-hidden /> {state.word(f)}
       </span>
-      <span className="mt-1 block">
-        {f.stageName} for <Link to={`/app/invoices/${f.invoiceId}`}>{f.customerName}</Link>,{" "}
-        <span className="mono">{f.number}</span>
-      </span>
+      {f.inBankLine ? (
+        <span className="mt-1 block">
+          {f.inBankLine} <Link to="/app/bank">Confirm it</Link>
+          <small>
+            <Link to={`/app/invoices/${f.invoiceId}`} className="mono">
+              {f.number}
+            </Link>
+          </small>
+        </span>
+      ) : (
+        <span className="mt-1 block">
+          {f.stageName} for <Link to={`/app/invoices/${f.invoiceId}`}>{f.customerName}</Link>,{" "}
+          <span className="mono">{f.number}</span>
+        </span>
+      )}
       <small>{explain(f)}</small>
       {canSend && (
         <>

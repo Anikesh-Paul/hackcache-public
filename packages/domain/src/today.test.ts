@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { differencePaise, sumPaise } from "@tagada/money";
 import {
   AGEING_BUCKETS,
+  CHASE_WHY,
   ageingBucket,
   payPackets,
   todayBook,
@@ -299,6 +300,45 @@ describe("Chase these first", () => {
     const covered = todayBook({ ...gap(), openingCashPaise: 50_000_000 });
     expect(covered.salary?.cashAfterPaise).toBeGreaterThan(0);
     expect(covered.chase[0]).toMatchObject({ invoiceId: "big", reason: expect.stringMatching(/^Brings in ₹1,18,000\./) });
+  });
+
+  it("adds lateness: a smaller Invoice three months late ranks above a larger one 5 days late", () => {
+    const b = todayBook(
+      book({
+        openingCashPaise: 50_000_000,
+        invoices: [
+          invoice("recent", { dueDate: "2026-10-28", totalPaise: 1_000_000 }),
+          invoice("old", { dueDate: "2026-08-04", totalPaise: 800_000 }),
+        ],
+      }),
+    );
+    expect(b.chase.map((c) => [c.invoiceId, c.daysLate])).toEqual([
+      ["old", 90],
+      ["recent", 5],
+    ]);
+  });
+
+  it("leaves not-yet-due Invoices out while any Invoice is overdue", () => {
+    const b = todayBook(
+      book({
+        openingCashPaise: 50_000_000,
+        invoices: [
+          invoice("notdue", { dueDate: "2026-11-26", totalPaise: 67_200_000 }),
+          invoice("late", { dueDate: "2026-07-13", totalPaise: 840_000 }),
+        ],
+      }),
+    );
+    expect(b.chase.map((c) => c.invoiceId)).toEqual(["late"]);
+  });
+
+  it("chases a not-yet-due Invoice when nothing is overdue", () => {
+    const b = todayBook(book({ openingCashPaise: 50_000_000, invoices: [invoice("notdue", { dueDate: "2026-11-26" })] }));
+    expect(b.chase.map((c) => c.invoiceId)).toEqual(["notdue"]);
+  });
+
+  it("explains the lateness and not-yet-due rules in the Why", () => {
+    expect(CHASE_WHY).toMatch(/days late/);
+    expect(CHASE_WHY).toMatch(/not yet due/);
   });
 
   it("shows at most five", () => {
