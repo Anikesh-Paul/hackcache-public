@@ -437,6 +437,11 @@ export function isSeededCall(conversationId: unknown): boolean {
   return String(conversationId ?? "").startsWith(SEEDED_CALL_PREFIX);
 }
 
+/** True for an event the seed wrote ("e<invoice>_<n>_<workspace>"), not one the app wrote since. */
+export function isSeededEvent(eventId: string): boolean {
+  return /^e\d{2}_\d{2}_w/.test(eventId);
+}
+
 export const SEEDED_FAILURE = "The first try was refused (seeded failure, to show a retry)";
 
 /** True for the one Customer whose first live email is refused. */

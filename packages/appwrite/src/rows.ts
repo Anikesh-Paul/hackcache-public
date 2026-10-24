@@ -149,6 +149,8 @@ export type WorkflowRunRow = Row<{
   invoicesScanned: number;
   sent: number;
   skippedDuplicate: number;
+  /** Invoices not chased because their money is in the bank, waiting for the Owner. Unset on runs before it was counted. */
+  skippedInBank?: number | null;
   retried: number;
   failed: number;
 }>;
@@ -218,6 +220,8 @@ export type PaySlip = {
   /** The agreed (or asked-for) instalments, with what is still to come. */
   plan: PayInstalment[] | null;
   screenshotSent: boolean;
+  /** `paid_claim` because the money is already in the bank, not because the Customer said so: nothing to thank or upload. */
+  inBank: boolean;
   /** Plans inside the Owner's rule the Customer can pick. */
   choices: PayInstalment[][];
   rule: { minFirstPct: number; firstWithinDays: number; restWithinDays: number };

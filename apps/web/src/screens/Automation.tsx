@@ -1,11 +1,12 @@
 // /app/automation: every daily Ladder run, each Reminder under its key, the
 // one seeded retry, and a copy of every email that really went out (Sent
-// mail). The only Owner screen that shows Reminder keys.
+// mail). The only Owner screen that shows Reminder keys, and the provider's own
+// error, folded away under a plain sentence.
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { Mail, RotateCcw } from "lucide-react";
 import type { EventRow, ReminderRow, WorkflowRunRow } from "@tagada/appwrite";
-import { LADDER_STAGES, REMINDER_NAMES } from "@tagada/domain";
+import { LADDER_STAGES, REMINDER_NAMES, isRepeatRefused, sendFailureWords } from "@tagada/domain";
 import { formatDate } from "@tagada/money";
 import { istDay, istTime } from "../lib/pricing.ts";
 import { usePaymentHistory, useReminders, useWorkspaceRows, useWorld, type World } from "../lib/world.tsx";
@@ -26,6 +27,7 @@ const STATUS: Record<ReminderRow["status"], string> = {
 function story(r: ReminderRow): string {
   const tries = r.attempts ?? 0;
   if (r.status === "sent" && tries > 1) return `failed → retried → sent (${tries} tries)`;
+  if (r.status === "failed" && isRepeatRefused(r.error)) return "not sent: refused as a repeat";
   if (r.status === "failed" && tries > 1) return `failed ${tries} times`;
   return STATUS[r.status];
 }
@@ -48,7 +50,13 @@ function ReminderLine({ r, world }: { r: ReminderRow; world: World }) {
       <small>
         Key <span className="mono">{r.$id}</span>
       </small>
-      {r.error && <small>Last error: {r.error}</small>}
+      {r.error && r.status === "failed" && <small>{sendFailureWords(r.error)}</small>}
+      {r.error && (
+        <details className="text-sm text-ink-2">
+          <summary className="cursor-pointer">What the email service said</summary>
+          <p className="mono mt-1 break-words">{r.error}</p>
+        </details>
+      )}
     </Ln>
   );
 }
@@ -64,6 +72,9 @@ function RunCard({ run, reminders, world }: { run: WorkflowRunRow; reminders: Re
           <span className="block text-sm text-ink-2">
             {run.invoicesScanned} Invoices scanned, {run.sent} sent, {run.skippedDuplicate} skipped as duplicate,{" "}
             {run.retried} retried, {run.failed} failed
+            {(run.skippedInBank ?? 0) > 0 && (
+              <>, {run.skippedInBank} not chased: money in the bank, waiting for you to confirm</>
+            )}
           </span>
         </summary>
         <div className="entries mt-2">

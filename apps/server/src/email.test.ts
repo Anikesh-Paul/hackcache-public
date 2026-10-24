@@ -32,11 +32,22 @@ describe("resendMailer", () => {
     });
   });
 
-  it("passes Resend's refusal on as the error for the log", async () => {
-    vi.stubGlobal("fetch", async () => new Response(JSON.stringify({ message: "concurrent_idempotent_requests" }), { status: 409 }));
+  it("passes Resend's refusal on as the error for the log; one still in flight may be tried again", async () => {
+    const body = { name: "concurrent_idempotent_requests", message: "Another request with this key is in progress." };
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(body), { status: 409 }));
     expect(await resendMailer("re_test", "resend.dev")!.send(mail)).toEqual({
       ok: false,
-      error: "Resend 409: concurrent_idempotent_requests",
+      error: "Resend 409: Another request with this key is in progress.",
+    });
+  });
+
+  it("marks a key used for another body as a repeat, which is not tried again", async () => {
+    const body = { name: "invalid_idempotent_request", message: "This idempotency key has already been used on a request that had a different payload." };
+    vi.stubGlobal("fetch", async () => new Response(JSON.stringify(body), { status: 409 }));
+    expect(await resendMailer("re_test", "resend.dev")!.send(mail)).toEqual({
+      ok: false,
+      error: "Resend 409: This idempotency key has already been used on a request that had a different payload.",
+      repeat: true,
     });
   });
 });

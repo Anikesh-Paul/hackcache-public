@@ -19,6 +19,9 @@ export {
 } from "./ladder.ts";
 export type { LadderInvoice, LadderStage, LadderStep, NextAction, Rung } from "./ladder.ts";
 
+export { suggestedInBank, waitingInBank } from "./in-bank.ts";
+export type { BankSuggestion } from "./in-bank.ts";
+
 export { DEFAULT_PLAN_RULE, planRule } from "./plan-rule.ts";
 export type { Instalment, PlanOffer, PlanRule, PlanVerdict } from "./plan-rule.ts";
 
@@ -92,6 +95,8 @@ export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./pr
 export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";
 export type { ReminderFacts } from "./templates.ts";
 
+export { REPEAT_REFUSED, REPEAT_REFUSED_WORDS, SEND_FAILED_WORDS, isRepeatRefused, sendFailureWords } from "./send-failure.ts";
+
 export {
   LETTER_DISCLAIMER,
   LETTER_TITLE,
@@ -114,6 +119,7 @@ export type {
   DocumentCall,
   DocumentCustomer,
   DocumentInvoice,
+  DocumentPromise,
   DocumentReminder,
   DocumentSeller,
   LetterInvoiceLine,

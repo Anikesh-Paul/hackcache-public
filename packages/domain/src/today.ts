@@ -14,16 +14,14 @@ import {
   sumPaise,
 } from "@tagada/money";
 import { gradeCustomer, paymentHabit, type CustomerGrade, type HistoryEvent } from "./grade.ts";
+import { suggestedInBank, waitingInBank, type BankSuggestion } from "./in-bank.ts";
 import { invoiceStanding, type InvoiceFacts, type PromiseFacts } from "./invoice.ts";
 
 export type BookInvoice = InvoiceFacts & { $id: string; customerId: string; number: string; issueDate: string };
 export type BookCustomer = { $id: string; name: string; consentCalls: boolean };
 export type BookPromise = PromiseFacts & { invoiceId: string };
 /** A Bank credit with its match parsed. Only suggested matches say the money is already in the bank. */
-export type BookCredit = {
-  matchStatus: "unmatched" | "suggested" | "confirmed";
-  allocations: readonly { invoiceId: string; amountPaise: number; tdsPaise?: number }[];
-};
+export type BookCredit = BankSuggestion;
 export type CashItem = {
   kind: "salary" | "rent" | "supplier" | "other";
   label: string | null;
@@ -171,9 +169,11 @@ export function ageingBucket(daysLate: number): AgeingKey {
 
 /** How the chase order is worked out, in the words the "Why?" shows. */
 export const CHASE_WHY =
-  "Each unpaid Invoice scores the part of the salary-day gap its payment would close (once salaries are covered, its whole amount), times how reliably the Customer pays (Grade A 3, B 2, C 1), divided by the effort (a call 2, a reminder 1). Invoices with a Promise, a Dispute, money already in the bank, or a payment already expected before salary day are left out.";
+  "Each unpaid Invoice scores the part of the salary-day gap its payment would close (once salaries are covered, its whole amount), times how reliably the Customer pays (Grade A 3, B 2, C 1), divided by the effort (a call 2, a reminder 1). Lateness adds to it: every 30 days late adds the score once more, so 60 days late counts three times. Invoices with a Promise, a Dispute, money already in the bank, or a payment already expected before salary day are left out, and so are Invoices not yet due while any Invoice is overdue.";
 
 const LIKELIHOOD: Record<CustomerGrade["grade"], number> = { A: 3, B: 2, C: 1 };
+/** Each this many days late adds the score once more. */
+const LATENESS_DAYS = 30;
 
 export function todayBook(input: BookInput): TodayBook {
   const { today } = input;
@@ -199,13 +199,8 @@ export function todayBook(input: BookInput): TodayBook {
     return found;
   };
 
-  const inBank = new Map<string, number[]>();
-  for (const credit of input.bankCredits) {
-    if (credit.matchStatus !== "suggested") continue;
-    for (const a of credit.allocations) {
-      inBank.set(a.invoiceId, [...(inBank.get(a.invoiceId) ?? []), a.amountPaise, a.tdsPaise ?? 0]);
-    }
-  }
+  const inBank = suggestedInBank(input.bankCredits);
+  const waiting = waitingInBank(input.bankCredits, input.invoices);
 
   const receivables: Receivable[] = [];
   const receipts: ExpectedReceipt[] = [];
@@ -213,7 +208,7 @@ export function todayBook(input: BookInput): TodayBook {
     if (invoice.status === "paid" || invoice.status === "draft") continue;
     const promises = input.promises.filter((p) => p.invoiceId === invoice.$id);
     const standing = invoiceStanding(invoice, promises, today);
-    const banked = sumPaise(inBank.get(invoice.$id) ?? []);
+    const banked = inBank.get(invoice.$id) ?? 0;
     const owedLeft = differencePaise(standing.balancePaise, banked);
     const toComePaise = owedLeft > 0 ? owedLeft : 0;
     const customerName = customers.get(invoice.customerId)?.name ?? "Unknown Customer";
@@ -225,7 +220,7 @@ export function todayBook(input: BookInput): TodayBook {
     let counted: Counted;
     const promise = promises.find((p) => p.status === "approved");
     if (invoice.status === "disputed") counted = "disputed";
-    else if (toComePaise === 0) counted = "in_bank";
+    else if (waiting.has(invoice.$id)) counted = "in_bank";
     else if (promise) {
       let left = toComePaise;
       let any = false;
@@ -359,8 +354,11 @@ function chaseFirst(
   const gap = salary && salary.cashAfterPaise < 0 ? -salary.cashAfterPaise : 0;
   const invoices = new Map(input.invoices.map((i) => [i.$id, i]));
   const rows: (ChaseRow & { score: number })[] = [];
-  for (const r of receivables) {
-    if (r.toComePaise === 0 || r.counted === "disputed" || r.counted === "promise") continue;
+  const candidates = receivables.filter((r) => r.toComePaise > 0 && r.counted !== "disputed" && r.counted !== "promise");
+  // While anything is overdue, an Invoice not yet due waits its turn.
+  const anyLate = candidates.some((r) => r.daysLate > 0);
+  for (const r of candidates) {
+    if (anyLate && r.daysLate === 0) continue;
     const expectedBySalary = salary !== null && receipts.some((x) => x.invoiceId === r.invoiceId && x.date <= salary.date);
     let gapClosedPaise: number;
     if (gap === 0) gapClosedPaise = r.toComePaise;
@@ -370,7 +368,9 @@ function chaseFirst(
     const invoice = invoices.get(r.invoiceId);
     const call = customers.get(r.customerId)?.consentCalls === true && r.daysLate > 0 && (invoice?.ladderStage ?? 0) >= 3;
     const effort = call ? 2 : 1;
-    const score = percentOfPaise(gapClosedPaise, (LIKELIHOOD[r.grade.grade] * 10_000) / effort);
+    // A ranking weight in whole basis points, not money: rounding it only orders near-ties.
+    const weightBps = Math.round((LIKELIHOOD[r.grade.grade] * 10_000 * (LATENESS_DAYS + r.daysLate)) / (LATENESS_DAYS * effort));
+    const score = percentOfPaise(gapClosedPaise, weightBps);
 
     const what =
       gap === 0

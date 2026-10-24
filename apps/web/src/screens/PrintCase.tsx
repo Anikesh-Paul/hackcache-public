@@ -2,9 +2,9 @@ import { useParams } from "react-router";
 import type { CallRow, ReminderRow } from "@tagada/appwrite";
 import { odrCaseFile } from "@tagada/domain";
 import { useWorkspaceRows, useWorld } from "../lib/world.tsx";
-import { customerOf, invoiceOf, invoicesForDocument, sellerOf } from "../lib/documents.ts";
+import { customerOf, invoiceOf, invoicesForDocument, promisesForDocument, sellerOf } from "../lib/documents.ts";
 import { NotFound } from "./NotFound.tsx";
-import { PrintBar } from "./PrintBar.tsx";
+import { NothingDue, PlanBanner, PrintBar } from "./PrintBar.tsx";
 
 const sheet =
   "case-file mx-auto w-full max-w-[min(100%,210mm)] bg-paper p-4 text-[12px] leading-snug text-ink shadow-[var(--sheet-shadow)] sm:p-[10mm] print:max-w-none print:bg-white print:p-0 print:text-black print:shadow-none";
@@ -26,6 +26,7 @@ export function PrintCase() {
         seller: sellerOf(world.workspace),
         customer: customerOf(customer),
         invoices: listed,
+        promises: promisesForDocument(world.promisesByInvoice),
         reminders: reminders.map((row) => ({
           invoiceId: row.invoiceId,
           sentDate: row.sentDate,
@@ -37,10 +38,12 @@ export function PrintCase() {
         today: world.workspace.today,
       })
     : null;
+  if (file?.nothingDue) return <NothingDue invoiceId={invoice.$id} text={file.nothingDue} />;
 
   return (
     <div className="px-3 py-4 sm:px-6 print:p-0">
-      <PrintBar invoiceId={invoice.$id} />
+      <PrintBar invoiceId={invoice.$id} canPrint={file !== null} />
+      <PlanBanner text={file?.planBanner ?? null} />
       {!ready || !file ? (
         <p className="text-center text-ink-2">
           {reminders === "failed" || calls === "failed"
@@ -79,6 +82,7 @@ export function PrintCase() {
                     <span className="text-ink-2">
                       {" "}
                       issued {line.issued}, due {line.due}
+                      {line.note && `. ${line.note}`}
                     </span>
                   </span>
                   <span className="shrink-0 font-medium">{line.outstanding}</span>
