@@ -230,6 +230,15 @@ export function matchForCustomer(credit: MatchCredit, invoices: readonly MatchIn
   return matchCredit({ ...credit, narration: `${customer.name} ${credit.narration}` }, theirs);
 }
 
+/** A stored credit matched again: against the Customer the Owner assigned it to, else against every open Invoice. */
+export function rematchCredit(
+  credit: MatchCredit,
+  invoices: readonly MatchInvoice[],
+  assigned: AssignedCustomer | null,
+): Match {
+  return assigned ? matchForCustomer(credit, invoices, assigned) : matchCredit(credit, invoices);
+}
+
 /** Paise of a credit that the match does not put on an Invoice. Zero when nothing is left over. */
 export function overpayPaise(creditPaise: number, allocations: readonly { amountPaise: number }[]): number {
   const extra = differencePaise(creditPaise, sumPaise(allocations.map((share) => share.amountPaise)));

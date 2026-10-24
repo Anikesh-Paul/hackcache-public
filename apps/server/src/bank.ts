@@ -9,10 +9,10 @@ import {
   importCount,
   importSummary,
   matchCredit,
-  matchForCustomer,
   overpayPaise,
   parseStatement,
   proofFromModel,
+  rematchCredit,
   type Match,
   type MatchKind,
 } from "@tagada/domain";
@@ -128,8 +128,7 @@ function rematch(credit: StoredRow, loaded: Awaited<ReturnType<typeof books>>, c
   };
   const rows = matchRows(loaded.customers, loaded.invoices, loaded.lines);
   const customer = customerId ? loaded.customers.find((row) => row.$id === customerId) : undefined;
-  if (!customer) return matchCredit(input, rows);
-  return matchForCustomer(input, rows, { id: customer.$id, name: text(customer.name) ?? "" });
+  return rematchCredit(input, rows, customer ? { id: customer.$id, name: text(customer.name) ?? "" } : null);
 }
 
 /** Import statement 2, or a CSV the Owner dropped. The same line a second time adds nothing. */

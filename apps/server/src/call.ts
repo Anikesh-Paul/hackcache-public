@@ -242,7 +242,13 @@ async function apply(worlds: WorldStore, book: Book, callId: string, outcome: Ca
     case "dispute":
       await Promise.all([
         worlds.update("invoices", book.invoice.$id, { status: "disputed", pauseReason: "dispute", pausedUntil: null }),
-        note("dispute", `Raised a Dispute on the call: "${outcome.notes}". The Ladder is paused until you resolve it.`, "dispute"),
+        note(
+          "dispute",
+          `Raised a Dispute on the call: "${outcome.notes}". The Ladder is paused until you resolve it.`,
+          "dispute",
+          undefined,
+          { reason: outcome.notes },
+        ),
       ]);
       return null;
     case "callback":

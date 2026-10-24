@@ -608,7 +608,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
         type: "reminder",
         actor: step.actor,
         summary: step.summary,
-        payload: JSON.stringify({ stage: step.stage }),
+        payload: JSON.stringify({ stage: step.stage, channel: step.actor === "workflow" ? "email" : "whatsapp_link" }),
       });
     }
     openSpans.push({ from: seed.issued, until: paidOn });

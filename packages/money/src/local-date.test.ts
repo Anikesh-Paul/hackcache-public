@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bengaliDate, formatDateIn, hindiShortDate } from "./index.ts";
+import { bengaliDate, formatDateIn } from "./index.ts";
 
 describe("Bengali dates", () => {
   it("names the month in Bengali and keeps the page's ASCII digits", () => {
@@ -9,8 +9,8 @@ describe("Bengali dates", () => {
   });
 
   it("has a short Hindi date with digits for lists", () => {
-    expect(hindiShortDate("2026-11-06")).toBe("6 नवंबर");
-    expect(hindiShortDate("nope")).toBe("nope");
+    expect(formatDateIn("2026-11-06", "hi", { weekday: false })).toBe("6 नवंबर");
+    expect(formatDateIn("nope", "hi", { weekday: false })).toBe("nope");
   });
 
   it("formats a date in the Owner's language, like formatDate", () => {
