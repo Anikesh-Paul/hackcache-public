@@ -20,6 +20,14 @@ describe("proofReadout", () => {
     });
   });
 
+  it("does not show an amount the money parser cannot read", () => {
+    const readout = proofReadout(
+      JSON.stringify({ utr: "609812345678", amountText: "see attachment", dateText: "06/11/2026", payeeVpa: "tripura@upi", confidence: 0.4 }),
+    );
+    expect(readout?.amount).toBe("");
+    expect(readout?.utr).toBe("609812345678");
+  });
+
   it("reads nothing when the screenshot has not been read", () => {
     expect(proofReadout(null)).toBeNull();
     expect(proofReadout("{")).toBeNull();

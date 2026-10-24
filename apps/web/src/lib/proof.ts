@@ -31,7 +31,7 @@ export function proofReadout(extracted: string | null): (ProofExtract & { amount
     const parsed = proofFromModel(JSON.parse(extracted));
     if (!parsed) return null;
     const paise = parseAmountPaise(parsed.amountText);
-    return { ...parsed, amount: paise === null ? parsed.amountText : formatInr(paise) };
+    return { ...parsed, amount: paise === null ? "" : formatInr(paise) };
   } catch {
     return null;
   }
