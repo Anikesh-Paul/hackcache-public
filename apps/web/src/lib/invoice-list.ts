@@ -1,6 +1,8 @@
+import type { InvoiceState } from "@tagada/domain";
+
 /** What the Invoices list needs in order to sort a row. */
 export type ListedInvoice = {
-  standing: { state: string };
+  standing: { state: InvoiceState };
   invoice: { dueDate: string; issueDate: string; number: string };
 };
 
