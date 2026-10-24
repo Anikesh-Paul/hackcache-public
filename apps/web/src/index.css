@@ -1479,7 +1479,8 @@ h3 {
   }
   .khata-book.pull-0 .ribbons i:nth-child(1),
   .khata-book.pull-1 .ribbons i:nth-child(2),
-  .khata-book.pull-2 .ribbons i:nth-child(3) {
+  .khata-book.pull-2 .ribbons i:nth-child(3),
+  .khata-book.pull-3 .ribbons i:nth-child(4) {
     height: 74px;
   }
   /* Phones and tablets: the pitch and the doors first, the book a small accent after them. */

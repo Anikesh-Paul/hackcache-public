@@ -12,6 +12,7 @@ import {
   invoiceTotals,
   isGstRate,
   lineMeasures,
+  quantityMilli,
   stateName,
   type GstRate,
   type Registration,
@@ -57,7 +58,8 @@ type LineInput = {
 
 type NewCustomer = {
   name: string;
-  gstin: string;
+  /** Null for a Customer with no GST registration (B2C). */
+  gstin: string | null;
   stateCode: string;
   creditDays: number;
   lang: CustomerLang;
@@ -76,6 +78,18 @@ function text(value: unknown): string | null {
 
 function wholeNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+/** A quantity of at most three decimals (2.5 kg), above 0 and up to a million. */
+function quantityOf(value: unknown): number | null {
+  if (typeof value !== "number") return null;
+  let milli: bigint;
+  try {
+    milli = quantityMilli(value);
+  } catch {
+    return null;
+  }
+  return milli >= 1n && milli <= 1_000_000_000n ? value : null;
 }
 
 /** The next `TBW/26-27/0032` in this financial year. Numbers from other years do not count. */
@@ -99,13 +113,13 @@ function parseLine(value: unknown): LineInput | null {
   if (!isRecord(value)) return null;
   const description = text(value.description)?.trim() ?? "";
   const hsn = text(value.hsn)?.trim() ?? "";
-  const quantity = wholeNumber(value.quantity);
+  const quantity = quantityOf(value.quantity);
   const ratePaise = wholeNumber(value.ratePaise);
   const discountPercent = value.discountPercent === undefined ? 0 : wholeNumber(value.discountPercent);
   const gstRatePercent = wholeNumber(value.gstRatePercent);
   if (!description || description.length > 256) return null;
   if (!/^\d{4,8}$/.test(hsn)) return null;
-  if (quantity === null || quantity < 1 || quantity > 1_000_000) return null;
+  if (quantity === null) return null;
   if (ratePaise === null || ratePaise < 0) return null;
   if (discountPercent === null || discountPercent < 0 || discountPercent > 100) return null;
   if (gstRatePercent === null || !isGstRate(gstRatePercent)) return null;
@@ -132,14 +146,15 @@ function parseNewCustomer(value: unknown): NewCustomer | IssueFailure {
   const lang = text(value.lang);
   const address = value.address === undefined || value.address === null ? null : text(value.address)?.trim();
   if (!name || name.length > 128) return fail(400, "invalid_customer");
-  if (!checkGstin(gstin).ok) return fail(400, "invalid_gstin");
-  if (!/^[0-9]{2}$/.test(stateCode) || stateCode !== gstin.slice(0, 2) || !stateName(stateCode)) {
+  // A GSTIN is optional: a small shop or a household buyer has none. One that is given must check.
+  if (gstin && !checkGstin(gstin).ok) return fail(400, "invalid_gstin");
+  if (!/^[0-9]{2}$/.test(stateCode) || (gstin && stateCode !== gstin.slice(0, 2)) || !stateName(stateCode)) {
     return fail(400, "invalid_customer");
   }
   if (creditDays === null || creditDays < 0 || creditDays > 365) return fail(400, "invalid_customer");
   if (!lang || !isCustomerLang(lang)) return fail(400, "invalid_customer");
   if (address === undefined || (address !== null && address.length > 256)) return fail(400, "invalid_customer");
-  return { name, gstin, stateCode, creditDays, lang, address };
+  return { name, gstin: gstin || null, stateCode, creditDays, lang, address };
 }
 
 function registrationOf(value: unknown): Registration | null {

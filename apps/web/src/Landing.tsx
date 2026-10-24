@@ -13,10 +13,11 @@ import { useT } from "./i18n/index.ts";
 /** How long the cover takes to turn; the door lands on its screen just after. */
 const TURN_MS = 1100;
 
-type Door = { key: "tour" | "call" | "proof"; ribbon: string; title: string; what: string };
+type Door = { key: "tour" | "own" | "call" | "proof"; ribbon: string; title: string; what: string };
 
 const DOORS: Door[] = [
   { key: "tour", ribbon: "var(--bamboo)", title: "Start the 2-minute tour", what: "Eight steps, and the app moves for you" },
+  { key: "own", ribbon: "var(--bamboo-ink)", title: "Make your own invoice", what: "Bill anyone, pay it as them, watch Today change" },
   { key: "call", ribbon: "var(--turmeric)", title: "Be Gupta ji: take the call", what: "You play the Customer, in Hindi or English" },
   { key: "proof", ribbon: "var(--ink-2)", title: "See the proof", what: "The brief's test cases, worked out live" },
 ];
@@ -61,6 +62,7 @@ export function Landing() {
 
   const go = (door: Door) => {
     if (door.key === "proof") return navigate("/proof");
+    if (door.key === "own") return navigate("/app/invoices/new?try");
     if (!world || !hero) return;
     if (door.key === "call") return navigate(`/call/${hero.$id}`);
     if (moved) {
@@ -83,7 +85,8 @@ export function Landing() {
   };
 
   // The tour can start from a fresh copy; the call needs Gupta ji's open Invoice.
-  const needsWorld = (door: Door) => (door.key === "tour" && !world) || (door.key === "call" && !hero);
+  const needsWorld = (door: Door) =>
+    (door.key === "tour" && !world) || (door.key === "own" && !world) || (door.key === "call" && !hero);
   const what = (door: Door) =>
     door.key === "tour" ? (moved ? t.landing.eightStepsFresh : t.landing.eightSteps) : door.what;
 
