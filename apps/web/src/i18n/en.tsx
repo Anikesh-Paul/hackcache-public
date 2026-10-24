@@ -416,6 +416,7 @@ export const en = {
     notEditable: "Only an unpaid Invoice with nothing paid against it can be edited. Record a payment, or a credit note, instead.",
     backToInvoice: (number: string) => `Back to ${number}`,
     dueDate: "Due date",
+    dueFromCredit: (days: number) => `Set by their ${plural(days, "day's", "days'")} credit. Change it if you like.`,
     save: "Save invoice",
     previewOnly: "Preview only",
     intro: "Totals update as you type. On save, the server works them out again and gives the Invoice the next number.",

@@ -5,10 +5,12 @@ import { Permission, Role } from "node-appwrite";
 import type { CustomerRow, EventRow, InvoiceLineRow, InvoiceRow } from "@tagada/appwrite";
 import {
   addDays,
+  daysBetween,
   financialYear,
   formatDate,
   invoiceNumber,
   invoiceTotals,
+  isCivilDate,
   isGstRate,
   isLineUnit,
   lineMeasures,
@@ -200,6 +202,14 @@ export async function issueInvoice(
   if (!workspace) return fail(409, "world_not_ready");
   const today = text(workspace.today);
   if (!registrationOf(workspace.registrationType) || !text(workspace.stateCode) || !today) return fail(409, "world_not_ready");
+  // Optional: by default the Invoice is due after the Customer's credit days.
+  const askedDue = body.dueDate;
+  if (
+    askedDue !== undefined &&
+    (typeof askedDue !== "string" || !isCivilDate(askedDue) || askedDue < today || askedDue > addDays(today, 365))
+  ) {
+    return fail(400, "invalid_due_date");
+  }
 
   const permissions = [Permission.read(Role.user(userId)), Permission.update(Role.user(userId))];
   const owned = (row: { $id: string }): OwnedRow => ({
@@ -257,7 +267,8 @@ export async function issueInvoice(
     const number = text(row.number);
     return number ? [number] : [];
   });
-  const dueDate = addDays(today, creditDays);
+  const dueDate = typeof askedDue === "string" ? askedDue : addDays(today, creditDays);
+  const creditGiven = daysBetween(today, dueDate);
   if (created) await worlds.write({ customers: [created] });
 
   // Two quick saves can read the same last number. The row ID comes from the
@@ -303,7 +314,7 @@ export async function issueInvoice(
     at: `${today}T12:00:00.000+05:30`,
     type: "sent",
     actor: "owner",
-    summary: `Invoice sent; ${creditDays} days' credit, due ${formatDate(dueDate)}`,
+    summary: `Invoice sent; ${creditGiven} days' credit, due ${formatDate(dueDate)}`,
     payload: JSON.stringify({ totalPaise: totals.totalPaise }),
   };
 
