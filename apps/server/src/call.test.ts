@@ -151,8 +151,8 @@ describe("GET /api/call/signed-url", () => {
   });
 
   it("stops at the per-workspace limit and the global daily cap", async () => {
-    // The seeded transcript already uses one slot.
-    build({ limits: { perWorkspace: db.table("calls").length + 2, perDay: 3 } });
+    // Gupta's seeded transcript is already in the table. It does not use a slot.
+    build({ limits: { perWorkspace: 2, perDay: 3 } });
     await started();
     await started();
     const res = await session(gupta().$id);

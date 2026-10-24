@@ -118,7 +118,9 @@ export async function startCall(
   const ctx = contextOf(book);
   const guard = guardOf(book, ctx);
   if (!guard.ok) return { ok: false, status: 403, error: guard.block, message: guard.message };
-  if (calls.length >= deps.limits.perWorkspace) {
+  // The seeded transcript (conversationId seedgupta…) is for the case file. It is not a call the Owner placed.
+  const placed = calls.filter((call) => !String(call.conversationId ?? "").startsWith("seedgupta"));
+  if (placed.length >= deps.limits.perWorkspace) {
     return {
       ok: false,
       status: 429,
