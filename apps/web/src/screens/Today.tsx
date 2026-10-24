@@ -6,7 +6,9 @@ import { callReturn, formatInr } from "@tagada/money";
 import { type AgeingBucket, type ExpectedReceipt, type Outflow, type TodayBook } from "@tagada/domain";
 import { salaryHeadline, useT, type Copy } from "../i18n/index.ts";
 import { ForecastChart, ForecastTable, PayPackets, SalaryFigure } from "../books.tsx";
+import { useImpact } from "../lib/impact.ts";
 import { useTodayBook } from "../lib/today.ts";
+import { useTour } from "../tour.tsx";
 import { useInbox, usePaymentHistory, useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
 import { InboxLine, inboxItems } from "./Inbox.tsx";
@@ -18,6 +20,7 @@ const day = (t: Copy, iso: string) => t.date(iso, { weekday: false });
 export function Today() {
   const state = useTodayBook();
   const world = useWorld();
+  const tour = useTour();
   const t = useT();
   if (state.status !== "ready") {
     return (
@@ -35,6 +38,7 @@ export function Today() {
     <div className="spread">
       <Paper label={t.today.money} className="spread-main">
         <Headline book={book} today={world.workspace.today} />
+        {tour.finished && <WhatChanged />}
         <TotalsRow book={book} />
         <Forecast book={book} />
         <ChaseFirst book={book} />
@@ -142,6 +146,105 @@ function OutflowLine({ o }: { o: Outflow }) {
     <Ln m={day(t, o.date)} a={formatInr(-o.amountPaise)}>
       {o.label}
     </Ln>
+  );
+}
+
+type ImpactKey = "dso" | "forward" | "hours" | "cost";
+
+/** What Tagada changed since it started chasing, once the tour has shown it: four numbers, each with its working. */
+function WhatChanged() {
+  const state = useImpact();
+  const t = useT();
+  const [open, setOpen] = useState<ImpactKey | null>(null);
+  if (state.status !== "ready") return null;
+  const { impact } = state;
+  const { dso, forward, chasing, cost } = impact;
+  const since = t.date(impact.since);
+  const per = t.impact.perHundred(cost.perHundredPaise);
+  const days = (n: number | null) => (n === null ? "–" : String(n));
+  const tiles: { key: ImpactKey; label: string; value: string; sub: string; why: ReactNode }[] = [
+    {
+      key: "dso",
+      label: t.impact.dso,
+      value: `${days(dso.before.days)} → ${dso.after.days === null ? "–" : t.days(dso.after.days)}`,
+      sub: t.impact.dsoSub,
+      why: (
+        <>
+          {t.impact.dsoWhy(dso.before, dso.after)} {t.impact.dsoNote}
+        </>
+      ),
+    },
+    {
+      key: "forward",
+      label: t.impact.forward,
+      value: formatInr(forward.totalPaise),
+      sub: t.impact.forwardSub(t.date(forward.monthEnd, { weekday: false })),
+      why:
+        forward.rows.length === 0 ? (
+          t.impact.forwardNone
+        ) : (
+          <>
+            {t.impact.forwardWhy}
+            {forward.rows.map((r) => (
+              <span key={r.invoiceId} className="mt-2 block">
+                {t.impact.forwardRow(r, since)}
+              </span>
+            ))}
+            <span className="mt-2 block">{t.impact.forwardTotal(formatInr(forward.totalPaise))}</span>
+          </>
+        ),
+    },
+    {
+      key: "hours",
+      label: t.impact.hours,
+      value: t.impact.time(chasing.minutes),
+      sub: t.impact.hoursSub(chasing.minutesPerChase),
+      why: t.impact.hoursWhy(chasing.reminders, chasing.calls, chasing.minutesPerChase, chasing.minutes),
+    },
+    {
+      key: "cost",
+      label: t.impact.cost,
+      value: per,
+      sub: t.impact.costSub(formatInr(cost.costPaise), formatInr(cost.collectedPaise)),
+      why: t.impact.costWhy(
+        cost.emails,
+        formatInr(cost.emailPaise),
+        cost.calls,
+        formatInr(cost.callPaise),
+        formatInr(cost.costPaise),
+        formatInr(cost.collectedPaise),
+        per,
+      ),
+    },
+  ];
+  const shown = tiles.find((tile) => tile.key === open);
+  return (
+    <section className="sect" data-tour="impact" aria-labelledby="impact-title">
+      <div className="ln head wide">
+        <div className="m" />
+        <div className="p">
+          <h2 id="impact-title">{t.impact.title}</h2>
+          <p className="text-[13px] text-ink-2">{t.impact.since(since)}</p>
+        </div>
+      </div>
+      <div className="tiles">
+        {tiles.map((tile) => (
+          <div key={tile.key} className="tile" data-impact={tile.key}>
+            <div className="text-[13px] text-ink-2">{tile.label}</div>
+            <div className="text-[22px] font-semibold tracking-tight">{tile.value}</div>
+            <div className="text-[13px] text-ink-2">{tile.sub}</div>
+            <WhyButton open={open === tile.key} onClick={() => setOpen(open === tile.key ? null : tile.key)} />
+          </div>
+        ))}
+      </div>
+      {shown && (
+        <Ln>
+          <p className="mt-3 max-w-[68ch] text-sm">
+            <b>{shown.label}.</b> {shown.why}
+          </p>
+        </Ln>
+      )}
+    </section>
   );
 }
 

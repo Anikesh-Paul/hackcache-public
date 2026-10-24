@@ -228,6 +228,45 @@ export const bn: Copy = {
       `${n}টি কল, প্রতিটি কত সময় চলেছে তার হিসাবে দাম। নিশ্চিত হয়েছে মানে কলে ঠিক হওয়া কিস্তির পরিকল্পনা আর প্রতিশ্রুতির মোট টাকা, যতক্ষণ সেগুলো বহাল আছে।`,
     inboxEmpty: "পেমেন্ট লিঙ্ক থেকে আসা উত্তর এখানে আসে: টাকা দেওয়ার দাবি, আপত্তি, কিস্তির পরিকল্পনা আর স্ক্রিনশট।",
   },
+  impact: {
+    title: "Tagada কী বদলাল",
+    since: (when) => `${when} থেকে, যখন Tagada তাগাদা শুরু করল।`,
+    dso: "টাকা পেতে কত দিন",
+    dsoSub: "বিক্রির কত দিনের টাকা বাকি",
+    dsoWhy: (before, after) =>
+      [before, after]
+        .map((d, n) =>
+          d.days === null
+            ? `${n === 0 ? "আগে" : "এখন"}: ${date(d.from)} থেকে ${date(d.date)} পর্যন্ত কোনো বিল হয়নি।`
+            : `${n === 0 ? `${date(d.date)} সন্ধ্যায়, Tagada শুরুর আগে` : date(d.date)}, ${formatInr(d.owedPaise)} পাওনা ছিল, আর ${date(d.from)} থেকে ${formatInr(d.salesPaise)}-এর বিল হয়েছে: ${formatInr(d.owedPaise)} ÷ ${formatInr(d.salesPaise)} × ${d.windowDays} = ${d.days} দিন।`,
+        )
+        .join(" "),
+    dsoNote: "পাওনা মানে খাতার হিসাবে এখনও না মেটানো প্রতিটি বিল; ব্যাংকে আসা টাকা আপনি নিশ্চিত করলে ধরা হয়।",
+    forward: "আগে আসা টাকা",
+    forwardSub: (monthEnd) => `${monthEnd}-এর মধ্যে দেওয়া বা প্রতিশ্রুত`,
+    forwardNone: "এখনও কিছু নয়: তারপর থেকে এমন কোনো বিলে টাকা বা কিস্তির পরিকল্পনা আসেনি যা গ্রাহকের অভ্যাসে পরে আসত।",
+    forwardWhy:
+      "Tagada শুরুর পর দেওয়া টাকা, বা তারপর ঠিক হওয়া কিস্তির পরিকল্পনায় এই মাসের প্রতিশ্রুতি, সেই বিলগুলোতে যা গ্রাহকের অভ্যাসে পরে আসত: তাঁদের সাধারণ দিন, মানে শেষ তারিখ আর তাঁরা সাধারণত যত দেরি করেন, এই মাসের পরে পড়ে বা টাকা ছাড়াই পেরিয়ে গিয়েছিল।",
+    forwardRow: (r, since) =>
+      `${r.customerName}, ${r.number}: ${formatInr(r.countedPaise)} (${[r.paidPaise > 0 && `দেওয়া ${formatInr(r.paidPaise)}`, r.promisedPaise > 0 && `প্রতিশ্রুত ${formatInr(r.promisedPaise)}`].filter(Boolean).join(", ")})। ${habit(r.avgDelayDays)}, তাই সাধারণ দিন ছিল ${date(r.usualDate)}${r.why === "passed" ? `, যা ${since}-এর মধ্যেই পেরিয়ে গিয়েছিল` : ", যা এই মাসের পরে"}।`,
+    forwardTotal: (total) => `মোট ${total}।`,
+    hours: "তাগাদার বাঁচানো ঘণ্টা",
+    hoursSub: (minutes) => `প্রতি তাগাদায় ${minutes} মিনিট`,
+    time: (minutes) => {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      if (h === 0) return `${m} মিনিট`;
+      return m === 0 ? `${h} ঘণ্টা` : `${h} ঘণ্টা ${m} মিনিট`;
+    },
+    hoursWhy: (reminders, calls, per, minutes) =>
+      `অনুস্মারকের সিঁড়ি ${reminders}টি অনুস্মারক পাঠিয়েছে আর মুনিম ${calls}টি কল করেছে: ${reminders + calls} × ${per} মিনিট = ${minutes} মিনিট। হাতে একটি তাগাদায় ${per} মিনিট লাগে: বিল খোঁজা, বার্তা লেখা বা ফোন করা, আর উত্তর লিখে রাখা।`,
+    cost: "প্রতি ₹100 আদায়ের খরচ",
+    costSub: (cost, collected) => `খরচ ${cost}, আদায় ${collected}`,
+    perHundred: (paise) =>
+      paise === null ? "এখনও কিছু আদায় হয়নি" : paise === 0 ? "1 পয়সার কম" : paise < 100 ? `${paise} পয়সা` : formatInr(paise),
+    costWhy: (emails, emailCost, calls, callCost, cost, collected, per) =>
+      `${emails}টি ইমেল, প্রতি 1,000-এ ₹35.20: ${emailCost}। ${calls}টি AI কল, প্রতিটি কত সময় চলেছে তার হিসাবে: ${callCost}। ${collected} আদায়ে ${cost} খরচ: ${cost} ÷ ${collected} × ₹100 = ${per}।`,
+  },
   followUps: {
     title: "আজকের কাজ",
     reading: "অনুস্মারকের সিঁড়ি পড়া হচ্ছে…",
@@ -974,7 +1013,8 @@ export const bn: Copy = {
         body: () => (
           <>
             গুপ্তাজি কিস্তির পরিকল্পনার প্রথম কিস্তি দিয়েছেন, আর সপ্তাহের অন্য টাকাও এসেছে, তাই বেতনের টাকা জোগাড় হয়ে গেছে,
-            হাতে বাড়তিও থাকছে। অটোমেশন লগে অনুস্মারকের সিঁড়ির প্রতিটি প্রক্রিয়া দেখা যায়, আবার চেষ্টাগুলো সহ।
+            হাতে বাড়তিও থাকছে। <b>Tagada কী বদলাল</b> এই সপ্তাহকে চারটি সংখ্যায় যোগ করে; যেকোনোটিতে{" "}
+            <b>কেন?</b> চাপুন। অটোমেশন লগে অনুস্মারকের সিঁড়ির প্রতিটি প্রক্রিয়া দেখা যায়, আবার চেষ্টাগুলো সহ।
           </>
         ),
       },

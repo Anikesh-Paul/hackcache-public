@@ -3,6 +3,7 @@ export {
   CALL_CREDIT_PAISE_PER_THOUSAND,
   COMPOSITION_HEADING,
   E_INVOICE_NOTE,
+  EMAIL_PAISE_PER_THOUSAND,
   E_INVOICE_TURNOVER_PAISE,
   GST_RATES,
   LADDER_STAGE_DAYS,
@@ -15,7 +16,15 @@ export {
 } from "./config.ts";
 export type { GstRate, LineUnit } from "./config.ts";
 
-export { callCostPaise, callCredits, callReturn, paiseFromRupees, rupeesFromPaise } from "./call-cost.ts";
+export {
+  callCostPaise,
+  callCredits,
+  callReturn,
+  costPerHundredPaise,
+  emailCostPaise,
+  paiseFromRupees,
+  rupeesFromPaise,
+} from "./call-cost.ts";
 
 export { addDays, addMonths, daysBetween, formatDate, isCivilDate, weekday } from "./date.ts";
 
