@@ -1193,7 +1193,17 @@ h3 {
     --desk: #fff;
     color-scheme: light;
   }
+  html,
+  body {
+    background: #fff !important;
+  }
+  .cover,
   .no-print {
     display: none !important;
+  }
+  /* The case file is written to fit one A4 page at 12px. */
+  .case-file {
+    font-size: 12px;
+    line-height: 1.35;
   }
 }

@@ -13,6 +13,7 @@
     "@tagada/appwrite": "workspace:*",
     "@tagada/domain": "workspace:*",
     "@tagada/money": "workspace:*",
+    "@tagada/seed": "workspace:*",
     "appwrite": "29.1.0",
     "lucide-react": "0.511.0",
     "qrcode": "1.5.4",
