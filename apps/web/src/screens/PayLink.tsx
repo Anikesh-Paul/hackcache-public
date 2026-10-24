@@ -32,6 +32,14 @@ type Words = {
   payNote: string;
   paid: string;
   paidNote: string;
+  confirmPaid: (business: string) => string;
+  confirmYes: string;
+  confirmNo: string;
+  samples: string;
+  sampleMatching: string;
+  sampleUnknown: string;
+  sampleWrong: string;
+  sampleFailed: string;
   time: string;
   timeNote: string;
   dispute: string;
@@ -92,6 +100,14 @@ const WORDS: Record<Lang, Words> = {
     payNote: "कोई भी UPI ऐप",
     paid: "मैंने भुगतान कर दिया है",
     paidNote: "स्क्रीनशॉट भेजें",
+    confirmPaid: (business) => `${business} को बताएं कि आपने भुगतान कर दिया है?`,
+    confirmYes: "हाँ, बताएं",
+    confirmNo: "अभी नहीं",
+    samples: "स्क्रीनशॉट नहीं है? एक नमूना आज़माएं",
+    sampleMatching: "मिलता भुगतान",
+    sampleUnknown: "अनजाना UTR",
+    sampleWrong: "राशि अलग है",
+    sampleFailed: "यह नमूना नहीं जा सका।",
     time: "थोड़ा समय चाहिए",
     timeNote: "किश्तों में चुकाएं",
     dispute: "बिल में गड़बड़ी है? बताएं",
@@ -150,6 +166,14 @@ const WORDS: Record<Lang, Words> = {
     payNote: "যেকোনো UPI অ্যাপ",
     paid: "আমি পেমেন্ট করে দিয়েছি",
     paidNote: "স্ক্রিনশট পাঠান",
+    confirmPaid: (business) => `${business}-কে জানান যে আপনি পেমেন্ট করে দিয়েছেন?`,
+    confirmYes: "হ্যাঁ, জানান",
+    confirmNo: "এখন নয়",
+    samples: "স্ক্রিনশট নেই? একটি নমুনা পাঠান",
+    sampleMatching: "মিলে যাওয়া পেমেন্ট",
+    sampleUnknown: "অজানা UTR",
+    sampleWrong: "টাকার অঙ্ক আলাদা",
+    sampleFailed: "এই নমুনাটি পাঠানো গেল না।",
     time: "একটু সময় দরকার",
     timeNote: "কিস্তিতে দিন",
     dispute: "বিলে কোনো ভুল আছে? জানান",
@@ -209,6 +233,14 @@ const WORDS: Record<Lang, Words> = {
     payNote: "Any UPI app",
     paid: "I've already paid",
     paidNote: "Send a screenshot",
+    confirmPaid: (business) => `Tell ${business} you have paid?`,
+    confirmYes: "Yes, tell them",
+    confirmNo: "Not now",
+    samples: "No screenshot handy? Try a sample",
+    sampleMatching: "Matching payment",
+    sampleUnknown: "Unknown UTR",
+    sampleWrong: "Wrong amount",
+    sampleFailed: "That sample could not be sent.",
     time: "I need some time",
     timeNote: "Pay in instalments",
     dispute: "Something wrong with the bill? Tell us",
@@ -359,6 +391,7 @@ function Slip({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [panel, setPanel] = useState<"plan" | "dispute" | null>(null);
+  const [askPaid, setAskPaid] = useState(false);
 
   const run = async (action: () => Promise<PaySlip>) => {
     setBusy(true);
@@ -419,16 +452,40 @@ function Slip({
                   <ArrowRight aria-hidden className="ar" />
                 </a>
               )}
-              <button type="button" className="opt" disabled={busy} onClick={() => run(() => pay.paid(token))} data-tour="paid">
-                <span className="oi">
-                  <Upload aria-hidden />
-                </span>
-                <span>
-                  {t.paid}
-                  <small>{t.paidNote}</small>
-                </span>
-                <ArrowRight aria-hidden className="ar" />
-              </button>
+              <div data-tour="paid">
+                {askPaid ? (
+                  <div className="picker" role="group" aria-label={t.confirmPaid(business)}>
+                    <p className="text-[17px] font-semibold">{t.confirmPaid(business)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn primary"
+                        disabled={busy}
+                        onClick={() => {
+                          setAskPaid(false);
+                          void run(() => pay.paid(token));
+                        }}
+                      >
+                        {t.confirmYes}
+                      </button>
+                      <button type="button" className="btn secondary" onClick={() => setAskPaid(false)}>
+                        {t.confirmNo}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button type="button" className="opt" disabled={busy} onClick={() => setAskPaid(true)}>
+                    <span className="oi">
+                      <Upload aria-hidden />
+                    </span>
+                    <span>
+                      {t.paid}
+                      <small>{t.paidNote}</small>
+                    </span>
+                    <ArrowRight aria-hidden className="ar" />
+                  </button>
+                )}
+              </div>
               {slip.state === "owing" && slip.choices.length > 0 && (
                 <button
                   type="button"
@@ -739,8 +796,27 @@ function DisputeForm({
   );
 }
 
+const SAMPLES = [
+  { file: "upi-gupta-matching.png", key: "sampleMatching" },
+  { file: "upi-unknown-utr.png", key: "sampleUnknown" },
+  { file: "upi-wrong-amount.png", key: "sampleWrong" },
+] as const;
+
 function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile: (file: File) => void }) {
   const [bad, setBad] = useState(false);
+  const [sampleFailed, setSampleFailed] = useState(false);
+  const sendSample = async (name: string) => {
+    setSampleFailed(false);
+    setBad(false);
+    try {
+      const res = await fetch(`/samples/${name}`);
+      if (!res.ok) throw new Error("sample");
+      const blob = await res.blob();
+      onFile(new File([blob], name, { type: blob.type || "image/png" }));
+    } catch {
+      setSampleFailed(true);
+    }
+  };
   return (
     <div className="px-ln mt-5">
       <label className={`opt upload ${busy ? "opacity-60" : ""}`}>
@@ -769,6 +845,21 @@ function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile
           {t.fileFailed}
         </p>
       )}
+      <div className="mt-4">
+        <p className="text-[15px] text-ink-2">{t.samples}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {SAMPLES.map((sample) => (
+            <button key={sample.file} type="button" className="btn secondary" disabled={busy} onClick={() => void sendSample(sample.file)}>
+              {t[sample.key]}
+            </button>
+          ))}
+        </div>
+        {sampleFailed && (
+          <p className="mt-2 text-[15px] text-sindoor" role="alert">
+            {t.sampleFailed}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

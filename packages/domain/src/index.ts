@@ -85,11 +85,16 @@ export {
   importCount,
   importSummary,
   invoicesForMatch,
+  bankNarration,
   matchCredit,
+  matchForCustomer,
   matcherBrief,
+  narrationAssignedTo,
+  overpayPaise,
   parseStatement,
 } from "./matcher.ts";
 export type {
+  AssignedCustomer,
   Match,
   MatchAllocation,
   MatchCredit,
@@ -100,7 +105,7 @@ export type {
   ParsedStatement,
 } from "./matcher.ts";
 
-export { PROOF_LABEL, checkProof, proofFromModel } from "./proof-check.ts";
+export { PROOF_LABEL, checkProof, proofBankLine, proofFromModel } from "./proof-check.ts";
 export type { ProofCredit, ProofExtract, ProofResultKind, ProofView } from "./proof-check.ts";
 
 export { REMINDER_NAMES, REMINDER_TEMPLATES, reminderMessage } from "./templates.ts";

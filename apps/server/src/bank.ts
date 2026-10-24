@@ -9,6 +9,9 @@ import {
   importCount,
   importSummary,
   matchCredit,
+  matchForCustomer,
+  narrationAssignedTo,
+  overpayPaise,
   parseStatement,
   proofFromModel,
   type Match,
@@ -271,4 +274,88 @@ export async function confirmMatches(worlds: WorldStore, workspaceId: string, bo
   }
   if (events.length > 0) await worlds.write({ events });
   return { ok: true, confirmed, changed, message: changedMessage(changed) };
+}
+
+export type AssignResult =
+  | { ok: true; kind: MatchKind; note: string }
+  | { ok: false; status: 400 | 404; error: string };
+
+/** The Owner names the Customer for an unknown deposit. The matcher then suggests, and Confirm pays it. */
+export async function assignCredit(worlds: WorldStore, workspaceId: string, body: unknown): Promise<AssignResult> {
+  const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const id = text(input.id);
+  const customerId = text(input.customerId);
+  if (!id || !customerId) return { ok: false, status: 400, error: "invalid_body" };
+  const loaded = await books(worlds, workspaceId);
+  if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
+  const credit = loaded.bank.find((row) => row.$id === id);
+  const customer = loaded.customers.find((row) => row.$id === customerId);
+  if (!credit || !customer) return { ok: false, status: 404, error: "not_found" };
+  if (credit.matchStatus === "confirmed") return { ok: false, status: 400, error: "already_confirmed" };
+  const name = text(customer.name) ?? "";
+  const narration = narrationAssignedTo(text(credit.narration) ?? "", name);
+  const match = matchForCustomer(
+    {
+      date: text(credit.date) ?? "",
+      narration,
+      reference: text(credit.utr) ?? "",
+      amountPaise: whole(credit.amountPaise),
+    },
+    matchRows(loaded.customers, loaded.invoices, loaded.lines),
+    { id: customerId, name },
+  );
+  await worlds.update("bank_txns", credit.$id, { narration, ...storedMatch(match) });
+  return { ok: true, kind: match.kind, note: match.note };
+}
+
+export type AdvanceResult =
+  | { ok: true; amountPaise: number; customerName: string; already: boolean }
+  | { ok: false; status: 400 | 404; error: string };
+
+/** Record the part of an overpayment that was not applied to an Invoice, once, as an advance. */
+export async function keepAdvance(worlds: WorldStore, workspaceId: string, body: unknown): Promise<AdvanceResult> {
+  const input = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+  const id = text(input.id);
+  if (!id) return { ok: false, status: 400, error: "invalid_body" };
+  const loaded = await books(worlds, workspaceId);
+  if (!loaded.workspace) return { ok: false, status: 400, error: "no_workspace" };
+  const credit = loaded.bank.find((row) => row.$id === id);
+  if (!credit) return { ok: false, status: 404, error: "not_found" };
+  const shares = allocationsOf(credit.allocations);
+  const extra = overpayPaise(whole(credit.amountPaise), shares);
+  const invoiceId = shares[0]?.invoiceId;
+  if (extra <= 0 || !invoiceId) return { ok: false, status: 400, error: "no_advance" };
+  const invoice = loaded.invoices.find((row) => row.$id === invoiceId);
+  const customer = loaded.customers.find((row) => row.$id === invoice?.customerId);
+  const customerName = text(customer?.name) ?? "Customer";
+  const events = await worlds.list("events", workspaceId);
+  const already = events.some((event) => event.type === "advance" && advanceFor(event.payload) === id);
+  if (already) return { ok: true, amountPaise: extra, customerName, already: true };
+  const { permissions, today } = ownerAccess(loaded.workspace, workspaceId);
+  await worlds.write({
+    events: [
+      {
+        $id: newId("v"),
+        workspaceId,
+        $permissions: permissions,
+        invoiceId,
+        at: stamp(today),
+        type: "advance",
+        actor: "owner",
+        summary: `${formatInr(extra)} kept as an advance for ${customerName}.`,
+        payload: JSON.stringify({ amountPaise: extra, bankTxnId: id }),
+      },
+    ],
+  });
+  return { ok: true, amountPaise: extra, customerName, already: false };
+}
+
+function advanceFor(payload: unknown): string | null {
+  if (typeof payload !== "string") return null;
+  try {
+    const bankTxnId = (JSON.parse(payload) as { bankTxnId?: unknown }).bankTxnId;
+    return typeof bankTxnId === "string" ? bankTxnId : null;
+  } catch {
+    return null;
+  }
 }

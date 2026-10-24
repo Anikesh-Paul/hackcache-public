@@ -1,18 +1,29 @@
 // Bank statement: suggestions until the Owner confirms. Nothing is paid before that.
-import { useMemo, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import { Link } from "react-router";
 import { Check, CircleDot, CircleHelp, Copy, Flag, Scale } from "lucide-react";
 import type { BankAllocation, BankTxnRow, InvoiceLineRow } from "@tagada/appwrite";
-import { MATCH_LABEL, TDS_EXPLAIN, invoicesForMatch, matchCredit, type MatchKind, type ProofResultKind } from "@tagada/domain";
+import {
+  MATCH_LABEL,
+  TDS_EXPLAIN,
+  bankNarration,
+  invoicesForMatch,
+  matchCredit,
+  overpayPaise,
+  proofBankLine,
+  type MatchKind,
+  type ProofResultKind,
+} from "@tagada/domain";
 import { formatDate, formatInr } from "@tagada/money";
-import { proofAmount, proofLabel, proofTone } from "../lib/proof.ts";
-import { SaveError, confirmBank, importBank } from "../lib/appwrite.ts";
+import { proofLabel, proofReadout, proofTone } from "../lib/proof.ts";
+import { SaveError, assignCredit, confirmBank, importBank, keepAdvance, loadScreenshot } from "../lib/appwrite.ts";
 import { useWorkspaceRows, useWorld, useWorldState } from "../lib/world.tsx";
 import { Badge, Head, Ln, Paper } from "../ui.tsx";
 
 type ProofRow = {
   $id: string;
   invoiceId: string;
+  fileId: string | null;
   result: ProofResultKind | null;
   extracted: string | null;
   checkedAt: string | null;
@@ -217,7 +228,10 @@ export function Bank() {
               <li key={row.$id} className="ln ruler" data-utr={row.utr ?? undefined}>
                 <div className="m">{formatDate(row.date, { weekday: false })}</div>
                 <div className="p">
-                  <span className="block">{row.narration}</span>
+                  <span className="block">{bankNarration(row.narration)}</span>
+                  {bankNarration(row.narration) !== row.narration && (
+                    <span className="mt-1 block text-[13px] text-ink-2">Assigned to {row.narration.slice(0, row.narration.indexOf("\n"))}</span>
+                  )}
                   {row.utr && <span className="mono mt-1 block text-[13px] text-ink-2">{row.utr}</span>}
                   <span className={`word ${icon.tone} mt-1`}>
                     <icon.icon aria-hidden /> {MATCH_LABEL[kind]}
@@ -246,6 +260,34 @@ export function Bank() {
                       </small>
                     );
                   })}
+                  {kind === "unknown" && row.matchStatus !== "confirmed" && (
+                    <AssignCustomer
+                      names={[...world.customers.values()].map((customer) => ({ id: customer.$id, name: customer.name }))}
+                      disabled={busy}
+                      onAssign={(customerId) =>
+                        void run(async () => {
+                          const match = await assignCredit(row.$id, customerId);
+                          return match.note;
+                        })
+                      }
+                    />
+                  )}
+                  {overpayPaise(row.amountPaise, shares) > 0 && shares[0] && (
+                    <button
+                      type="button"
+                      className="btn secondary mt-2"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async () => {
+                          const kept = await keepAdvance(row.$id);
+                          return `${formatInr(kept.amountPaise)} kept as an advance for ${kept.customerName}.`;
+                        })
+                      }
+                    >
+                      Keep {formatInr(overpayPaise(row.amountPaise, shares))} as an advance for{" "}
+                      {customerOf(invoiceOf(shares[0].invoiceId)?.customerId ?? "") ?? "this Customer"}
+                    </button>
+                  )}
                   {row.matchStatus === "suggested" && (
                     <button
                       type="button"
@@ -281,11 +323,12 @@ export function Bank() {
             .map((proof) => {
               const invoice = invoiceOf(proof.invoiceId);
               const label = proofLabel(proof.result);
-              const amount = proofAmount(proof.extracted);
+              const readout = proofReadout(proof.extracted);
               const tone = proofTone(proof.result);
+              const line = readout ? proofBankLine(readout, rows) : null;
               return (
                 <li key={proof.$id} className="ln wide ruler">
-                  <div className="m" />
+                  <div className="m">{proof.fileId ? <Shot fileId={proof.fileId} /> : null}</div>
                   <div className="p">
                     <span className={`word ${tone}`}>
                       {proof.result === "found" ? <Check aria-hidden /> : proof.result === "amount_mismatch" ? <Flag aria-hidden /> : <CircleDot aria-hidden />}{" "}
@@ -303,8 +346,29 @@ export function Bank() {
                           <span className="mono">{invoice.number}</span>
                         </>
                       )}
-                      {amount && `: ${amount}`}
                     </span>
+                    {readout ? (
+                      <small className="mt-1 block">
+                        UTR <span className="mono">{readout.utr || "none"}</span>
+                        {readout.amount ? `, ${readout.amount}` : ""}
+                        {readout.dateText ? `, ${readout.dateText}` : ""}
+                        {readout.payeeVpa ? `, ${readout.payeeVpa}` : ""}
+                      </small>
+                    ) : (
+                      <small className="mt-1 block">Nothing read off the screenshot yet.</small>
+                    )}
+                    {line && (
+                      <small className="mt-1 block">
+                        Checked against {formatDate(line.date, { weekday: false })} {bankNarration(line.narration)}{" "}
+                        {formatInr(line.amountPaise)}
+                        {line.utr ? (
+                          <>
+                            {" "}
+                            <span className="mono">{line.utr}</span>
+                          </>
+                        ) : null}
+                      </small>
+                    )}
                   </div>
                 </li>
               );
@@ -312,5 +376,81 @@ export function Bank() {
         </ul>
       </div>
     </Paper>
+  );
+}
+
+function AssignCustomer({
+  names,
+  disabled,
+  onAssign,
+}: {
+  names: { id: string; name: string }[];
+  disabled: boolean;
+  onAssign: (customerId: string) => void;
+}) {
+  const [customerId, setCustomerId] = useState("");
+  return (
+    <form
+      className="mt-2 flex flex-wrap items-center gap-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (customerId) onAssign(customerId);
+      }}
+    >
+      <label className="text-sm">
+        Assign to a Customer
+        <select
+          className="mt-1 block min-h-11 max-w-full rounded-md border border-rule-strong bg-paper px-2 text-sm"
+          value={customerId}
+          disabled={disabled}
+          onChange={(event) => setCustomerId(event.target.value)}
+        >
+          <option value="">Choose a Customer</option>
+          {names.map((customer) => (
+            <option key={customer.id} value={customer.id}>
+              {customer.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className="btn secondary" disabled={disabled || !customerId}>
+        Show the suggestion
+      </button>
+    </form>
+  );
+}
+
+/** A stored screenshot. Clicking it shows the whole image. */
+function Shot({ fileId }: { fileId: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    let url = "";
+    loadScreenshot(fileId).then(
+      (next) => {
+        url = next;
+        if (live) setSrc(next);
+        else URL.revokeObjectURL(next);
+      },
+      () => {},
+    );
+    return () => {
+      live = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [fileId]);
+  if (!src) return <span className="text-[12px] text-ink-2">Loading the screenshot…</span>;
+  return (
+    <>
+      <button type="button" className="block" aria-label="Enlarge the screenshot" onClick={() => setOpen(true)}>
+        <img src={src} alt="" className="h-16 w-16 rounded border border-rule object-cover" />
+      </button>
+      {open && (
+        <dialog open className="fixed inset-0 z-50 grid h-full w-full max-h-none max-w-none place-items-center bg-ink/70 p-4" onClick={() => setOpen(false)}>
+          <img src={src} alt="UPI screenshot" className="max-h-[90dvh] max-w-full" />
+        </dialog>
+      )}
+    </>
   );
 }

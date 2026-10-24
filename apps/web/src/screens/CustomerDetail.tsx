@@ -49,6 +49,7 @@ export function CustomerDetail() {
   const grade = ready ? gradeFor(today, invoices, ready, world.promisesByInvoice) : null;
   const history = (ready ?? []).filter((event) => ids.has(event.invoiceId));
   const payments = history.filter((event) => event.type === "payment").sort((a, b) => b.at.localeCompare(a.at));
+  const advances = history.filter((event) => event.type === "advance").sort((a, b) => b.at.localeCompare(a.at));
   // A sent Reminder has both an event and a `reminders` row; list it once, by its event.
   const reminderEvents = history.filter((event) => event.type === "reminder");
   const logged = new Set(reminderEvents.map((event) => `${event.invoiceId}|${stageOf(event.payload)}`));
@@ -145,6 +146,32 @@ export function CustomerDetail() {
         ) : (
           <ul className="entries">
             {payments.map((event) => {
+              const amount = amountOf(event.payload);
+              return (
+                <li key={event.$id} className={`ln ${amount === null ? "wide" : ""}`}>
+                  <div className="m">{formatDate(istDay(event.at), { weekday: false })}</div>
+                  <div className="p">{event.summary}</div>
+                  {amount !== null && <div className="a">{formatInr(amount)}</div>}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Paper>
+
+      <Paper label="Advance">
+        <Head title="Advance" />
+        {events === "loading" ? (
+          <Ln>
+            <p className="text-ink-2">Reading the advance…</p>
+          </Ln>
+        ) : advances.length === 0 ? (
+          <Ln>
+            <p className="text-ink-2">No advance kept yet.</p>
+          </Ln>
+        ) : (
+          <ul className="entries">
+            {advances.map((event) => {
               const amount = amountOf(event.payload);
               return (
                 <li key={event.$id} className={`ln ${amount === null ? "wide" : ""}`}>

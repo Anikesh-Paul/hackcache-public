@@ -74,6 +74,12 @@ export function memoryFiles() {
     async saveAudio(fileId, bytes) {
       audio.set(fileId, bytes);
     },
+    async readScreenshot(fileId) {
+      const file = screenshots.get(fileId);
+      if (!file) return null;
+      const mime = file.name.endsWith(".png") ? "image/png" : file.name.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      return { bytes: file.bytes, mime };
+    },
   };
   return { files, screenshots, audio };
 }

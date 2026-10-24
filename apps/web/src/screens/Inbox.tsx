@@ -1,10 +1,11 @@
 // What Customers did on the pay link, newest first, live (build plan §6.3).
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router";
 import { BadgeCheck, CircleHelp, Flag, Handshake, ImageUp, Inbox as InboxIcon } from "lucide-react";
 import type { EventRow, InboxKind, InboxRow } from "@tagada/appwrite";
 import { formatDate } from "@tagada/money";
 import { markInboxRead } from "../lib/appwrite.ts";
+import { decidePromise } from "../lib/call.ts";
 import { istDay } from "../lib/pricing.ts";
 import { useInbox, usePaymentHistory, useWorld, type World } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
@@ -37,8 +38,46 @@ export function inboxItems(world: World, inbox: readonly InboxRow[], events: rea
     .sort((a, b) => (b.event?.at ?? "").localeCompare(a.event?.at ?? ""));
 }
 
+function promiseIdOf(event: EventRow | undefined): string | null {
+  if (!event?.payload) return null;
+  try {
+    const id = (JSON.parse(event.payload) as { promiseId?: unknown }).promiseId;
+    return typeof id === "string" ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 export function InboxLine({ item, fresh }: { item: InboxItem; fresh: boolean }) {
   const kind = KINDS[item.row.kind];
+  const promiseId = item.row.kind === "needs_decision" ? promiseIdOf(item.event) : null;
+  const [busy, setBusy] = useState<"approve" | "decline" | "read" | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const act = async (action: "approve" | "decline") => {
+    if (!promiseId) return;
+    setBusy(action);
+    setNote(null);
+    try {
+      await decidePromise(promiseId, action);
+      setNote(action === "approve" ? "Approved." : "Declined.");
+    } catch (e) {
+      console.error(e);
+      setNote("That could not be done.");
+    } finally {
+      setBusy(null);
+    }
+  };
+  const mark = async () => {
+    setBusy("read");
+    try {
+      await markInboxRead([item.row.$id]);
+    } catch (e) {
+      console.error("could not mark read", e);
+      setNote("That could not be marked as read.");
+    } finally {
+      setBusy(null);
+    }
+  };
   return (
     <Ln m={item.event ? formatDate(istDay(item.event.at), { weekday: false }) : ""} className="ruler">
       <span className={`word ${kind.tone}`}>
@@ -54,6 +93,44 @@ export function InboxLine({ item, fresh }: { item: InboxItem; fresh: boolean }) 
         )}
       </span>
       <small>{item.event?.summary ?? "Loading what happened…"}</small>
+      <span className="mt-2 flex flex-wrap gap-2">
+        {(item.row.kind === "paid_claim" || item.row.kind === "proof_uploaded") && (
+          <Link to="/app/bank" className="btn secondary">
+            Open in Bank
+          </Link>
+        )}
+        {item.row.kind === "dispute" && item.invoiceId && (
+          <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
+            Open Invoice
+          </Link>
+        )}
+        {item.row.kind === "plan_accepted" && item.invoiceId && (
+          <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
+            Open Invoice
+          </Link>
+        )}
+        {item.row.kind === "needs_decision" && promiseId && (
+          <>
+            <button type="button" className="btn primary" disabled={busy !== null} onClick={() => void act("approve")}>
+              Approve
+            </button>
+            <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => void act("decline")}>
+              Decline
+            </button>
+          </>
+        )}
+        {item.row.kind === "needs_decision" && !promiseId && item.invoiceId && (
+          <Link to={`/app/invoices/${item.invoiceId}`} className="btn secondary">
+            Open Invoice
+          </Link>
+        )}
+        {fresh && (
+          <button type="button" className="btn secondary" disabled={busy !== null} onClick={() => void mark()}>
+            Mark as read
+          </button>
+        )}
+      </span>
+      {note && <small className="mt-1 block">{note}</small>}
     </Ln>
   );
 }
@@ -68,16 +145,7 @@ export function Inbox() {
     [world, inbox, events],
   );
 
-  // What was unread when the page opened stays marked "New" while it is open.
-  const seen = useRef(new Set<string>());
-  const fresh = (row: InboxRow) => !row.read || seen.current.has(row.$id);
-  useEffect(() => {
-    if (!Array.isArray(inbox)) return;
-    const unread = inbox.filter((row) => !row.read && !seen.current.has(row.$id));
-    if (unread.length === 0) return;
-    for (const row of unread) seen.current.add(row.$id);
-    markInboxRead(unread.map((row) => row.$id)).catch((e: unknown) => console.error("could not mark read", e));
-  }, [inbox]);
+  const fresh = (row: InboxRow) => !row.read;
 
   return (
     <Paper label="Inbox">

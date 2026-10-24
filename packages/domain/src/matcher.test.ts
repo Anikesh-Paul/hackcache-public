@@ -5,8 +5,12 @@ import {
   importCount,
   importSummary,
   invoicesForMatch,
+  bankNarration,
   matchCredit,
+  matchForCustomer,
   matcherBrief,
+  narrationAssignedTo,
+  overpayPaise,
   parseStatement,
   type MatchInvoice,
 } from "./index.ts";
@@ -296,6 +300,44 @@ describe("matchCredit", () => {
     expect(match.kind).toBe("unknown");
     expect(match.allocations).toEqual([]);
     expect(match.note.toLowerCase()).toContain("unknown");
+  });
+
+  it("suggests a match once that ₹15,000 deposit is assigned to a Customer", () => {
+    const phonepe = credit("UPI/CR/430219876543/PHONEPE TRANSFER", 1_500_000, "430219876543");
+    const gupta = invoice({
+      id: "gupta",
+      customerId: "gupta",
+      number: "TBW/26-27/0019",
+      customerName: "Gupta Traders",
+      totalPaise: 11_800_000,
+    });
+    const exact = invoice({
+      id: "sen",
+      customerId: "sen",
+      number: "TBW/26-27/0004",
+      customerName: "Sen Handicrafts",
+      totalPaise: 1_500_000,
+    });
+    expect(matchCredit(phonepe, [gupta, exact]).kind).toBe("unknown");
+    const part = matchForCustomer(phonepe, [gupta, exact], { id: "gupta", name: "Gupta Traders" });
+    expect(part.kind).toBe("part");
+    expect(part.allocations).toEqual([{ invoiceId: "gupta", amountPaise: 1_500_000 }]);
+    const full = matchForCustomer(phonepe, [gupta, exact], { id: "sen", name: "Sen Handicrafts" });
+    expect(full.kind).toBe("exact");
+    expect(full.allocations).toEqual([{ invoiceId: "sen", amountPaise: 1_500_000 }]);
+    expect(JSON.stringify(part)).not.toMatch(NO_FAKE);
+    const stored = narrationAssignedTo(phonepe.narration, "Gupta Traders");
+    expect(bankNarration(stored)).toBe(phonepe.narration);
+    expect(matchCredit({ ...phonepe, narration: stored }, [gupta, exact]).allocations).toEqual([
+      { invoiceId: "gupta", amountPaise: 1_500_000 },
+    ]);
+    expect(bankNarration(narrationAssignedTo(stored, "Sen Handicrafts"))).toBe(phonepe.narration);
+  });
+
+  it("keeps an overpayment's extra, in paise, off the Invoice", () => {
+    expect(overpayPaise(850_000, [{ amountPaise: 800_000 }])).toBe(50_000);
+    expect(overpayPaise(800_000, [{ amountPaise: 800_000 }])).toBe(0);
+    expect(overpayPaise(1_500_000, [])).toBe(1_500_000);
   });
 
   it("never uses the word fake", () => {

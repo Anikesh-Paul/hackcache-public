@@ -176,6 +176,15 @@ export function appwriteFiles(client: Client): FileStore {
         (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
       );
     },
+    async readScreenshot(fileId) {
+      return storage.getFileDownload({ bucketId: "screenshots", fileId }).then(
+        (buffer) => {
+          const bytes = new Uint8Array(buffer);
+          return { bytes, mime: imageMime(bytes) };
+        },
+        (e: unknown) => (isNotFound(e) ? null : Promise.reject(e)),
+      );
+    },
     async saveAudio(fileId, bytes) {
       if (heard.size >= 500) heard.delete(heard.keys().next().value ?? "");
       heard.set(fileId, bytes);
@@ -188,6 +197,12 @@ export function appwriteFiles(client: Client): FileStore {
       }
     },
   };
+}
+
+function imageMime(bytes: Uint8Array): string {
+  if (bytes[0] === 0x89 && bytes[1] === 0x50) return "image/png";
+  if (bytes[0] === 0x52 && bytes[1] === 0x49) return "image/webp";
+  return "image/jpeg";
 }
 
 function batches<T>(items: T[], size: number): T[][] {
