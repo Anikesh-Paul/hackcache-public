@@ -330,7 +330,7 @@ export async function sendReminder(deps: LadderDeps, job: ReminderJob): Promise<
     actor: "workflow",
     summary: `${REMINDER_NAMES[job.stage - 1] ?? "Reminder"} sent by email`,
     // The copy the Sent mail page shows.
-    payload: { stage: job.stage, email: mail, providerMessageId: outcome.id },
+    payload: { stage: job.stage, channel: "email", email: mail, providerMessageId: outcome.id },
   });
   return retry ? "retried" : "sent";
 }
@@ -490,7 +490,7 @@ export async function ownerSent(worlds: WorldStore, workspaceId: string, body: u
     type: "reminder",
     actor: "owner",
     summary: `${REMINDER_NAMES[stage - 1]} sent ${channel === "email" ? "by email" : "on WhatsApp"}`,
-    payload: { stage },
+    payload: { stage, channel },
   });
   return { ok: true as const };
 }

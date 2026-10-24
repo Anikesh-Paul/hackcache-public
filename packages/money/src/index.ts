@@ -27,7 +27,7 @@ export { checkGstin, gstinCheckDigit } from "./gstin.ts";
 export type { GstinCheck } from "./gstin.ts";
 
 export { bengaliDate, formatDateIn, type DateLang } from "./local-date.ts";
-export { hindiDate, hindiNumber, hindiRupees, hindiShortDate } from "./hindi.ts";
+export { hindiDate, hindiNumber, hindiRupees } from "./hindi.ts";
 
 export { section16Interest, section16RateBps } from "./interest.ts";
 export type { Section16Input, Section16Interest, Section16RatePart, Section16Rest } from "./interest.ts";

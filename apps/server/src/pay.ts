@@ -427,6 +427,7 @@ export function raiseDispute(worlds: WorldStore, ref: Ref, body: unknown, actor:
             actor === "customer"
               ? `Raised a Dispute on the pay link: "${reason}". The Ladder is paused until you resolve it.`
               : `Marked as disputed: "${reason}". The Ladder is paused until you resolve it.`,
+          payload: { reason },
         },
         actor === "customer" ? "dispute" : null,
       ),
@@ -444,6 +445,7 @@ export function spokenSlip(slip: PaySlip, language: SpeakLanguage): string {
 function spokenBengali(slip: PaySlip): string {
   const hello = `নমস্কার, ${slip.customer.name}। ${slip.from.businessName}-এর বার্তা।`;
   // The number and the word টাকা, with no ₹ sign: the sign would be read as a second currency word.
+  // No grouping commas either (formatAmountInput): the voice reads one plain number, not its parts.
   const money = (paise: number) => `${formatAmountInput(paise)} টাকা`;
   if (slip.state === "paid") return `${hello} আপনার বিল পুরো মিটে গেছে। ধন্যবাদ।`;
   if (slip.state === "paid_claim") return `${hello} ধন্যবাদ। ব্যাংকে নিশ্চিত হলেই আপনাকে জানাব।`;

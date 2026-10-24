@@ -4,7 +4,7 @@ import type { CallRow, ReminderRow } from "@tagada/appwrite";
 import { formatInr } from "@tagada/money";
 import { amountOwed, gradeFor } from "../lib/customer-grade.ts";
 import { LANGUAGES } from "../lib/languages.ts";
-import { useT } from "../i18n/index.ts";
+import { reminderName, useT } from "../i18n/index.ts";
 import { eventText } from "../lib/history.ts";
 import { istDay } from "../lib/pricing.ts";
 import { usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
@@ -56,7 +56,7 @@ export function CustomerDetail() {
       .map((row) => ({
         key: row.$id,
         day: row.sentDate ?? "",
-        text: t.customer.reminderBy(t.ladder.stages[row.stage - 1]?.name ?? t.ladder.reminder, t.customer.channels[row.channel]),
+        text: t.customer.reminderBy(reminderName(t, row.stage), t.customer.channels[row.channel]),
       })),
   ].sort((a, b) => b.day.localeCompare(a.day));
   const callEvents = history.filter((event) => event.type === "call");

@@ -27,7 +27,7 @@ export type CustomerGrade = {
 
 export type GradeFacts = {
   avgDelayDays: number | null;
-  /** Days past due of the latest open Invoice; 0 when none is overdue. */
+  /** Days past due of the most overdue open Invoice; 0 when none is overdue. */
   worstLateDays: number;
   overdueCount: number;
   /** An Invoice is still open three months or more past its due date. */

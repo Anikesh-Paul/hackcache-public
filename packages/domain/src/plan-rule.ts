@@ -33,11 +33,25 @@ export type PlanOffer = {
   instalments: readonly { amountPaise: number; date: string | null }[];
 };
 
+/** Why a Plan is outside the rule, as facts: each screen words them in its own language. */
+export type PlanIssue =
+  | { kind: "first_short"; amountPaise: number; minPaise: number; pct: number }
+  | { kind: "first_late" | "last_late"; date: string; by: string; days: number };
+
+/** The English sentence for an issue: what the AI is told and what stored summaries say. */
+export function planIssueReason(issue: PlanIssue): string {
+  if (issue.kind === "first_short") {
+    return `The first instalment, ${formatInr(issue.amountPaise)}, is below your ${issue.pct}% rule (${formatInr(issue.minPaise)}).`;
+  }
+  const which = issue.kind === "first_late" ? "first" : "last";
+  return `The ${which} instalment is due on ${formatDate(issue.date)}, after your ${issue.days} days (${formatDate(issue.by)}).`;
+}
+
 export type PlanVerdict =
   | { verdict: "accept"; minFirstPaise: number; instalments: Instalment[] }
   /** Only the first amount is short: the same dates with exactly the minimum first. */
-  | { verdict: "counter"; minFirstPaise: number; instalments: Instalment[]; reasons: string[] }
-  | { verdict: "needs_owner"; minFirstPaise: number; instalments: Instalment[]; reasons: string[] }
+  | { verdict: "counter"; minFirstPaise: number; instalments: Instalment[]; issues: PlanIssue[]; reasons: string[] }
+  | { verdict: "needs_owner"; minFirstPaise: number; instalments: Instalment[]; issues: PlanIssue[]; reasons: string[] }
   /** Not a Plan that can be recorded. The sentence says what to do instead. */
   | { verdict: "reject"; minFirstPaise: number; reason: string };
 
@@ -83,17 +97,22 @@ function evaluate(rule: PlanRule, offer: PlanOffer): PlanVerdict {
 
   const firstBy = addDays(offer.today, rule.firstWithinDays);
   const restBy = addDays(offer.today, rule.restWithinDays);
-  const short = first.amountPaise < minFirstPaise;
-  const lateDates = [
+  const short: PlanIssue | false = first.amountPaise < minFirstPaise && {
+    kind: "first_short",
+    amountPaise: first.amountPaise,
+    minPaise: minFirstPaise,
+    pct: rule.minFirstPct,
+  };
+  const late = [
     daysBetween(firstBy, first.date) > 0 &&
-      `The first instalment is due on ${formatDate(first.date)}, after your ${rule.firstWithinDays} days (${formatDate(firstBy)}).`,
+      ({ kind: "first_late", date: first.date, by: firstBy, days: rule.firstWithinDays } as const),
     daysBetween(restBy, last.date) > 0 &&
-      `The last instalment is due on ${formatDate(last.date)}, after your ${rule.restWithinDays} days (${formatDate(restBy)}).`,
-  ].filter((r): r is string => typeof r === "string");
-  const shortReason = `The first instalment, ${formatInr(first.amountPaise)}, is below your ${rule.minFirstPct}% rule (${formatInr(minFirstPaise)}).`;
+      ({ kind: "last_late", date: last.date, by: restBy, days: rule.restWithinDays } as const),
+  ].filter((i): i is Extract<PlanIssue, { kind: "first_late" | "last_late" }> => i !== false);
 
-  if (lateDates.length > 0) {
-    return { verdict: "needs_owner", minFirstPaise, instalments, reasons: short ? [shortReason, ...lateDates] : lateDates };
+  if (late.length > 0) {
+    const issues = short ? [short, ...late] : late;
+    return { verdict: "needs_owner", minFirstPaise, instalments, issues, reasons: issues.map(planIssueReason) };
   }
   if (short) {
     return {
@@ -103,7 +122,8 @@ function evaluate(rule: PlanRule, offer: PlanOffer): PlanVerdict {
         { amountPaise: minFirstPaise, date: first.date },
         { amountPaise: differencePaise(offer.owedPaise, minFirstPaise), date: last.date },
       ],
-      reasons: [shortReason],
+      issues: [short],
+      reasons: [planIssueReason(short)],
     };
   }
   return { verdict: "accept", minFirstPaise, instalments };

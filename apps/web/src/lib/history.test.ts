@@ -29,11 +29,25 @@ describe("stored history in the Owner's language", () => {
       "হালকা অনুস্মারক ইমেলে পাঠানো হয়েছে",
     );
     expect(eventText(COPY.hi, event("plan_accepted", "Chose a Plan", { promiseId: "p1" }), [promise])).toBe(
-      "भुगतान लिंक पर किस्त योजना चुनी: ₹60,000, शुक्र 6 नवंबर तक, फिर ₹58,000, बुध 2 दिसंबर तक। अनुस्मारक सीढ़ी रुकी है।",
+      "भुगतान लिंक पर किश्त योजना चुनी: ₹60,000, शुक्र 6 नवंबर तक, फिर ₹58,000, बुध 2 दिसंबर तक। अनुस्मारक सीढ़ी रुकी है।",
     );
     expect(eventText(COPY.bn, event("dispute", 'Raised a Dispute: "Two chairs broken". The Ladder is paused.'), [])).toContain(
       '"Two chairs broken"',
     );
+  });
+
+  it("reads the channel and the reason from the payload before the stored sentence", () => {
+    // The payload wins over a sentence that says otherwise.
+    expect(eventText(COPY.hi, event("reminder", "sent by email", { stage: 3, channel: "whatsapp_link" }), [])).toBe(
+      eventText(COPY.hi, event("reminder", "sent on WhatsApp", { stage: 3 }), []),
+    );
+    expect(eventText(COPY.bn, event("reminder", "sent", { stage: 1, channel: "email" }), [])).toBe("হালকা অনুস্মারক ইমেলে পাঠানো হয়েছে");
+    expect(eventText(COPY.bn, event("dispute", "Raised a Dispute.", { reason: "Two chairs broken" }), [])).toContain('"Two chairs broken"');
+  });
+
+  it("does not throw on a Promise whose stored instalments cannot be read", () => {
+    const broken = { $id: "p1", instalments: "not json" } as unknown as PromiseRow;
+    expect(() => eventText(COPY.hi, event("plan_accepted", "Chose a Plan", { promiseId: "p1" }), [broken])).not.toThrow();
   });
 
   it("keeps the stored sentence for a type it does not know", () => {

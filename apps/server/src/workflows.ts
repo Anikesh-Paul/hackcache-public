@@ -23,11 +23,50 @@ export async function startDailyLadder(workspaceId: string, demoDate: string) {
   return run.taskRunId;
 }
 
+type Workflows = Pick<Render["workflows"], "startTask" | "getTaskRun">;
+type RunDetails = Awaited<ReturnType<Workflows["getTaskRun"]>>;
+
+const ENDED = new Set<string>(["succeeded", "completed", "failed", "canceled"]);
+
+/**
+ * Starts a task and waits for it to end. The SDK's own wait listens to an event
+ * stream only, and a run that ends without its event reaching us would wait
+ * forever: so the run is also asked for every few seconds, up to a limit.
+ */
+export async function runAndWait(
+  workflows: Workflows,
+  task: string,
+  input: unknown[],
+  { pollMs = 3_000, timeoutMs = 300_000 }: { pollMs?: number; timeoutMs?: number } = {},
+): Promise<RunDetails> {
+  const stop = new AbortController();
+  const started = await workflows.startTask(task, input, { signal: stop.signal });
+  const deadline = Date.now() + timeoutMs;
+  const polled = (async (): Promise<RunDetails> => {
+    while (!stop.signal.aborted) {
+      await new Promise((r) => setTimeout(r, pollMs));
+      if (stop.signal.aborted) break;
+      const run = await workflows.getTaskRun(started.taskRunId).catch(() => null);
+      if (run && ENDED.has(run.status)) return run;
+      if (Date.now() > deadline) {
+        throw new Error(`${task} ${started.taskRunId} still ${run?.status ?? "unknown"} after ${timeoutMs / 1000}s`);
+      }
+    }
+    return new Promise<never>(() => {});
+  })();
+  try {
+    // A dropped event stream leaves the polling to answer.
+    return await Promise.race([started.get().catch(() => polled), polled]);
+  } finally {
+    stop.abort();
+  }
+}
+
 /** The Demo date stepper on Render: runs `dailyLadder` on the workflow service and waits for its summary. */
 export function renderRunner(): LadderRunner {
   const render = new Render();
   return async (workspaceId, demoDate) => {
-    const run = await render.workflows.runTask(DAILY_LADDER_TASK, [workspaceId, demoDate]);
+    const run = await runAndWait(render.workflows, DAILY_LADDER_TASK, [workspaceId, demoDate]);
     const [summary] = run.results;
     if (run.status !== "succeeded" && run.status !== "completed") {
       throw new Error(`dailyLadder ${run.id} ${run.status}: ${run.error ?? "no error given"}`);

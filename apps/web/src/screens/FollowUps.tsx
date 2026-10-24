@@ -13,7 +13,7 @@ import { markReminderSent } from "../lib/appwrite.ts";
 import { bankSuggestionsOf } from "../lib/today.ts";
 import { usePaymentHistory, useReminders, useWorkspaceRows, useWorld } from "../lib/world.tsx";
 import { Head, Ln } from "../ui.tsx";
-import { useT, type Copy } from "../i18n/index.ts";
+import { reminderName, useT, type Copy } from "../i18n/index.ts";
 
 const STATE: Record<FollowUpState, { icon: typeof Check; tone: "ok" | "warn" | "short" | "plain" }> = {
   sent: { icon: Check, tone: "ok" },
@@ -130,7 +130,7 @@ function FollowUpLine({ f }: { f: FollowUp }) {
         </span>
       ) : (
         <span className="mt-1 block">
-          {t.followUps.stageFor(t.ladder.stages[f.stage - 1]?.name ?? f.stageName)}{" "}
+          {t.followUps.stageFor(reminderName(t, f.stage))}{" "}
           <Link to={`/app/invoices/${f.invoiceId}`}>{f.customerName}</Link>,{" "}
           <span className="mono">{f.number}</span>
         </span>
