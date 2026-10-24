@@ -127,3 +127,24 @@ describe("render.yaml", () => {
       for (const v of g.envVars) if ("value" in v) expect(v.key, relative(root, "render.yaml")).not.toMatch(/KEY|SECRET|TOKEN/);
   });
 });
+
+describe("link previews", () => {
+  const html = read("apps/web/index.html");
+  const meta = (attr: "name" | "property", key: string) =>
+    new RegExp(`<meta ${attr}="${key}" content="([^"]+)"`).exec(html)?.[1];
+
+  it("gives WhatsApp and Slack a title, a description and an absolute image URL", () => {
+    expect(meta("name", "description")).toBeTruthy();
+    expect(meta("name", "theme-color")).toBeTruthy();
+    for (const key of ["og:title", "og:description", "og:url"]) expect(meta("property", key), key).toBeTruthy();
+    expect(meta("name", "twitter:card")).toBe("summary_large_image");
+    expect(meta("property", "og:image")).toMatch(/^https:\/\/.+\/og-image\.png$/);
+    expect(meta("name", "twitter:image")).toBe(meta("property", "og:image"));
+  });
+
+  it("serves a 1200×630 image from the static site", () => {
+    const png = readFileSync(join(root, "apps/web/public/og-image.png"));
+    // The IHDR chunk: width and height, big-endian, right after the signature.
+    expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
+  });
+});

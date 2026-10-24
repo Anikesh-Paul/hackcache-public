@@ -34,6 +34,8 @@ export type FileStore = {
   saveAudio(fileId: string, bytes: Uint8Array): Promise<void>;
   /** A screenshot the Owner uploaded, or null when the file is gone. */
   readScreenshot(fileId: string): Promise<{ bytes: Uint8Array; mime: string } | null>;
+  /** Deletes one screenshot; a file already gone is not an error. */
+  deleteScreenshot(fileId: string): Promise<void>;
 };
 
 /** Text to speech: MP3 bytes. `language` is the ElevenLabs language code. */

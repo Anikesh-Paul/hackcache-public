@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { CustomerRow, EventRow, InboxRow, InvoiceRow, PromiseRow, ReminderRow, WorkspaceRow } from "@tagada/appwrite";
 import { invoiceStanding, type InvoiceStanding, type PromiseFacts } from "@tagada/domain";
-import { resetDemo, rowsOf, startDemo, watchRows, type DemoStarted, type LiveRow } from "./appwrite.ts";
+import { deleteWorkspace, resetDemo, rowsOf, startDemo, watchRows, type DemoStarted, type LiveRow } from "./appwrite.ts";
 
 export type World = {
   workspace: WorkspaceRow;
@@ -26,6 +26,8 @@ export type RemindersState = ReminderRow[] | "loading" | "failed";
 
 type WorldContext = WorldState & {
   reset: () => Promise<void>;
+  /** Deletes the visitor's workspace and opens the fresh one. Throws, leaving the books open, when it fails. */
+  deleteMine: () => Promise<void>;
   retry: () => void;
   /** Reads the world again, including rows saved after the page opened. */
   reload: () => Promise<void>;
@@ -243,6 +245,18 @@ export function WorldProvider({ children }: { children: ReactNode }) {
       setState({ status: "error", failed: "reset" });
     }
   }, []);
+  const deleteMine = useCallback(async () => {
+    const started = await deleteWorkspace();
+    setEvents("loading");
+    setInbox("loading");
+    setState({ status: "loading" });
+    try {
+      setState({ status: "ready", world: await loadWorld(started) });
+    } catch (e) {
+      console.error("Opening the fresh world failed", e);
+      setState({ status: "error", failed: "open" });
+    }
+  }, []);
   const retry = useCallback(() => {
     setEvents("loading");
     setState({ status: "loading" });
@@ -259,13 +273,14 @@ export function WorldProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       reset,
+      deleteMine,
       retry,
       reload,
       events: Array.isArray(events) ? merge(events, liveEvents) : events,
       inbox: Array.isArray(inbox) ? merge(inbox, liveInbox) : inbox,
       reminders: Array.isArray(reminders) ? merge(reminders, liveReminders) : reminders,
     }),
-    [state, reset, retry, reload, events, inbox, reminders, liveEvents, liveInbox, liveReminders],
+    [state, reset, deleteMine, retry, reload, events, inbox, reminders, liveEvents, liveInbox, liveReminders],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
