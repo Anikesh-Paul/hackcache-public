@@ -191,7 +191,7 @@ flowchart LR
 |---|---|
 | Web | React 19, Vite, Tailwind CSS 4, React Router, Lucide; IBM Plex Sans, Devanagari and Mono; link previews (Open Graph) for sharing |
 | Server | Hono on Node 22 (Render web service), the only place secrets live |
-| Data | Appwrite (Singapore): anonymous auth, TablesDB with row-level permissions, Storage, Realtime |
+| Data | Appwrite: anonymous auth, TablesDB with row-level permissions, Storage, Realtime |
 | Automation | Render Workflows (`dailyLadder` fans out one `sendReminder` per reminder, each retried by Render) and Render Cron |
 | Voice | ElevenLabs conversational agent running Claude Haiku 5.5, private, with server-signed sessions and client tools; its config is in the repo and `pnpm agent:sync` applies it |
 | Vision | Gemini reads payment screenshots; our code parses the amount |
@@ -219,7 +219,7 @@ Tagada is built to the [Digital Personal Data Protection Act, 2023](https://www.
 
 **What is stored.** No login: the app opens an anonymous Appwrite session, so it never asks for your name or email. Your workspace holds your business details and settings, your Customers (name, phone, email, GSTIN, and whether and when they agreed to reminder calls), Invoices, payments, Promises and Plans, the bank lines you import, the Reminders sent, Inbox messages from the pay link, the AI calls (duration, outcome, transcript and whether the consent check was shown), and the UPI screenshots Customers upload with what was read from them. Every row carries your user's permissions, so no other visitor can read it.
 
-**Where.** Appwrite Cloud in **Singapore**, and the server, workflow and cron on Render, also in Singapore. Secrets stay on the server.
+**Where.** Appwrite Cloud, and the server, workflow and cron on Render. Secrets stay on the server.
 
 **Call consent.** Munim calls only a Customer whose consent is recorded with its date, only within calling hours (10 AM–6 PM on the demo clock), and says it is an AI in its first line. The call row keeps that the check was shown.
 
