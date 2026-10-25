@@ -79,7 +79,8 @@ export function agentBody(toolIds: readonly string[], prompt = agentPrompt()) {
         first_message: MUNIM_FIRST_MESSAGE,
         prompt: {
           prompt,
-          llm: "gemini-2.5-flash",
+          // ElevenLabs runs the LLM; this is its ID for Claude Haiku 5.5.
+          llm: "claude-haiku-5-5",
           temperature: 0.3,
           tool_ids: [...toolIds],
           built_in_tools: { end_call: { name: "end_call", description: "", params: { system_tool_type: "end_call" } } },
