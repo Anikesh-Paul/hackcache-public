@@ -455,11 +455,14 @@ h3 {
       grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
     }
   }
+  /* The headline's amount column grows to fit its figure; the particulars wrap beside it. */
   .hl-row {
     align-items: start;
+    grid-template-columns: var(--margin) minmax(0, 1fr) auto;
   }
   .hl-row > .a {
     border-left: 0;
+    min-width: var(--amount);
   }
   .glyph {
     display: inline-grid;
@@ -1219,7 +1222,7 @@ h3 {
     align-items: center;
     max-width: 1180px;
     margin: 0 auto;
-    padding: 48px 28px 96px;
+    padding: 24px 28px;
   }
   .l-copy {
     transition:
@@ -1231,10 +1234,14 @@ h3 {
     filter: blur(2px);
   }
   .l-copy h1 {
-    font-size: clamp(32px, 4.4vw, 54px);
+    font-size: clamp(32px, 4vw, 50px);
     line-height: 1.06;
     letter-spacing: -0.035em;
-    max-width: 16ch;
+    max-width: 19ch;
+  }
+  /* Devanagari and Bengali carry marks above and below the line. */
+  .landing:not(:lang(en)) .l-copy h1 {
+    line-height: 1.22;
   }
   .l-copy h1 em {
     font-style: normal;
@@ -1246,74 +1253,147 @@ h3 {
     color: var(--ink-2);
   }
   .l-copy .what {
-    margin-top: 20px;
+    margin-top: 16px;
     max-width: 40ch;
     font-size: 19px;
     line-height: 1.5;
   }
+  /* One door to start with, the call beside it, and two quieter links. */
   .doors {
-    margin-top: 28px;
-    border-top: 1px solid var(--ink);
-  }
-  .door {
+    margin-top: 24px;
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto;
+    gap: 12px;
+    max-width: 560px;
+  }
+  .door-main,
+  .door-second {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 14px;
     align-items: center;
     width: 100%;
-    min-height: 64px;
-    padding: 14px 4px 14px 0;
-    border-bottom: 1px solid var(--rule);
     text-align: left;
+    border-radius: 8px;
+    cursor: pointer;
     transition:
       background-color 0.15s,
-      padding 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      border-color 0.15s;
   }
-  .door:not(:disabled):hover {
-    background: color-mix(in srgb, var(--turmeric-soft) 55%, transparent);
-    padding-left: 6px;
+  .door-main {
+    min-height: 68px;
+    padding: 14px 20px;
+    background: var(--bamboo);
+    color: var(--on-primary);
+    box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--bamboo) 80%, transparent);
   }
-  .door:disabled {
-    opacity: 0.55;
+  .door-main:not(:disabled):hover {
+    background: color-mix(in srgb, var(--bamboo) 86%, var(--ink));
   }
-  .door .rib {
-    width: 18px;
-    height: 34px;
-    justify-self: center;
-    clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 78%, 0 100%);
+  .door-main b {
+    display: block;
+    font-size: 20px;
+    font-weight: 600;
   }
-  .door b {
+  .door-main small {
+    display: block;
+    font-size: 14px;
+    opacity: 0.88;
+  }
+  .door-call {
+    border: 1px solid color-mix(in srgb, var(--turmeric) 60%, var(--rule-strong));
+    border-left: 4px solid var(--turmeric);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--turmeric-soft) 45%, transparent);
+  }
+  .door-second {
+    min-height: 64px;
+    padding: 12px 16px;
+    border-radius: 8px 8px 0 0;
+  }
+  .door-second:not(:disabled):hover {
+    background: color-mix(in srgb, var(--turmeric-soft) 70%, transparent);
+  }
+  .door-second .mark {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--turmeric-ink);
+  }
+  .door-second b {
     display: block;
     font-size: 18px;
     font-weight: 600;
   }
-  .door small {
+  .door-second small {
     display: block;
     color: var(--ink-2);
     font-size: 14px;
   }
-  .door .ar {
+  .door-main:disabled,
+  .door-second:disabled,
+  .door-links .linkbtn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .door-second .ar {
     color: var(--ink-2);
   }
+  .door-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 24px;
+    padding: 6px 2px 0;
+    font-size: 15px;
+  }
+  /* "No microphone?" and "What's real?": closed until asked. */
+  .l-hear,
+  .l-real {
+    font-size: 13.5px;
+  }
   .l-hear {
-    margin-top: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid var(--rule);
+    padding: 0 16px 10px;
+  }
+  .l-hear > summary,
+  .l-real > summary {
+    width: fit-content;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: var(--bamboo-ink);
+    font-weight: 500;
   }
   .l-foot {
-    margin-top: 22px;
-    display: grid;
-    gap: 6px;
+    margin-top: 18px;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 18px;
+    max-width: 560px;
     font-size: 13.5px;
     color: var(--ink-2);
   }
   .l-foot .ready {
     color: var(--bamboo-ink);
     font-weight: 500;
+    margin-right: 10px;
   }
   .l-foot .ready svg {
     display: inline;
     vertical-align: -3px;
+  }
+  .l-foot .books {
+    white-space: nowrap;
+  }
+  .l-real[open] {
+    flex-basis: 100%;
+  }
+  .l-real p {
+    margin-top: 4px;
   }
 
   /* The book's cloth and foil are the same in both themes: it is an object on the desk. */
@@ -1483,7 +1563,7 @@ h3 {
   .khata-book.pull-3 .ribbons i:nth-child(4) {
     height: 74px;
   }
-  /* Phones and tablets: the pitch and the doors first, the book a small accent after them. */
+  /* Tablets: the pitch and the doors first, the book a small accent after them. */
   @media (max-width: 960px) {
     .landing {
       grid-template-columns: minmax(0, 1fr);
@@ -1507,11 +1587,29 @@ h3 {
       padding-left: 80px;
     }
   }
-  @media (max-width: 600px) {
+  /* Phones: no book, so the doors are in the first screen. */
+  @media (max-width: 639px) {
     .landing {
-      padding: 20px 16px 96px;
+      align-items: start;
+      padding: 20px 16px 48px;
     }
-    .door b {
+    .khata-book {
+      display: none;
+    }
+    .l-copy h1 {
+      font-size: 30px;
+    }
+    .l-copy .what {
+      margin-top: 12px;
+      font-size: 16.5px;
+    }
+    .doors {
+      margin-top: 18px;
+    }
+    .door-main b {
+      font-size: 18px;
+    }
+    .door-second b {
       font-size: 16.5px;
     }
   }
@@ -1519,7 +1617,8 @@ h3 {
     .khata-book .cov,
     .khata-book .ribbons i,
     .l-copy,
-    .door {
+    .door-main,
+    .door-second {
       transition: none;
     }
   }

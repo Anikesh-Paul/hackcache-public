@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const BOOKS_OPEN = /Your own private copy of the books is open/;
+const BOOKS_OPEN = /Your own copy of the books is ready/;
 
 // landing → Demo world opens → Gupta's Invoice → pay link "already paid" → the Owner's Inbox shows it.
 test("a Customer's 'already paid' on the pay link reaches the Owner's Inbox", async ({ page, context }) => {
@@ -8,7 +8,7 @@ test("a Customer's 'already paid' on the pay link reaches the Owner's Inbox", as
   await expect(page.getByRole("heading", { level: 1 })).toContainText("₹8.1 lakh crore");
   await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
 
-  await page.getByRole("link", { name: "Or open the books yourself" }).click();
+  await page.getByRole("link", { name: "Open the books yourself" }).click();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" }).click();
   await page.getByRole("link", { name: /Gupta Traders/ }).first().click();
   await expect(page.getByText("TBW/26-27/0019").first()).toBeVisible();
@@ -31,7 +31,7 @@ test("a Customer's 'already paid' on the pay link reaches the Owner's Inbox", as
 test("a judge adds a Customer, edits them, bills them and records a payment", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("link", { name: "Or open the books yourself" }).click();
+  await page.getByRole("link", { name: "Open the books yourself" }).click();
   const nav = page.getByRole("navigation", { name: "Main" });
 
   await nav.getByRole("link", { name: "Customers" }).click();
@@ -172,7 +172,7 @@ const CORS = { "access-control-allow-origin": "*" };
 async function openGupta(page: Page) {
   await page.goto("/");
   await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
-  await page.getByRole("link", { name: "Or open the books yourself" }).click();
+  await page.getByRole("link", { name: "Open the books yourself" }).click();
   await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" }).click();
   await page.getByRole("link", { name: /Gupta Traders/ }).first().click();
   await expect(page.getByText("TBW/26-27/0019").first()).toBeVisible();
@@ -239,3 +239,59 @@ test("the language switch changes Today's headline", async ({ page }) => {
   await page.getByRole("button", { name: "EN", exact: true }).click();
   await expect(headline).toHaveText(english ?? "");
 });
+
+// The landing: one primary door, the call beside it, and every door opens its screen.
+test("each landing door opens its screen", async ({ page }) => {
+  const doors: [RegExp, RegExp][] = [
+    [/Be Gupta ji: take the call/, /\/call\//],
+    [/Make your own invoice/, /\/app\/invoices\/new\?try$/],
+    [/See the proof/, /\/proof$/],
+    // Last: the tour stays open once started.
+    [/Start the 2-minute tour/, /\/app$/],
+  ];
+  for (const [name, url] of doors) {
+    await page.goto("/");
+    await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
+    await page.getByRole("button", { name }).click();
+    await expect(page).toHaveURL(url);
+  }
+});
+
+// At 1280 px the whole landing fits one screen; at 390 px the doors are in the first screen.
+for (const [width, height] of [
+  [1280, 720],
+  [390, 844],
+]) {
+  test(`the landing's doors are in the first screen at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/");
+    await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
+    for (const name of [/Start the 2-minute tour/, /Be Gupta ji: take the call/, /Make your own invoice/, /See the proof/]) {
+      const box = await page.getByRole("button", { name }).boundingBox();
+      expect(box!.y + box!.height, `${name} ends inside the first screen`).toBeLessThanOrEqual(height);
+    }
+    if (width >= 1280) expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(height);
+  });
+
+  // The salary figure stays inside its card and the tour's ring, a six-figure amount too.
+  test(`the salary figure stays inside its card at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/app");
+    const figure = page.locator('[data-tour="headline"] .figure');
+    await expect(figure).toBeVisible({ timeout: 60_000 });
+    for (const amount of [null, "₹1,10,000", "₹12,000"]) {
+      if (amount) await figure.evaluate((el, text) => (el.textContent = text), amount);
+      const over = await figure.evaluate((el) => {
+        const right = el.getBoundingClientRect().right;
+        return {
+          row: right - el.closest(".hl-row")!.getBoundingClientRect().right,
+          ring: right - el.closest('[data-tour="headline"]')!.getBoundingClientRect().right,
+          card: right - el.closest(".leaf")!.getBoundingClientRect().right,
+        };
+      });
+      expect(over.row, `${amount ?? "the figure"} passes its row`).toBeLessThanOrEqual(0.5);
+      expect(over.ring, `${amount ?? "the figure"} passes the tour's ring`).toBeLessThanOrEqual(0.5);
+      expect(over.card, `${amount ?? "the figure"} passes its card`).toBeLessThanOrEqual(0.5);
+    }
+  });
+}
