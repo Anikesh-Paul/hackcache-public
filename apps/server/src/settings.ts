@@ -1,8 +1,8 @@
-// The Owner's Settings: business details, registration and turnover (they
+// The Owner's Settings: business details and Udyam number, registration and turnover (they
 // drive the document type and the e-invoicing note), the Plan rule, which
 // Ladder stages the daily run sends by itself, the reply-to email, the
 // language and the Demo date clock's time of day. Only the fields sent are changed, and each is checked here.
-import { AUTO_SEND_SWITCHES, CUSTOMER_LANGS, planRule } from "@tagada/domain";
+import { AUTO_SEND_SWITCHES, CUSTOMER_LANGS, planRule, udyamNumber } from "@tagada/domain";
 import type { WorldStore } from "./demo.ts";
 
 export type SettingsResult = { ok: true } | { ok: false; status: 400; error: "invalid_settings"; field: string };
@@ -19,6 +19,12 @@ const optionalText = (max: number): Check => (v) =>
 const CHECKS: Record<string, Check> = {
   businessName: name,
   address: optionalText(256),
+  // Printed on the letter and the ODR case file, so kept in the certificate's own form.
+  udyamNumber: (v) => {
+    if (v === null || (typeof v === "string" && !v.trim())) return { value: null };
+    const number = typeof v === "string" ? udyamNumber(v) : null;
+    return number ? { value: number } : null;
+  },
   registrationType: (v) => (typeof v === "string" && REGISTRATIONS.includes(v) ? { value: v } : null),
   aggregateTurnoverPaise: (v) => (Number.isSafeInteger(v) && (v as number) >= 0 ? { value: v } : null),
   planRule: (v) => {

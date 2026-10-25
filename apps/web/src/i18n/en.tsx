@@ -765,6 +765,8 @@ export const en = {
     business: "Your business",
     businessName: "Business name",
     address: "Address",
+    udyamNumber: "Udyam registration number (optional)",
+    udyamNote: "As on your Udyam certificate, like UDYAM-XX-00-0000000. It is printed on the Payment Demand Letter and the ODR case file.",
     registration: "GST registration",
     registrations: {
       regular: { name: "Regular GST", note: "Tax Invoice, with GST" },
@@ -815,6 +817,7 @@ export const en = {
     problems: {
       businessName: "Give your business a name.",
       address: "The address is too long.",
+      udyamNumber: "Write the Udyam number as on the certificate, like UDYAM-XX-00-0000000.",
       registrationType: "Choose how you are registered.",
       aggregateTurnoverPaise: "Write the turnover in rupees, like 1,80,00,000.",
       planRule: "The rest must be due after the first instalment; the first instalment is 1% to 100%.",

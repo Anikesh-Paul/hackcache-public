@@ -57,6 +57,16 @@ export const SAMPLE_BANK = {
  */
 export const SAMPLE_UDYAM = "UDYAM-TR-00-0012345";
 
+/**
+ * A Udyam registration number as the certificate prints it, UDYAM-XX-00-0000000,
+ * from what the Owner typed: any case, spaces or none. Null when it is not one.
+ */
+export function udyamNumber(text: string): string | null {
+  const plain = text.toUpperCase().replace(/\s+/g, "");
+  const parts = /^UDYAM-?([A-Z]{2})-?(\d{2})-?(\d{7})$/.exec(plain);
+  return parts ? `UDYAM-${parts[1]}-${parts[2]}-${parts[3]}` : null;
+}
+
 export const ODR_STEPS = [
   "Print this page. It lists the Invoices, the interest workings, the Reminder history and the call transcript excerpt.",
   "Open odr.msme.gov.in and sign in with the supplier's Udyam details.",

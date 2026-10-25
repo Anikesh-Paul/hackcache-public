@@ -35,6 +35,8 @@ const LATIN_OK = new Set(
   (
     "Tagada UPI UTR GST GSTIN CGST SGST IGST ODR MSMED MSME PDF WhatsApp ElevenLabs HSN SAC CSV TDS HUF QR ID AI JPG PNG WebP " +
     "RESEND_API_KEY DEMO_INBOX_EMAIL date narration utr amount via odr msme gov Gupta Traders Roy " +
+    // A Udyam registration number's own prefix, shown as the example to copy.
+    "UDYAM " +
     // The Economic Survey's own box number, cited on the landing page.
     "VIII"
   ).split(" "),
