@@ -98,6 +98,13 @@ export type AppDeps = {
 
 export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, proof, ladder }: AppDeps) {
   const app = new Hono();
+  // The pay page plays the read-aloud clip with <audio> from the web origin, a
+  // no-cors load that secureHeaders' CORP same-origin would block. Registered
+  // first so it runs after secureHeaders has set its headers.
+  app.use("/api/pay/:token/audio", async (c, next) => {
+    await next();
+    c.res.headers.set("Cross-Origin-Resource-Policy", "cross-origin");
+  });
   app.use(secureHeaders());
   if (webOrigin) app.use("/api/*", cors({ origin: webOrigin }));
 

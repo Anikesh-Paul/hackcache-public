@@ -278,6 +278,8 @@ describe("GET /api/pay/:token/audio", () => {
     const first = await app.request(`/api/pay/${gupta().payToken}/audio`);
     expect(first.status).toBe(200);
     expect(first.headers.get("content-type")).toBe("audio/mpeg");
+    // The web origin plays it with <audio>, which CORP same-origin would block.
+    expect(first.headers.get("cross-origin-resource-policy")).toBe("cross-origin");
     await app.request(`/api/pay/${gupta().payToken}/audio`);
     expect(spoken).toHaveLength(1);
     expect(spoken[0]).toContain("एक लाख अठारह हज़ार रुपये");
