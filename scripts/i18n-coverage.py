@@ -13,7 +13,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent / "apps" / "web" / "src"
 FILES = sorted(
     [*ROOT.glob("screens/*.tsx"), ROOT / "tour.tsx", ROOT / "AppShell.tsx", ROOT / "books.tsx", ROOT / "ui.tsx",
-     ROOT / "sample-call.tsx", ROOT / "Proof.tsx", ROOT / "Shell.tsx", ROOT / "pay-qr.tsx"]
+     ROOT / "sample-call.tsx", ROOT / "Proof.tsx", ROOT / "Shell.tsx", ROOT / "pay-qr.tsx", ROOT / "Landing.tsx"]
 )
 # The Customer's pay link has its own table; the Tax Invoice is a GST document printed in English.
 SKIP = {"PayLink.tsx", "TaxInvoice.tsx"}
@@ -22,6 +22,8 @@ ALLOWED = {
     "bank-statement.csv", "ji", "EN",
     # The seeded business name, the brand line, and the captions track's own language name.
     "Tripura", "Bamboo", "Works", "bina", "jhagda", "English",
+    # The closed khata's name plate on the landing page: a place and a year's book.
+    "Agartala", "khata",
 }
 TEXT = re.compile(r">\s*([A-Za-z][^<>{}]*[A-Za-z.?!])\s*<")
 PROP = re.compile(r"\b(?:title|aria-label|placeholder|alt|label)=\"([^\"]*[A-Za-z]{3,}[^\"]*)\"")

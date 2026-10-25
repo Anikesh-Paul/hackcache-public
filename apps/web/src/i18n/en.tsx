@@ -956,6 +956,35 @@ export const en = {
   landing: {
     eightSteps: "Eight steps, and the app moves for you",
     eightStepsFresh: "Eight steps, from a fresh copy of the books",
+    headline: () => (
+      <>
+        India's micro and small businesses are waiting on <em>₹8.1 lakh crore</em> of late payments.
+      </>
+    ),
+    source: "Economic Survey 2025-26, Box VIII.11",
+    what: "Tagada chases what they are owed, politely and in Hindi, and tells the owner whether salary day is safe.",
+    waysIn: "Ways in",
+    tour: "Start the 2-minute tour",
+    call: "Be Gupta ji: take the call",
+    callWhat: "You play the Customer, in Hindi or English",
+    callsOff: "Live calls are off right now: hear a recorded call instead",
+    different: "What makes Tagada different",
+    own: "Make your own invoice",
+    ownWhat: "Bill anyone, pay it as them, watch Today change",
+    proof: "See the proof",
+    proofWhat: "The brief's test cases, worked out live",
+    noMic: "No microphone?",
+    qr: "Open Gupta ji's pay link on your phone",
+    ready: "Your own copy of the books is ready",
+    readyDetail: (customers: number, invoices: number) =>
+      `${plural(customers, "Customer", "Customers")}, ${plural(invoices, "Invoice", "Invoices")}. Nothing you do changes anyone else's.`,
+    settingUp: "Setting up your own copy of the books…",
+    openBooks: "Open the books yourself",
+    whatsReal: "What's real?",
+    realNote: "GST and interest maths, the AI call, the daily Ladder workflow, reminder emails and bank matching.",
+    simulatedNote: "The bank feed, the UPI ID, WhatsApp sending and the history before today.",
+    today: "Today",
+    bookPage: "Today's page of the books",
   },
   tour: {
     progress: (step: number, total: number) => `step ${step} of ${total}`,
