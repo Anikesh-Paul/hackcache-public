@@ -52,8 +52,8 @@ export const SAMPLE_BANK = {
 } as const;
 
 /**
- * The Demo world's Udyam registration number. District code 00 is not issued,
- * so it names no real enterprise; the screen says it is a sample.
+ * The Demo world's Udyam registration number, seeded on its workspace. District
+ * code 00 is not issued, so it names no real enterprise; the screen says it is a sample.
  */
 export const SAMPLE_UDYAM = "UDYAM-TR-00-0012345";
 
@@ -76,6 +76,8 @@ export type DocumentSeller = SellerFacts & {
   gstin: string | null;
   upiVpa: string | null;
   ownerEmail: string | null;
+  /** The Udyam registration number; null when the workspace has none. */
+  udyamNumber: string | null;
 };
 
 export type DocumentCustomer = {
@@ -121,9 +123,10 @@ export type Letterhead = {
   name: string;
   address: string | null;
   gstin: string | null;
-  /** The Demo world's sample Udyam number, for a micro, small or medium seller. */
   udyam: string | null;
   udyamType: string | null;
+  /** True for the Demo world's seeded number, which the screen badges as a sample. */
+  udyamSample: boolean;
   contact: string | null;
 };
 
@@ -304,8 +307,9 @@ function letterheadOf(seller: DocumentSeller, phrases: DocPhrases): Letterhead {
     name: seller.businessName,
     address: seller.address,
     gstin: seller.gstin,
-    udyam: sized ? SAMPLE_UDYAM : null,
+    udyam: seller.udyamNumber,
     udyamType: sized ? phrases.udyamType[sized] : null,
+    udyamSample: seller.udyamNumber === SAMPLE_UDYAM,
     contact: seller.ownerEmail,
   };
 }
