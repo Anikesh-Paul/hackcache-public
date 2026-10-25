@@ -25,6 +25,7 @@ const seller: DocumentSeller = {
   upiVpa: "tripurabamboo@demo",
   ownerEmail: "accounts@tripurabamboo.example",
   udyamType: "micro",
+  udyamNumber: "UDYAM-TR-00-0012345",
   isTrader: false,
 };
 
@@ -369,6 +370,7 @@ describe("the documents' tables", () => {
       gstin: "16AAKFT3920R1Z1",
       udyam: "UDYAM-TR-00-0012345",
       udyamType: "Micro enterprise",
+      udyamSample: true,
       contact: "accounts@tripurabamboo.example",
     });
     expect(letter.payBy).toBe("Please pay by Mon 9 Nov 2026");
@@ -377,9 +379,12 @@ describe("the documents' tables", () => {
     expect(letterText(letter).match(/legal notice/gi)).toEqual(["legal notice"]);
   });
 
-  it("prints no Udyam number for a seller without Udyam", () => {
-    const none = demandLetter({ seller: { ...seller, udyamType: null }, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null });
-    expect(none.letterhead.udyam).toBeNull();
+  it("prints the workspace's own Udyam number, and none when it has none", () => {
+    const own = demandLetter({ seller: { ...seller, udyamNumber: "UDYAM-WB-10-0004127" }, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null });
+    expect(own.letterhead).toMatchObject({ udyam: "UDYAM-WB-10-0004127", udyamSample: false });
+    expect(letterText(own)).toContain("UDYAM-WB-10-0004127");
+    const none = demandLetter({ seller: { ...seller, udyamNumber: null }, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null });
+    expect(none.letterhead).toMatchObject({ udyam: null, udyamSample: false });
   });
 
   it("sums the cover from the same figures as the sections", () => {

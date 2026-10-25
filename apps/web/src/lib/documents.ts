@@ -9,6 +9,7 @@ export function sellerOf(workspace: WorkspaceRow): DocumentSeller {
     upiVpa: workspace.upiVpa,
     ownerEmail: workspace.ownerEmail,
     udyamType: workspace.udyamType,
+    udyamNumber: workspace.udyamNumber ?? null,
     isTrader: workspace.isTrader,
   };
 }

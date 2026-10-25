@@ -53,6 +53,7 @@ describe("Gupta's ODR case file from the seed", () => {
         upiVpa: workspace.upiVpa,
         ownerEmail: workspace.ownerEmail,
         udyamType: workspace.udyamType,
+        udyamNumber: workspace.udyamNumber,
         isTrader: workspace.isTrader,
       },
       customer: { name: gupta.name, address: gupta.address, place: gupta.place },

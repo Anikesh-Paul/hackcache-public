@@ -51,7 +51,7 @@ export function DocLetterhead({
             </div>
           )}
         </dl>
-        {head.udyam && (
+        {head.udyamSample && (
           <p className="no-print mt-1">
             <Badge kind="sim">{udyamNote}</Badge>
           </p>
