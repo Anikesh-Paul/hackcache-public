@@ -1083,6 +1083,8 @@ export const bn: Copy = {
     upiNote: "ডেমো UPI ID, কোনো টাকা যায় না",
     bankNote: "এই ডেমোর নমুনা অ্যাকাউন্ট। কোনো টাকা যায় না।",
     invoiceLoading: "বিল লোড হচ্ছে…",
+    udyamNote: "এই ডেমোর নমুনা উদ্যম নম্বর",
+    glossLoading: "ইংরেজি অর্থ যোগ করা হচ্ছে…",
   },
   duplicate: {
     title: "এই বিলের নকল বানান",

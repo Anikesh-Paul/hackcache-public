@@ -14,7 +14,7 @@ export function sellerOf(workspace: WorkspaceRow): DocumentSeller {
 }
 
 export function customerOf(customer: CustomerRow): DocumentCustomer {
-  return { name: customer.name, address: customer.address, place: customer.place };
+  return { name: customer.name, address: customer.address, place: customer.place, gstin: customer.gstin };
 }
 
 export function invoiceOf(invoice: InvoiceRow): DocumentInvoice {

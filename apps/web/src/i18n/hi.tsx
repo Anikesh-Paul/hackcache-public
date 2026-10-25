@@ -1083,6 +1083,8 @@ export const hi: Copy = {
     upiNote: "डेमो UPI ID, कोई भुगतान नहीं होता",
     bankNote: "इस डेमो की नमूना खाता जानकारी। कोई भुगतान नहीं होता।",
     invoiceLoading: "बिल लोड हो रहा है…",
+    udyamNote: "इस डेमो का नमूना उद्यम नंबर",
+    glossLoading: "अंग्रेज़ी अर्थ जोड़ा जा रहा है…",
   },
   duplicate: {
     title: "इस बिल की नकल बनाएँ",
