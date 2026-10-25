@@ -14,19 +14,22 @@ import { useT } from "./i18n/index.ts";
 /** How long the cover takes to turn; the door lands on its screen just after. */
 const TURN_MS = 1100;
 
-type Door = { key: "tour" | "own" | "call" | "proof"; ribbon: string; title: string; what: string };
+type DoorKey = "tour" | "own" | "call" | "proof";
+type Door = { key: DoorKey; ribbon: string };
 
+// The order of the ribbons under the book; each door pulls its own.
 const DOORS: Door[] = [
-  { key: "tour", ribbon: "var(--bamboo)", title: "Start the 2-minute tour", what: "Eight steps, and the app moves for you" },
-  { key: "own", ribbon: "var(--bamboo-ink)", title: "Make your own invoice", what: "Bill anyone, pay it as them, watch Today change" },
-  { key: "call", ribbon: "var(--turmeric)", title: "Be Gupta ji: take the call", what: "You play the Customer, in Hindi or English" },
-  { key: "proof", ribbon: "var(--ink-2)", title: "See the proof", what: "The brief's test cases, worked out live" },
+  { key: "tour", ribbon: "var(--bamboo)" },
+  { key: "own", ribbon: "var(--bamboo-ink)" },
+  { key: "call", ribbon: "var(--turmeric)" },
+  { key: "proof", ribbon: "var(--ink-2)" },
 ];
 
 /**
- * The judge's front door: the pitch, three doors, and the closed khata. The
+ * The judge's front door: the pitch, one tour to start with, the call that
+ * makes Tagada different, two quieter ways in, and the closed khata. The
  * visitor's own Demo world opens silently while they read, so every door is
- * instant. On phones the pitch and the doors come first; the book follows.
+ * instant. On phones the book is hidden, so the doors are in the first screen.
  */
 export function Landing() {
   const t = useT();
@@ -64,11 +67,11 @@ export function Landing() {
     tour.start({ workspaceId: world.workspace.$id, invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
   }, [restarting, state.status, world, hero, moved, tour]);
 
-  const go = (door: Door) => {
-    if (door.key === "proof") return navigate("/proof");
-    if (door.key === "own") return navigate("/app/invoices/new?try");
+  const go = (key: DoorKey) => {
+    if (key === "proof") return navigate("/proof");
+    if (key === "own") return navigate("/app/invoices/new?try");
     if (!world || !hero) return;
-    if (door.key === "call") return navigate(`/call/${hero.$id}`);
+    if (key === "call") return navigate(`/call/${hero.$id}`);
     if (moved) {
       setRestarting(true);
       void state.reset();
@@ -78,103 +81,111 @@ export function Landing() {
     tour.start({ workspaceId: world.workspace.$id, invoiceId: hero.$id, token: hero.payToken ?? null, today: world.workspace.today });
   };
 
-  const open = (door: Door, index: number) => {
+  const open = (key: DoorKey) => {
     if (opening !== null) return;
-    const book = document.querySelector(".khata-book");
-    const seen = book ? book.getBoundingClientRect().top < window.innerHeight - 80 : false;
-    // The cover turns only where it can be seen, and never for reduced motion.
-    if (!seen || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return go(door);
+    const index = DOORS.findIndex((door) => door.key === key);
+    const book = document.querySelector(".khata-book")?.getBoundingClientRect();
+    // The cover turns only where it can be seen (phones hide the book), and never for reduced motion.
+    const seen = !!book && book.height > 0 && book.top < window.innerHeight - 80;
+    if (!seen || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return go(key);
     setOpening(index);
-    window.setTimeout(() => go(door), TURN_MS);
+    window.setTimeout(() => go(key), TURN_MS);
   };
 
   // The tour can start from a fresh copy; the call needs Gupta ji's open Invoice.
-  const needsWorld = (door: Door) =>
-    (door.key === "tour" && !world) || (door.key === "own" && !world) || (door.key === "call" && !hero);
-  const what = (door: Door) =>
-    door.key === "tour"
-      ? moved
-        ? t.landing.eightStepsFresh
-        : t.landing.eightSteps
-      : door.key === "call" && callsOff
-        ? "Live calls are off right now: hear a recorded call instead"
-        : door.what;
+  const needsWorld = (key: DoorKey) =>
+    (key === "tour" && !world) || (key === "own" && !world) || (key === "call" && !hero);
+  /** What every door shares: it opens, it waits for the books, and it pulls its ribbon. */
+  const door = (key: DoorKey) => {
+    const index = DOORS.findIndex((d) => d.key === key);
+    return {
+      type: "button" as const,
+      disabled: needsWorld(key) || opening !== null,
+      onClick: () => open(key),
+      onPointerEnter: () => setPulled(index),
+      onPointerLeave: () => setPulled(null),
+      onFocus: () => setPulled(index),
+      onBlur: () => setPulled(null),
+    };
+  };
 
   return (
-    <main className={`landing ${opening !== null ? "opening" : ""}`}>
+    <main lang={t.lang} className={`landing ${opening !== null ? "opening" : ""}`}>
       <div className="l-copy">
-        <h1>
-          India's micro and small businesses are waiting on <em>₹8.1 lakh crore</em> of late payments.
-        </h1>
-        <p className="src">Economic Survey 2025-26, Box VIII.11</p>
-        <p className="what">
-          Tagada chases what they are owed, politely and in Hindi, and tells the owner whether salary day is safe.
-        </p>
+        <h1>{t.landing.headline()}</h1>
+        <p className="src">{t.landing.source}</p>
+        <p className="what">{t.landing.what}</p>
 
-        <nav className="doors" aria-label="Ways in">
-          {DOORS.map((door, i) => (
-            <button
-              key={door.key}
-              type="button"
-              className="door"
-              aria-label={door.title}
-              aria-describedby={`door-${door.key}`}
-              disabled={needsWorld(door) || opening !== null}
-              onClick={() => open(door, i)}
-              onPointerEnter={() => setPulled(i)}
-              onPointerLeave={() => setPulled(null)}
-              onFocus={() => setPulled(i)}
-              onBlur={() => setPulled(null)}
-            >
-              <span className="rib" style={{ background: door.ribbon }} aria-hidden />
+        <nav className="doors" aria-label={t.landing.waysIn}>
+          <button {...door("tour")} className="door-main" aria-label={t.landing.tour} aria-describedby="door-tour">
+            <span>
+              <b>{t.landing.tour}</b>
+              <small id="door-tour">{moved ? t.landing.eightStepsFresh : t.landing.eightSteps}</small>
+            </span>
+            <ArrowRight aria-hidden className="ar" />
+          </button>
+
+          <div className="door-call">
+            <button {...door("call")} className="door-second" aria-label={t.landing.call} aria-describedby="door-call">
               <span>
-                <b>{door.title}</b>
-                <small id={`door-${door.key}`}>{what(door)}</small>
+                <span className="mark">{t.landing.different}</span>
+                <b>{t.landing.call}</b>
+                <small id="door-call">{callsOff ? t.landing.callsOff : t.landing.callWhat}</small>
               </span>
               <ArrowRight aria-hidden className="ar" />
             </button>
-          ))}
-        </nav>
+            <details className="l-hear">
+              <summary>{t.landing.noMic}</summary>
+              <CallPlayer />
+              {hero?.payToken && <PayLinkQr token={hero.payToken} label={t.landing.qr} />}
+            </details>
+          </div>
 
-        <section className="l-hear" aria-labelledby="hear-call">
-          <h2 id="hear-call" className="text-[15px] font-semibold">
-            No microphone? Gupta ji's call
-          </h2>
-          <CallPlayer />
-          {hero?.payToken && <PayLinkQr token={hero.payToken} label="Open Gupta ji's pay link on your phone" />}
-        </section>
+          <p className="door-links">
+            <button {...door("own")} className="linkbtn" aria-label={t.landing.own} title={t.landing.ownWhat}>
+              {t.landing.own}
+            </button>
+            <button {...door("proof")} className="linkbtn" aria-label={t.landing.proof} title={t.landing.proofWhat}>
+              {t.landing.proof}
+            </button>
+          </p>
+        </nav>
 
         <div className="l-foot">
           <p role="status" aria-live="polite">
             {world ? (
-              <span className="ready">
-                <Check aria-hidden size={16} /> Your own private copy of the books is open: {world.customers.size}{" "}
-                Customers, {world.invoices.length} Invoices. Nothing you do changes anyone else's.
-              </span>
+              <>
+                <span className="ready" title={t.landing.readyDetail(world.customers.size, world.invoices.length)}>
+                  <Check aria-hidden size={16} /> {t.landing.ready}
+                  <span className="sr-only">
+                    {": "}
+                    {t.landing.readyDetail(world.customers.size, world.invoices.length)}
+                  </span>
+                </span>{" "}
+                <Link to="/app" className="linkbtn books">
+                  {t.landing.openBooks}
+                </Link>
+              </>
             ) : state.status === "error" ? (
               <>
                 {state.failed === "reset" ? t.shell.resetFailed : t.shell.openFailed}{" "}
                 <button type="button" className="linkbtn" onClick={state.retry}>
-                  Try again
+                  {t.common.tryAgain}
                 </button>
               </>
             ) : (
-              "Setting up your own private copy of the books…"
+              t.landing.settingUp
             )}
           </p>
-          {world && (
+          <details className="l-real">
+            <summary>{t.landing.whatsReal}</summary>
             <p>
-              <Link to="/app">Or open the books yourself</Link>
+              <Badge kind="real">{t.shell.real}</Badge> {t.landing.realNote}
             </p>
-          )}
-          <p>
-            <Badge kind="real">Real</Badge> GST and interest maths, the AI call, the daily Ladder workflow, reminder
-            emails and bank matching.
-          </p>
-          <p>
-            <Badge kind="sim">Simulated</Badge> The bank feed, the UPI ID, WhatsApp sending and the history before
-            today.
-          </p>
+            <p>
+              <Badge kind="sim">{t.shell.simulated}</Badge> {t.landing.simulatedNote}
+            </p>
+          </details>
         </div>
       </div>
 
@@ -183,14 +194,14 @@ export function Landing() {
         aria-hidden
       >
         <div className="ribbons">
-          {DOORS.map((door) => (
-            <i key={door.key} style={{ background: door.ribbon }} />
+          {DOORS.map((d) => (
+            <i key={d.key} style={{ background: d.ribbon }} />
           ))}
         </div>
         <div className="pg">
-          <span className="d">{world ? formatDate(world.workspace.today, { year: true }) : "Today"}</span>
+          <span className="d">{world ? formatDate(world.workspace.today, { year: true }) : t.landing.today}</span>
           <span className="o">{world?.workspace.businessName ?? "Tripura Bamboo Works"}</span>
-          <span className="d">Today's page of the books</span>
+          <span className="d">{t.landing.bookPage}</span>
           <span className="lines">
             <i style={{ width: "90%" }} />
             <i style={{ width: "72%" }} />
