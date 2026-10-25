@@ -139,6 +139,7 @@ export function Settings() {
   const [form, setForm] = useState({
     businessName: ws.businessName,
     address: ws.address ?? "",
+    udyamNumber: ws.udyamNumber ?? "",
     registrationType: ws.registrationType,
     turnover: rupees(ws.aggregateTurnoverPaise ?? 0),
     minFirstPct: String(rule.minFirstPct),
@@ -169,6 +170,7 @@ export function Settings() {
       const result = await saveSettings({
         businessName: form.businessName,
         address: form.address,
+        udyamNumber: form.udyamNumber.trim() || null,
         registrationType: form.registrationType,
         aggregateTurnoverPaise: turnoverPaise,
         planRule: {
@@ -218,6 +220,16 @@ export function Settings() {
               <Field label={t.settings.address} hint={hint("address")}>
                 <input className={control} value={form.address} onChange={(e) => set({ address: e.target.value })} />
               </Field>
+              <Field label={t.settings.udyamNumber} hint={hint("udyamNumber")}>
+                <input
+                  className={`${control} mono`}
+                  autoCapitalize="characters"
+                  spellCheck={false}
+                  value={form.udyamNumber}
+                  onChange={(e) => set({ udyamNumber: e.target.value })}
+                />
+              </Field>
+              <small className="-mt-2 text-ink-2">{t.settings.udyamNote}</small>
               <fieldset className="picker grid gap-2">
                 <legend className="px-1 text-sm font-medium">{t.settings.registration}</legend>
                 {REGISTRATIONS.map((id) => (

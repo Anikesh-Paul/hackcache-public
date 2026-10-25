@@ -9,12 +9,13 @@ export function sellerOf(workspace: WorkspaceRow): DocumentSeller {
     upiVpa: workspace.upiVpa,
     ownerEmail: workspace.ownerEmail,
     udyamType: workspace.udyamType,
+    udyamNumber: workspace.udyamNumber ?? null,
     isTrader: workspace.isTrader,
   };
 }
 
 export function customerOf(customer: CustomerRow): DocumentCustomer {
-  return { name: customer.name, address: customer.address, place: customer.place };
+  return { name: customer.name, address: customer.address, place: customer.place, gstin: customer.gstin };
 }
 
 export function invoiceOf(invoice: InvoiceRow): DocumentInvoice {

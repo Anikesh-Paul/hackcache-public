@@ -153,7 +153,7 @@ function chaseActual(): string {
 
 function letterActual(invoices: readonly DocumentInvoice[], promises: readonly DocumentPromise[], today = "2026-11-02"): string {
   const letter = demandLetter({
-    seller: { businessName: "Tripura Bamboo Works", address: null, gstin: null, upiVpa: null, ownerEmail: null, udyamType: "micro", isTrader: false },
+    seller: { businessName: "Tripura Bamboo Works", address: null, gstin: null, upiVpa: null, ownerEmail: null, udyamType: "micro", udyamNumber: null, isTrader: false },
     customer: { name: "Gupta Traders", address: null, place: "Kolkata" },
     invoices,
     promises,

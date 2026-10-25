@@ -17,7 +17,7 @@ import type {
   WorkflowRunRow,
   WorkspaceRow,
 } from "@tagada/appwrite";
-import { bankTxnId, munimFirstLine } from "@tagada/domain";
+import { SAMPLE_UDYAM, bankTxnId, munimFirstLine } from "@tagada/domain";
 import {
   addDays,
   differencePaise,
@@ -480,6 +480,7 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
     registrationType: "regular",
     aggregateTurnoverPaise: turnover,
     udyamType: "micro",
+    udyamNumber: SAMPLE_UDYAM,
     isTrader: false,
     // Not a real UPI handle, so a judge who scans the QR cannot pay anyone.
     upiVpa: "tripurabamboo@demo",

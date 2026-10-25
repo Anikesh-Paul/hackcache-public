@@ -14,6 +14,7 @@ const workspace: WorkspaceRow = {
   registrationType: "regular",
   aggregateTurnoverPaise: 1_800_000_000,
   udyamType: "micro",
+  udyamNumber: null,
   isTrader: false,
   upiVpa: "tripurabamboo@demo",
   ownerEmail: null,

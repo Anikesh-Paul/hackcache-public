@@ -76,6 +76,8 @@ export const tables = {
     oneOf("registrationType", ["regular", "composition", "unregistered"]),
     paise("aggregateTurnoverPaise"),
     oneOf("udyamType", ["micro", "small", "medium", "none"], false),
+    // "UDYAM-TR-00-0012345": printed on the letter and the ODR case file.
+    str("udyamNumber", 19),
     bool("isTrader"),
     str("upiVpa", 64),
     str("ownerEmail", 254),

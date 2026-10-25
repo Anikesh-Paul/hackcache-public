@@ -12,6 +12,7 @@ export type WorkspaceRow = Row<{
   registrationType: "regular" | "composition" | "unregistered";
   aggregateTurnoverPaise: number | null;
   udyamType: "micro" | "small" | "medium" | "none" | null;
+  udyamNumber: string | null;
   isTrader: boolean;
   upiVpa: string | null;
   ownerEmail: string | null;

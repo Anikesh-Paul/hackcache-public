@@ -758,6 +758,8 @@ export const hi: Copy = {
     business: "आपका कारोबार",
     businessName: "कारोबार का नाम",
     address: "पता",
+    udyamNumber: "उद्यम पंजीकरण नंबर (वैकल्पिक)",
+    udyamNote: "जैसा आपके उद्यम प्रमाणपत्र पर है, जैसे UDYAM-XX-00-0000000। यह बकाया भुगतान के पत्र और ओडीआर केस फ़ाइल पर छपता है।",
     registration: "GST पंजीकरण",
     registrations: {
       regular: { name: "सामान्य GST", note: "टैक्स इनवॉइस, GST के साथ" },
@@ -808,6 +810,7 @@ export const hi: Copy = {
     problems: {
       businessName: "अपने कारोबार का नाम लिखें।",
       address: "पता बहुत लंबा है।",
+      udyamNumber: "उद्यम नंबर प्रमाणपत्र की तरह लिखें, जैसे UDYAM-XX-00-0000000।",
       registrationType: "चुनें कि आपका पंजीकरण किस तरह का है।",
       aggregateTurnoverPaise: "टर्नओवर रुपयों में लिखें, जैसे 1,80,00,000।",
       planRule: "बाकी रकम पहली किश्त के बाद देय होनी चाहिए; पहली किश्त 1% से 100% के बीच हो।",
@@ -1083,6 +1086,8 @@ export const hi: Copy = {
     upiNote: "डेमो UPI ID, कोई भुगतान नहीं होता",
     bankNote: "इस डेमो की नमूना खाता जानकारी। कोई भुगतान नहीं होता।",
     invoiceLoading: "बिल लोड हो रहा है…",
+    udyamNote: "इस डेमो का नमूना उद्यम नंबर",
+    glossLoading: "अंग्रेज़ी अर्थ जोड़ा जा रहा है…",
   },
   duplicate: {
     title: "इस बिल की नकल बनाएँ",

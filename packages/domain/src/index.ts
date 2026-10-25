@@ -126,10 +126,13 @@ export {
   ODR_EXPLAIN,
   ODR_STEPS,
   SAMPLE_BANK,
+  SAMPLE_UDYAM,
   TDS_EXPLAIN,
   callTurns,
   caseText,
   demandLetter,
+  documentReference,
+  udyamNumber,
   letterText,
   odrCaseFile,
   transcriptExcerpt,
@@ -138,6 +141,8 @@ export type {
   CallTurn,
   CaseFile,
   CaseReminderLine,
+  CaseReminderRow,
+  CaseTurn,
   DemandLetter,
   DocumentCall,
   DocumentCustomer,
@@ -145,7 +150,9 @@ export type {
   DocumentPromise,
   DocumentReminder,
   DocumentSeller,
+  InterestRow,
   LetterInvoiceLine,
+  Letterhead,
 } from "./documents.ts";
 
 export { runDomainCases } from "./proof-cases.ts";
