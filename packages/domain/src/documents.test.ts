@@ -6,6 +6,7 @@ import {
   demandLetter,
   letterText,
   odrCaseFile,
+  callTurns,
   transcriptExcerpt,
   type DocumentCall,
   type DocumentCustomer,
@@ -345,5 +346,31 @@ describe("transcriptExcerpt", () => {
     expect(transcriptExcerpt(null)).toBeNull();
     expect(transcriptExcerpt("not json")).toBeNull();
     expect(transcriptExcerpt("{}")).toBeNull();
+  });
+});
+
+describe("callTurns", () => {
+  it("reads a stored call's lines in order, with their times and without voice tags", () => {
+    const raw = JSON.stringify({
+      issued: { call_id: "k1" },
+      turns: [
+        { role: "agent", message: "[warm] नमस्ते Barua जी", t: 0 },
+        { role: "user", message: "जी, ज़रूर।", t: 16 },
+        { role: "tool", message: "ignored", t: 20 },
+        { role: "agent", message: "   ", t: 21 },
+      ],
+      credits: 400,
+    });
+    expect(callTurns(raw)).toEqual([
+      { role: "agent", message: "नमस्ते Barua जी", at: 0 },
+      { role: "user", message: "जी, ज़रूर।", at: 16 },
+    ]);
+  });
+
+  it("is null before the webhook has stored the transcript, or when it refused it as tampered", () => {
+    expect(callTurns(null)).toBeNull();
+    expect(callTurns(JSON.stringify({ issued: { call_id: "k1" } }))).toBeNull();
+    expect(callTurns(JSON.stringify({ issued: {}, tampered: ["amount_words"] }))).toBeNull();
+    expect(callTurns("not json")).toBeNull();
   });
 });
