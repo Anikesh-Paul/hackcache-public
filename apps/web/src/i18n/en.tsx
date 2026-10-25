@@ -353,6 +353,7 @@ export const en = {
     madeSteps: (name: string) => [
       `Open the pay link as ${name}.`,
       "Say it is paid, ask for more time, or raise a dispute.",
+      `Or press Call with AI and play ${name}: before the due date, Munim makes a friendly heads-up call.`,
       "Come back: the bell shows what they did, and this Invoice's timeline has it too.",
     ],
     nextSteps: "Next steps",
@@ -850,6 +851,15 @@ export const en = {
       no_consent: (name: string) => `${name} has not agreed to reminder calls. Send a reminder or the pay link instead.`,
       outside_hours: (_name: string, clock: string) => `It is ${clock} by the Demo date clock. Calls are made only between 10 AM and 6 PM.`,
     } satisfies Record<CallBlock, (name: string, clock: string) => string>,
+    setClock: "Set the clock to 11 AM",
+    clockFailed: "The clock could not be set. Try again.",
+    courtesy: (due: string) => `Not due until ${due}: Munim makes a friendly heads-up call, not a reminder of a late bill.`,
+    offLabel: "Calls off",
+    off: {
+      call_unavailable: "Live calls are off on this server right now. Listen to a recorded call instead.",
+      daily_cap: "Today's live calls are used up for everyone. Listen to a recorded call instead, or try a live one tomorrow.",
+      limit_reached: "This Demo world has used its live calls. Listen to a recorded call instead, or read an earlier call's transcript on the Invoice.",
+    },
     start: "Start call",
     mic: (name: string) => `The browser asks for your microphone. Munim speaks Hindi; answer as ${name} ji would.`,
     failedLabel: { mic_denied: "Microphone", no_answer: "No answer", other: "Not now" },

@@ -69,6 +69,7 @@ export {
   CALLING_HOURS,
   CALL_OUTCOMES,
   DEMO_CLOCK,
+  MUNIM_FIRST_MESSAGE,
   callCalendar,
   callConfirmation,
   callDay,

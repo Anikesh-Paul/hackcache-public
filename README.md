@@ -262,6 +262,7 @@ You need Node 22.12+, pnpm 11, an Appwrite project, and keys for ElevenLabs, Gem
 pnpm install
 cp .env.example .env          # fill in the keys
 pnpm appwrite:setup           # creates the tables, indexes and buckets, and adds new enum values (safe to re-run)
+pnpm agent:sync               # creates or updates the ElevenLabs call agent from apps/server/src/agent/, prints its ID
 
 pnpm dev:server               # API on http://localhost:8787
 pnpm dev:web                  # app on http://localhost:5173
