@@ -688,7 +688,8 @@ export function seedWorld({ workspaceId, ownerUserId }: SeedIds): World {
           type: "call",
           actor: "ai",
           summary: `Call with AI, 0 min ${GUPTA_CALL.durationS} s. Gupta ji said he would call back; no Plan was agreed.`,
-          payload: null,
+          // Points at the stored call below, so the Invoice can show its transcript.
+          payload: JSON.stringify({ callId: id("gcall"), conversationId: `${SEEDED_CALL_PREFIX}${workspaceId}` }),
         },
       );
     }
