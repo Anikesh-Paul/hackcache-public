@@ -9,7 +9,7 @@ A collections desk for India's small manufacturers: it ranks who to chase, calls
 **[Open the live app](https://app-web-dlk4.onrender.com)** · **[See every rupee checked](https://app-web-dlk4.onrender.com/proof)** · No login, no setup
 
 [![CI](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml/badge.svg)](https://github.com/Anikesh-Paul/hackcache-public/actions/workflows/ci.yml)
-![Tests](https://img.shields.io/badge/unit%20tests-583%20passing-3f6b35)
+![Tests](https://img.shields.io/badge/unit%20tests-610%20passing-3f6b35)
 ![Proof](https://img.shields.io/badge/%2Fproof-45%20of%2045-3f6b35)
 ![Languages](https://img.shields.io/badge/English%20%C2%B7%20%E0%A4%B9%E0%A4%BF%E0%A4%A8%E0%A5%8D%E0%A4%A6%E0%A5%80%20%C2%B7%20%E0%A6%AC%E0%A6%BE%E0%A6%82%E0%A6%B2%E0%A6%BE-c9952b)
 
@@ -35,16 +35,16 @@ Every screen exists to turn that number green.
 
 ## Try it in 60 seconds
 
-Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While you read the landing page, Tagada quietly builds **your own private copy of the books**: 12 customers and 31 invoices over six months. Nothing you do changes anyone else's screens. Then pick a door:
+Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While you read the landing page, Tagada quietly builds **your own private copy of the books**: 12 customers and 31 invoices over six months. Nothing you do changes anyone else's screens. Then pick a way in: the tour is the big button, the call sits under it, and the other two are quieter links.
 
-| Door | What happens |
+| Way in | What happens |
 |---|---|
 | **Start the 2-minute tour** | Eight steps. The app moves itself to each screen and changes the books for you, from ₹48,000 short to salaries covered, and ends on what Tagada changed: days to get paid 86 → 74. |
-| **Make your own invoice** | Bill any customer, or add one with your own name (GSTIN optional, part quantities like 2.5 kg are fine). Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. Add or edit a Customer with your own email, record a payment by hand, or correct or cancel an unpaid invoice. |
-| **Be Gupta ji: take the call** | You play the customer. Speak Hindi or English to Munim, the AI agent, and watch the owner's books change as you talk. No microphone? Read or play the recorded call instead. |
+| **Be Gupta ji: take the call** | What makes Tagada different. You play the customer: speak Hindi or English to Munim, the AI agent, and watch the owner's books change as you talk. **No microphone?** opens the recorded call and a QR code for the pay link, right under the button. |
+| **Make your own invoice** | A three-step guide. Bill any customer, or add one with your own name (GSTIN optional), pick a unit (kg, m, pcs…) and a part quantity like 2.5 kg, and choose the due date. Open its pay link as that customer, say it's paid, ask for time or dispute it, and watch Today and the bell change. Add or edit a Customer, record a payment by hand (cash, cheque, UPI or bank transfer), or edit or cancel an unpaid invoice. |
 | **See the proof** | 45 test cases: the brief's (GST, interest, matching, the Ladder, grades) and Section 43B(h), computed live in your browser from the same code the app runs. |
 
-**Reset demo** in the header brings the starting story back at any time.
+**What's real?** under the doors says what is live and what is simulated. **Reset demo** in the header brings the starting story back at any time.
 
 ## What it does
 
@@ -65,7 +65,7 @@ Open **[app-web-dlk4.onrender.com](https://app-web-dlk4.onrender.com)**. While y
 
 <img src="docs/screenshots/call.png" alt="The call screen: guardrails checked before the call, three customer personas to play, and the owner's books updating live beside it" width="900">
 
-Munim is a Hindi voice agent that calls the customer from the browser. The guardrails are checked before every call, and you can see them:
+Munim is a Hindi voice agent that calls the customer from the browser: an ElevenLabs voice, with its replies written by **Claude Haiku 5.5**. Call with AI is on every open, undisputed invoice: after the due date it's a reminder call, before it a courtesy call. The guardrails are checked before every call, and you can see them:
 
 - the customer's recorded consent, and calling hours (10 AM–6 PM on the demo clock);
 - Munim says it is an AI in its first line;
@@ -74,7 +74,11 @@ Munim is a Hindi voice agent that calls the customer from the browser. The guard
 
 **Code checks the Plan rule, not the AI.** When Gupta ji offers ₹40,000, the rule check appears in the margin and Munim counters with exactly the minimum, ₹59,000. When he says ₹60,000, the new figure is checked again. A plan outside the rule, or one missing a date, is refused by the server with a sentence telling the agent what to do instead. The owner sees *Plan agreed* or *Needs your decision* and can approve, counter or decline. Approving pauses the Ladder for that customer, puts the plan on the pay link, and turns the headline to **Salary covered, ₹12,000 spare**.
 
-There are three personas to play (*Cooperative*, *Short on cash*, *Disputes the bill*), each with lines to say in Hindi and English. The cost of every call is computed from its real duration. Each workspace gets 5 calls and the whole app 60 a day, so the public link can't drain the voice credits.
+There are three personas to play (*Cooperative*, *Short on cash*, *Disputes the bill*), each with lines to say in Hindi and English, and every line Munim says comes with an English gloss. The cost of every call is computed from its real duration.
+
+- **Every past call stays readable.** The invoice's timeline has *Show transcript* on each call: who said what and when, with the same English gloss. A fresh workspace already has one, Gupta ji's earlier call.
+- **Never a dead button.** Each workspace gets 5 calls and the whole app 60 a day, so the public link can't drain the voice credits. When calls are off, used up or outside calling hours, the call screen says why and plays the recorded call instead; outside hours, **Set the clock to 11 AM** brings the demo clock back inside them.
+- **The agent lives in the repo.** Its prompt, first line, voice, model and client tools are in [`apps/server/src/agent/`](apps/server/src/agent/), and `pnpm agent:sync` rebuilds it on ElevenLabs.
 
 ### The pay link: what the customer sees
 
@@ -83,7 +87,7 @@ There are three personas to play (*Cooperative*, *Short on cash*, *Disputes the 
 <td width="300"><img src="docs/screenshots/pay-link.png" alt="The customer's pay link on a phone, in Hindi: amount owed, pay by UPI, I have already paid, I need some time, and something is wrong with the bill" width="280"></td>
 <td>
 
-The customer gets a mobile pay slip in **Hindi first**, with **Bengali** and **English** a tap away, and a **read-aloud** button. No login, and the link can't be guessed and expires. From it they can:
+The customer gets a mobile pay slip in **Hindi first**, with **Bengali** and **English** a tap away, and a **read-aloud** button that shows when it's loading and says plainly if the voice fails (and is hidden when the server has no voice). No login, and the link can't be guessed and expires. From it they can:
 
 - **Pay by UPI**: one tap, the amount filled in, and a QR code on desktop.
 - **मैंने भुगतान कर दिया है**, "I've already paid": upload a UPI screenshot. It is read for UTR, amount, date and payee, then checked against the bank credits. The answer is *found*, *not found yet* or *amount differs*, never "fake".
@@ -119,12 +123,13 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 
 ### Documents, done properly
 
-- **New invoice** with live GST: CGST + SGST or IGST by place of supply, each rounded to the paisa, a round-off line and the amount in words. The GSTIN is checked live, check digit included. The server assigns the next financial-year number and recomputes every total, so the numbers can't be tampered with.
+- **New invoice** with live GST: CGST + SGST or IGST by place of supply, each rounded to the paisa, a round-off line and the amount in words. The GSTIN is checked live, check digit included. Each line takes an HSN, a unit and a quantity to three decimals; the due date starts at the Customer's credit days and can be changed. The form says what still stops Save. The server assigns the next financial-year number and recomputes every total, so the numbers can't be tampered with.
+- **Correct, cancel or record a payment.** An unpaid invoice can be edited (lines and due date) or cancelled, never deleted: under GST its number stays used, and it drops out of what's owed, the Ladder and matching. A payment received outside the bank feed is recorded by hand, and Today counts it from its date.
 - **The right document every time**: a Tax Invoice, a **Bill of Supply** with the exact composition heading, or a plain invoice, depending on the seller's registration. A "Preview as" switch shows every case.
 - **Print-ready A4** invoices with a UPI QR code for the amount.
 - **MSMED interest**: three times the RBI Bank Rate, compounded monthly, with the dated rate change (16.5% before 7 Oct 2026, 17.25% after) and a **Why?** showing the workings.
 - **Section 43B(h)**: since FY 2023-24, a buyer may claim what they owe a micro or small enterprise as an expense in the Invoice's year only if they pay by the MSMED Act's appointed day (at most 45 days); paid later, only in the year they pay. It's a lawful reason for the buyer to pay on time, not a threat. The overdue reminders, the letter and the call say by when the bill stays in this year, always as "may", and the Invoice shows it with a **Why?**. A trader or a medium enterprise is never shown it.
-- **Payment Demand Letter**: firm, correct, and never called a "legal notice". It is never sent automatically. A letterhead with GSTIN, Udyam and a reference number (`TBW/DL/26-27/0019`), the amount due in figures and words, UPI QR and bank transfer side by side, and the MSMED and 43B(h) notes as quiet notes above the signature.
+- **Payment Demand Letter**: firm, correct, and never called a "legal notice". It is never sent automatically. A letterhead with GSTIN, the owner's Udyam number (set in **Settings**; the demo's sample one is badged as a sample, and no number means no Udyam line) and a reference number (`TBW/DL/26-27/0019`), the amount due in figures and words, UPI QR and bank transfer side by side, and the MSMED and 43B(h) notes as quiet notes above the signature.
 - **ODR case file**: a cover box with the claimant, the respondent and the total claimed, then numbered sections: the invoices, the MSMED §16 interest table, the dated reminder history, a call excerpt with its English gloss, and the steps for the government's [odr.msme.gov.in](https://odr.msme.gov.in) portal.
 - Both print as A4 in the customer's language (English, हिन्दी or বাংলা), with the business name and page numbers in the footer, and run onto a second page cleanly when the history is long.
 
@@ -134,6 +139,13 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 <td><img src="docs/screenshots/case-file.png" alt="The ODR case file for Gupta Traders: claimant and respondent, ₹1,20,057.65 claimed, and numbered sections for invoices, interest, reminders, the call excerpt and filing steps" width="440"></td>
 </tr>
 </table>
+
+### Settings: the owner's rules
+
+- **The business**: name, address, Udyam number, GST registration (regular, composition or none, which decides the document) and turnover (above ₹5 crore adds the e-invoicing note).
+- **The Plan rule** that Call with AI and the pay link must keep.
+- **Auto-send stages**: which Ladder messages the 10:00 run may email on its own; the rest wait in Today's follow-ups. The Payment Demand Letter is never one of them.
+- **Your email, your language**, and **Your data** with *Delete my workspace* (see [Your data](#your-data)).
 
 ### Built for the owner's language and phone
 
@@ -145,7 +157,7 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 
 ### /proof: every rupee, checked
 
-<img src="docs/screenshots/proof.png" alt="The /proof page: 44 of 44 passed, each case showing what was expected and what the code computed" width="900">
+<img src="docs/screenshots/proof.png" alt="The /proof page: 45 of 45 passed, each case showing what was expected and what the code computed" width="900">
 
 The brief's cases (GST, interest, GSTIN, numbering, Hindi words, matching, the Ladder, the Plan rule, grades, ageing, the chase order, the letter and the forecast headline), and Section 43B(h), run **in your browser, from the same packages the app uses**. Each shows its input, the expected value and the computed value, and links to the test that locks it at the deployed commit.
 
@@ -157,7 +169,7 @@ flowchart LR
   customer["Customer's phone<br/>pay link"]
   server["API server<br/>Hono on Node 22"]
   appwrite[("Appwrite<br/>TablesDB · Storage · Realtime")]
-  voice["ElevenLabs<br/>Hindi voice agent"]
+  voice["ElevenLabs<br/>Hindi voice agent<br/>replies by Claude Haiku 5.5"]
   vision["Gemini<br/>reads UPI screenshots"]
   cron["Render Cron<br/>10:00 IST"]
   wf["Render Workflows<br/>dailyLadder → sendReminder"]
@@ -177,11 +189,11 @@ flowchart LR
 
 | Layer | What we used |
 |---|---|
-| Web | React 19, Vite, Tailwind CSS 4, React Router, Lucide; IBM Plex Sans, Devanagari and Mono |
+| Web | React 19, Vite, Tailwind CSS 4, React Router, Lucide; IBM Plex Sans, Devanagari and Mono; link previews (Open Graph) for sharing |
 | Server | Hono on Node 22 (Render web service), the only place secrets live |
 | Data | Appwrite (Singapore): anonymous auth, TablesDB with row-level permissions, Storage, Realtime |
 | Automation | Render Workflows (`dailyLadder` fans out one `sendReminder` per reminder, each retried by Render) and Render Cron |
-| Voice | ElevenLabs conversational agent, private, with server-signed sessions and client tools |
+| Voice | ElevenLabs conversational agent running Claude Haiku 5.5, private, with server-signed sessions and client tools; its config is in the repo and `pnpm agent:sync` applies it |
 | Vision | Gemini reads payment screenshots; our code parses the amount |
 | Email | Resend |
 | Monorepo | pnpm workspaces, TypeScript throughout |
@@ -213,7 +225,7 @@ Tagada is built to the [Digital Personal Data Protection Act, 2023](https://www.
 
 **Screenshots read by Gemini.** A UPI screenshot is sent to Google's Gemini API once, to read its UTR, amount, date and payee as text; our code parses the amount. The image stays in a Storage bucket only you can read, and the fields read are kept with the Invoice.
 
-**Other services.** ElevenLabs runs the voice of the call; Resend delivers reminder emails, in this demo only to the one Demo inbox. Read-aloud clips on the pay link are stored by the words spoken, not by workspace, so a repeat listen costs nothing.
+**Other services.** ElevenLabs runs the voice of the call, and the words of the call pass through the model it runs for Munim, Claude Haiku 5.5; Resend delivers reminder emails, in this demo only to the one Demo inbox. Read-aloud clips on the pay link are stored by the words spoken, not by workspace, so a repeat listen costs nothing.
 
 **How long a demo workspace lives.** Until you delete it: nothing expires it on its own yet (an automatic clean-up after 30 days is the next step, not built for the hackathon). Pay links are signed to expire after 60 days.
 
@@ -223,9 +235,9 @@ Tagada is built to the [Digital Personal Data Protection Act, 2023](https://www.
 
 | | |
 |---|---|
-| **583 unit tests** (Vitest) | Every money and domain rule, the server's routes (Delete my workspace among them: every table and file, and only the visitor's own), the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
+| **610 unit tests** (Vitest) | Every money and domain rule, the server's routes (Delete my workspace among them: every table and file, and only the visitor's own), the call agent's checked-in config, the documents' tables and reference numbers, the language tables (missing keys, leftover English, wrong synonyms), and the Ladder's no-double-send guarantee. Run on every push by CI, with type checks. |
 | **45 live cases** on `/proof` | The brief's cases and Section 43B(h), from the same packages, in the judge's own browser |
-| **5 end-to-end tests** (Playwright), run against the live site | A customer's "already paid" reaching the owner's Inbox; the tour to *Salary covered ✓* and `/proof`; the tour twice in a row from a reset with no failed send; `/proof` typed mid-tour; the language switch |
+| **16 end-to-end tests** (Playwright), run against the live site | A customer's "already paid" reaching the owner's Inbox; adding, editing and billing a Customer and recording a payment; the tour to *Salary covered ✓* and `/proof`, twice in a row from a reset, and with `/proof` typed mid-tour; the call screen with calls off; a past call's transcript; read-aloud loading, failing and hidden; the language switch; each landing door, all in the first screen at 1280 and 390 px; the salary figure inside its card; the letter and the case file printed as A4 PDFs in English, Hindi and Bengali |
 
 ## The business case
 
@@ -285,6 +297,7 @@ Everything deploys from [`render.yaml`](render.yaml): a static site, the web ser
 apps/
   web/         the owner's app, the pay link, the call, /proof
   server/      the API: demo worlds, calls, pay links, bank, Ladder runs
+               (src/agent/: Munim's prompt and ElevenLabs config)
   workflows/   Render Workflows tasks: dailyLadder, sendReminder
 packages/
   money/       paise, GST, interest, GSTIN, numbering, Hindi words, dates
