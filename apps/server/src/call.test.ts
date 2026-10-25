@@ -5,6 +5,7 @@ import { isSeededEvent } from "@tagada/seed";
 import { createApp, type CallDeps } from "./app.ts";
 import { memoryFiles, memoryStore } from "./memory-store.ts";
 import { payTokens } from "./pay-token.ts";
+import type { Voice } from "./pay.ts";
 
 const USER = "64f0c2a91be7d3e85f10";
 const WORKSPACE = `w${USER}`;
@@ -19,7 +20,7 @@ let tokens: number;
 let glossed: string[][];
 let pending: Promise<void>[];
 
-function build(call: Partial<CallDeps> = {}) {
+function build(call: Partial<CallDeps> = {}, voice: Voice = { speak: async () => new Uint8Array() }) {
   app = createApp({
     probeAppwrite: async () => {},
     demo: {
@@ -29,7 +30,7 @@ function build(call: Partial<CallDeps> = {}) {
       tokens: payTokens("test-secret", () => now),
     },
     files: memoryFiles().files,
-    voice: { speak: async () => new Uint8Array() },
+    voice,
     call: {
       agent: {
         async token() {
@@ -110,6 +111,7 @@ describe("GET /api/call/signed-url", () => {
       customer_gender: "male",
       invoice_no: String(gupta().number),
       amount_words: "एक लाख अठारह हज़ार रुपये",
+      stage: "overdue",
       days_overdue: "38",
       due_date_words: "शुक्रवार, पच्चीस सितंबर",
       today: "Monday 2026-11-02",
@@ -129,6 +131,34 @@ describe("GET /api/call/signed-url", () => {
       outcome: null,
       $permissions: OWNER,
     });
+  });
+
+  it("calls before the due date too, as a courtesy heads-up", async () => {
+    await db.store.update("invoices", gupta().$id, { dueDate: "2026-11-20" });
+    const s = await started();
+    expect(s.dynamicVariables).toMatchObject({ stage: "before_due", days_overdue: "0", due_date_words: "शुक्रवार, बीस नवंबर" });
+  });
+
+  it("calls a Customer the judge added with the form's default consent", async () => {
+    const res = await postJson("/api/customers", { name: "Judge Stores", stateCode: "19", creditDays: 30, lang: "en", consentCalls: true });
+    expect(res.status).toBe(200);
+    const id = ((await res.json()) as { customer: { $id: string } }).customer.$id;
+    const issued = await postJson("/api/invoices", {
+      customerId: id,
+      lines: [{ description: "Bamboo tray", hsn: "460211", quantity: 1, ratePaise: 100_000, discountPercent: 0, gstRatePercent: 5 }],
+    });
+    expect(issued.status).toBe(200);
+    const invoiceId = ((await issued.json()) as { invoice: { $id: string } }).invoice.$id;
+    const s = await started(invoiceId);
+    expect(s.dynamicVariables).toMatchObject({ customer_name: "Judge", stage: "before_due" });
+  });
+
+  it("calls again once the Owner sets the Demo date clock back inside calling hours", async () => {
+    await db.store.update("workspaces", WORKSPACE, { clock: "19:05" });
+    expect((await session(gupta().$id)).status).toBe(403);
+    expect((await postJson("/api/settings", { clock: "11:00" })).status).toBe(200);
+    expect((await session(gupta().$id)).status).toBe(200);
+    expect((await postJson("/api/settings", { clock: "25:00" })).status).toBe(400);
   });
 
   it("tells Munim nothing about Section 43B(h) when the seller is a trader", async () => {
@@ -180,6 +210,28 @@ describe("GET /api/call/signed-url", () => {
     const res = await session(gupta().$id);
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ error: "call_unavailable" });
+  });
+});
+
+describe("GET /api/voice/status", () => {
+  const status = async () => (await app.request("/api/voice/status")).json();
+
+  it("says calls and read-aloud are ready when ElevenLabs is set up", async () => {
+    expect(await status()).toEqual({ calls: "ready", readAloud: "ready" });
+  });
+
+  it("says what is off without the agent or the voice key, and the pay link's audio says so too", async () => {
+    build({ agent: null }, { ready: false, speak: async () => new Uint8Array() });
+    expect(await status()).toEqual({ calls: "not_configured", readAloud: "not_configured" });
+    const res = await app.request(`/api/pay/${String(gupta().payToken)}/audio?lang=hi`);
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "voice_unavailable" });
+  });
+
+  it("says when today's calls are used up for everyone", async () => {
+    build({ limits: { perWorkspace: 10, perDay: 1 } });
+    await started();
+    expect(await status()).toEqual({ calls: "daily_cap", readAloud: "ready" });
   });
 });
 

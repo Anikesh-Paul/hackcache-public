@@ -16,12 +16,14 @@ import { callCostPaise, callCredits, formatInr } from "@tagada/money";
 import { WorldGate } from "../AppShell.tsx";
 import { PayPackets, SalaryFigure } from "../books.tsx";
 import { salaryHeadline, useT } from "../i18n/index.ts";
-import { decidePromise, glossOf, useCall, type Decision, type Line, type Recorded } from "../lib/call.ts";
+import { decidePromise, glossOf, useCall, type CallsOff, type Decision, type Line, type Recorded } from "../lib/call.ts";
+import { saveSettings } from "../lib/appwrite.ts";
+import { useVoiceStatus } from "../lib/voice-status.ts";
 import { clockOf, personas, type PersonaKey } from "../lib/call-script.ts";
 import { useTodayBook } from "../lib/today.ts";
 import { useWorld, useWorldState, viewOf } from "../lib/world.tsx";
 import { Head, Ln, Paper } from "../ui.tsx";
-import { SAMPLE, sampleText } from "../sample-call.tsx";
+import { CallPlayer, SAMPLE, sampleText } from "../sample-call.tsx";
 
 /** /call/:invoiceId, "Be Gupta ji": the call, with the Owner's books live beside it. */
 export function CallScreen() {
@@ -55,6 +57,10 @@ function CallPage() {
   const t = useT();
   const invoice = world.invoices.find((i) => i.$id === invoiceId);
   const call = useCall(invoiceId);
+  const voice = useVoiceStatus();
+  // Known before the call: no start button that can only fail.
+  const off: CallsOff | null =
+    voice?.calls === "not_configured" ? "call_unavailable" : voice?.calls === "daily_cap" ? "daily_cap" : null;
   const [decided, setDecided] = useState<Decided | null>(null);
   const plan = planOf(call.recorded?.outcome);
   const approved = decided?.status === "approved";
@@ -113,10 +119,12 @@ function CallPage() {
               guard={guard}
               owedPaise={view.standing.balancePaise}
               today={world.workspace.today}
+              dueDate={view.standing.daysLate > 0 ? null : invoice.dueDate}
+              off={off}
               onStart={call.start}
             />
           )}
-          {phase.name === "failed" && <Failed why={phase.why} message={phase.message} onRetry={call.start} />}
+          {phase.name === "failed" && <Failed why={phase.why} message={phase.message} off={phase.off ?? null} onRetry={call.start} />}
           {(calling || phase.name === "ended" || call.lines.length > 0) && (
             <Live phase={phase} lines={call.lines} name={spokenName(name)} onEnd={call.end} />
           )}
@@ -183,9 +191,12 @@ function Setup(props: {
   guard: ReturnType<typeof callGuard>;
   owedPaise: number;
   today: string;
+  /** Set when the Invoice is not yet late: the call is a courtesy heads-up. */
+  dueDate: string | null;
+  off: CallsOff | null;
   onStart: () => void;
 }) {
-  const { name, consentAt, clock, rule, guard, owedPaise, today, onStart } = props;
+  const { name, consentAt, clock, rule, guard, owedPaise, today, dueDate, off, onStart } = props;
   const t = useT();
   const cards = useMemo(() => personas({ owedPaise, today, rule }), [owedPaise, today, rule]);
   const [persona, setPersona] = useState<PersonaKey>("short");
@@ -196,6 +207,7 @@ function Setup(props: {
       ? { ok: true, text: t.call.consented(name, t.date(consentAt.slice(0, 10))) }
       : { ok: false, text: t.call.notConsented(name) },
     insideHours ? { ok: true, text: t.call.inside(clock) } : { ok: false, text: t.call.outside(clock) },
+    ...(dueDate ? [{ ok: true, text: t.call.courtesy(t.date(dueDate)) }] : []),
     { ok: true, text: t.call.saysAi },
     { ok: true, text: t.call.noThreats },
     { ok: true, text: t.call.rule(rule.minFirstPct, rule.firstWithinDays, rule.restWithinDays) },
@@ -238,27 +250,83 @@ function Setup(props: {
           </div>
         </fieldset>
       </Ln>
-      <Ln>
-        {blocked ? (
-          <p role="alert" className="word short">
-            <X aria-hidden /> {t.call.blocked[blocked.block](name, clock)}
-          </p>
-        ) : (
-          <>
-            <button type="button" className="btn primary px-4 py-3 text-[15px]" onClick={onStart} data-tour="start">
-              <Phone aria-hidden /> {t.call.start}
-            </button>
-            <small className="mt-2 block text-ink-2">{t.call.mic(spokenName(name))}</small>
-          </>
-        )}
-      </Ln>
+      {off && !blocked ? (
+        <OffNote off={off} />
+      ) : (
+        <Ln>
+          {blocked ? (
+            <>
+              <p role="alert" className="word short">
+                <X aria-hidden /> {t.call.blocked[blocked.block](name, clock)}
+              </p>
+              {blocked.block === "outside_hours" && <SetClock />}
+            </>
+          ) : (
+            <>
+              <button type="button" className="btn primary px-4 py-3 text-[15px]" onClick={onStart} data-tour="start">
+                <Phone aria-hidden /> {t.call.start}
+              </button>
+              <small className="mt-2 block text-ink-2">{t.call.mic(spokenName(name))}</small>
+            </>
+          )}
+        </Ln>
+      )}
     </>
   );
 }
 
-function Failed({ why, message, onRetry }: { why: string; message: string; onRetry: () => void }) {
+/** Demo worlds only: back inside calling hours in one tap, at 11 AM on the same Demo date. */
+function SetClock() {
+  const t = useT();
+  const { reload } = useWorldState();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const set = async () => {
+    setBusy(true);
+    setFailed(false);
+    try {
+      const result = await saveSettings({ clock: "11:00" });
+      if (!result.ok) throw new Error(result.field);
+      await reload();
+    } catch (e) {
+      console.error("clock not set", e);
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <p className="mt-3">
+      <button type="button" className="btn secondary" disabled={busy} onClick={set}>
+        {t.call.setClock}
+      </button>
+      {failed && (
+        <small className="mt-2 block" role="alert">
+          {t.call.clockFailed}
+        </small>
+      )}
+    </p>
+  );
+}
+
+/** No live call can be placed: say why and play the recorded one, never a Try again that cannot work. */
+function OffNote({ off }: { off: CallsOff }) {
+  const t = useT();
+  return (
+    <Ln m={t.call.offLabel}>
+      {/* The tour's "take the call" step points here when there is no Start call button. */}
+      <p role="status" data-tour="start">
+        {t.call.off[off]}
+      </p>
+      <CallPlayer />
+    </Ln>
+  );
+}
+
+function Failed({ why, message, off, onRetry }: { why: string; message: string; off: CallsOff | null; onRetry: () => void }) {
   const [sample, setSample] = useState(false);
   const t = useT();
+  if (why === "off" && off) return <OffNote off={off} />;
   const label = why === "mic_denied" ? t.call.failedLabel.mic_denied : why === "no_answer" ? t.call.failedLabel.no_answer : t.call.failedLabel.other;
   return (
     <>

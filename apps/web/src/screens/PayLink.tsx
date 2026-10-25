@@ -5,6 +5,7 @@ import { useParams } from "react-router";
 import { ArrowRight, Check, Clock, IndianRupee, Loader2, Upload, Volume2 } from "lucide-react";
 import { formatDate, formatInr, sumPaise, upiPayUri, weekday } from "@tagada/money";
 import { pay, PayError, type PayInstalment, type PaySlip } from "../lib/pay.ts";
+import { useVoiceStatus } from "../lib/voice-status.ts";
 import { Badge } from "../ui.tsx";
 import { UpiQr } from "./TaxInvoice.tsx";
 
@@ -27,6 +28,7 @@ type Words = {
   days: (n: number) => string;
   owed: string;
   listen: string;
+  listenLoading: string;
   listenFailed: string;
   pay: (amount: string) => string;
   payNote: string;
@@ -97,7 +99,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     days: (n) => `${n} दिन`,
     owed: "बकाया राशि",
     listen: "सुनें",
-    listenFailed: "अभी सुनाया नहीं जा सका।",
+    listenLoading: "लोड हो रहा है…",
+    listenFailed: "आवाज़ अभी उपलब्ध नहीं है। नीचे की पर्ची में यही लिखा है।",
     pay: (amount) => `UPI से ${amount} भरें`,
     payNote: "कोई भी UPI ऐप",
     paid: "मैंने भुगतान कर दिया है",
@@ -165,7 +168,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     days: (n) => `${n} দিন`,
     owed: "বকেয়া টাকা",
     listen: "শুনুন",
-    listenFailed: "এখন শোনানো গেল না।",
+    listenLoading: "লোড হচ্ছে…",
+    listenFailed: "কণ্ঠস্বর এখন পাওয়া যাচ্ছে না। নিচের স্লিপে একই কথা লেখা আছে।",
     pay: (amount) => `UPI দিয়ে ${amount} দিন`,
     payNote: "যেকোনো UPI অ্যাপ",
     paid: "আমি পেমেন্ট করে দিয়েছি",
@@ -234,7 +238,8 @@ export const PAY_WORDS: Record<Lang, Words> = {
     days: (n) => `${n} ${n === 1 ? "day" : "days"}`,
     owed: "Amount due",
     listen: "Listen",
-    listenFailed: "It could not be played just now.",
+    listenLoading: "Loading…",
+    listenFailed: "The voice is not available right now. The slip below says the same.",
     pay: (amount) => `Pay ${amount} by UPI`,
     payNote: "Any UPI app",
     paid: "I've already paid",
@@ -878,9 +883,14 @@ function ScreenshotUpload({ t, busy, onFile }: { t: Words; busy: boolean; onFile
   );
 }
 
-/** The slip read aloud in Hindi, spoken once on the server and kept in Storage. */
+/**
+ * The slip read aloud in the page's language, spoken once on the server and
+ * kept in Storage. The first time takes about 3 s, so the button says it is
+ * loading; hidden when the server has no voice.
+ */
 function ReadAloud({ token, slip, lang, t }: { token: string; slip: PaySlip; lang: Lang; t: Words }) {
-  const [state, setState] = useState<"idle" | "playing" | "failed">("idle");
+  const voice = useVoiceStatus();
+  const [state, setState] = useState<"idle" | "loading" | "playing" | "failed">("idle");
   const audio = useRef<HTMLAudioElement | null>(null);
   useEffect(() => () => audio.current?.pause(), []);
   // A new state means new words: drop the old clip.
@@ -895,26 +905,40 @@ function ReadAloud({ token, slip, lang, t }: { token: string; slip: PaySlip; lan
       setState("idle");
       return;
     }
+    // play() stays inside the press itself: iOS Safari plays audio only from a tap.
     audio.current ??= new Audio(`${pay.audioUrl(token, lang)}&v=${slip.state}${slip.screenshotSent ? "s" : ""}`);
-    audio.current.onended = () => setState("idle");
-    setState("playing");
+    const clip = audio.current;
+    clip.onended = () => setState("idle");
+    setState("loading");
     try {
-      await audio.current.play();
+      await clip.play();
+      if (audio.current === clip) setState("playing");
     } catch {
+      // A clip dropped meanwhile (new words) is not a failure.
+      if (audio.current !== clip) return;
       audio.current = null;
       setState("failed");
     }
   };
+  if (voice?.readAloud === "not_configured") return null;
+  const loading = state === "loading";
   return (
-    <p className="mt-3 flex flex-wrap items-center gap-3">
-      <button type="button" className="btn secondary" aria-pressed={state === "playing"} onClick={play}>
-        <Volume2 aria-hidden /> {t.listen}
+    <div className="mt-3">
+      <button
+        type="button"
+        className="btn secondary"
+        aria-pressed={state === "playing"}
+        aria-busy={loading}
+        disabled={loading}
+        onClick={play}
+      >
+        {loading ? <Loader2 aria-hidden className="animate-spin" /> : <Volume2 aria-hidden />} {loading ? t.listenLoading : t.listen}
       </button>
       {state === "failed" && (
-        <span className="text-[14px] text-ink-2" role="status">
+        <p className="mt-2 text-[15px] text-sindoor" role="alert">
           {t.listenFailed}
-        </span>
+        </p>
       )}
-    </p>
+    </div>
   );
 }

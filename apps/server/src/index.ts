@@ -38,5 +38,10 @@ const app = createApp({
   },
 });
 
+// Said once at start, so a missing key shows in the logs and not only as a dead button.
+if (!process.env.ELEVENLABS_API_KEY) console.warn("voice: ELEVENLABS_API_KEY is not set, so calls and read-aloud are off");
+else if (!process.env.ELEVENLABS_AGENT_ID) console.warn("voice: ELEVENLABS_AGENT_ID is not set, so calls are off (run pnpm agent:sync)");
+if (!process.env.ELEVENLABS_WEBHOOK_SECRET) console.warn("voice: ELEVENLABS_WEBHOOK_SECRET is not set, so call transcripts are not kept");
+
 const port = Number(process.env.PORT ?? 8787);
 serve({ fetch: app.fetch, port }, () => console.log(`server listening on :${port}`));

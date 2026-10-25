@@ -57,6 +57,8 @@ test("a judge adds a Customer, edits them, bills them and records a payment", as
   await page.getByRole("button", { name: "Save invoice" }).click();
   // ₹1,000 at 5% IGST: West Bengal is another state.
   await expect(page.getByText("₹1,050").first()).toBeVisible();
+  // Not due yet, and the consent box was ticked by default: the judge can call them at once.
+  await expect(page.getByRole("link", { name: "Call with AI" })).toBeVisible();
 
   await page.getByRole("button", { name: "Record a payment" }).click();
   await page.getByLabel("How it was paid").selectOption("cash");
@@ -161,6 +163,59 @@ test("/proof typed mid-tour stays on /proof", async ({ page }) => {
   await expect(page).toHaveURL(/\/proof$/);
   await page.getByRole("button", { name: "Resume tour (step 2 of 8)" }).click();
   await expect(tour.getByRole("heading", { name: TITLES[1], exact: true })).toBeVisible();
+});
+
+/** The server is another origin: a faked answer needs the header the real one sends. */
+const CORS = { "access-control-allow-origin": "*" };
+
+/** Opens Gupta ji's Invoice from the landing page. */
+async function openGupta(page: Page) {
+  await page.goto("/");
+  await expect(page.getByText(BOOKS_OPEN)).toBeVisible({ timeout: 60_000 });
+  await page.getByRole("link", { name: "Or open the books yourself" }).click();
+  await page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Invoices" }).click();
+  await page.getByRole("link", { name: /Gupta Traders/ }).first().click();
+  await expect(page.getByText("TBW/26-27/0019").first()).toBeVisible();
+}
+
+// With no agent on the server, the call screen says so and plays the recorded call: no Start call, no Try again.
+test("with calls off, the call screen offers the recorded call, never a dead button", async ({ page }) => {
+  await page.route("**/api/voice/status", (route) => route.fulfill({ headers: CORS, json: { calls: "not_configured", readAloud: "ready" } }));
+  await openGupta(page);
+  await page.getByRole("link", { name: "Call with AI" }).click();
+  await expect(page.getByText(/Live calls are off on this server right now/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start call" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
+});
+
+// The pay link's सुनें: loading while the clip is made, then a clear message when the voice fails, and a button to try again.
+test("the pay link's read-aloud shows loading, then says clearly when the voice fails", async ({ page, context }) => {
+  await context.route("**/api/pay/*/audio*", async (route) => {
+    await new Promise((done) => setTimeout(done, 1_500));
+    await route.fulfill({ status: 503, json: { error: "voice_unavailable" } });
+  });
+  await openGupta(page);
+  const [customer] = await Promise.all([
+    context.waitForEvent("page"),
+    page.getByRole("link", { name: /Open pay link as Gupta Traders/ }).click(),
+  ]);
+  const loading = customer.getByRole("button", { name: /लोड हो रहा है/ });
+  await customer.getByRole("button", { name: /सुनें/ }).click();
+  await expect(loading).toBeDisabled();
+  await expect(customer.getByRole("alert").filter({ hasText: "आवाज़ अभी उपलब्ध नहीं है" })).toBeVisible();
+  await expect(customer.getByRole("button", { name: /सुनें/ })).toBeEnabled();
+});
+
+// Without the voice key, the pay link has no Listen button at all.
+test("the pay link hides read-aloud when the server has no voice", async ({ page, context }) => {
+  await context.route("**/api/voice/status", (route) => route.fulfill({ headers: CORS, json: { calls: "not_configured", readAloud: "not_configured" } }));
+  await openGupta(page);
+  const [customer] = await Promise.all([
+    context.waitForEvent("page"),
+    page.getByRole("link", { name: /Open pay link as Gupta Traders/ }).click(),
+  ]);
+  await expect(customer.getByRole("button", { name: /मैंने भुगतान कर दिया है/ })).toBeVisible();
+  await expect(customer.getByRole("button", { name: /सुनें/ })).toHaveCount(0);
 });
 
 // The header's हिं and বাং switch Today's headline at once, with no reload, and EN brings it back.

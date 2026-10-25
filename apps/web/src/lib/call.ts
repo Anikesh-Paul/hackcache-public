@@ -26,7 +26,11 @@ export type Phase =
   | { name: "connecting" }
   | { name: "live"; mode: "listening" | "speaking" }
   | { name: "ended"; seconds: number }
-  | { name: "failed"; why: "mic_denied" | "no_answer" | "blocked" | "unavailable"; message: string };
+  | { name: "failed"; why: "mic_denied" | "no_answer" | "blocked" | "off" | "unavailable"; message: string; off?: CallsOff };
+
+/** Why no call can be placed from this world now: a second try would end the same way. */
+export type CallsOff = "call_unavailable" | "daily_cap" | "limit_reached";
+const OFF: readonly string[] = ["call_unavailable", "daily_cap", "limit_reached"] satisfies CallsOff[];
 
 /** What the call recorded, as the Owner sees it. `promiseId` is set once the server has saved it. */
 export type Recorded = { outcome: CallOutcome; promiseId: string | null; saved: boolean };
@@ -85,11 +89,13 @@ export function useCall(invoiceId: string) {
         `/api/call/signed-url?invoiceId=${encodeURIComponent(invoiceId)}`,
       );
       if (status !== 200 || !data?.conversationToken) {
-        setPhase({
-          name: "failed",
-          why: status === 403 || status === 429 ? "blocked" : "unavailable",
-          message: data?.message ?? "The call could not be set up. Try again in a minute.",
-        });
+        const message = data?.message ?? "The call could not be set up. Try again in a minute.";
+        const error = data?.error ?? "";
+        setPhase(
+          OFF.includes(error)
+            ? { name: "failed", why: "off", message, off: error as CallsOff }
+            : { name: "failed", why: status === 403 ? "blocked" : "unavailable", message },
+        );
         return;
       }
       session = data;
