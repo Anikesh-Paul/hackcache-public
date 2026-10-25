@@ -412,20 +412,19 @@ function Live({
   return (
     <>
       <Ln m={t.call.callLabel}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-semibold" role="status">
-            {state}
-          </span>
-          <span className="flex gap-2">
-            <button type="button" className="btn bare" aria-pressed={gloss} onClick={() => setGloss((g) => !g)}>
-              <Languages aria-hidden /> {t.call.gloss}
+        {/* State and buttons on separate lines: sharing one wrapping row, the buttons jumped each time the state's length changed. */}
+        <p className="font-semibold" role="status">
+          {state}
+        </p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {(phase.name === "live" || phase.name === "connecting") && (
+            <button type="button" className="btn secondary" onClick={onEnd}>
+              <PhoneOff aria-hidden /> {t.call.endCall}
             </button>
-            {(phase.name === "live" || phase.name === "connecting") && (
-              <button type="button" className="btn secondary" onClick={onEnd}>
-                <PhoneOff aria-hidden /> {t.call.endCall}
-              </button>
-            )}
-          </span>
+          )}
+          <button type="button" className="btn bare" aria-pressed={gloss} onClick={() => setGloss((g) => !g)}>
+            <Languages aria-hidden /> {t.call.gloss}
+          </button>
         </div>
         {gloss && glossFailed && <small className="text-ink-2">{t.call.glossFailed}</small>}
       </Ln>
