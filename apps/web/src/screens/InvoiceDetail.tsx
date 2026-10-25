@@ -42,6 +42,7 @@ import { isSeededEvent } from "@tagada/seed";
 import { proofAmount, proofTone } from "../lib/proof.ts";
 import { useT } from "../i18n/index.ts";
 import { eventText } from "../lib/history.ts";
+import { CallTranscript, transcriptCallId } from "./CallTranscript.tsx";
 import { SaveError, cancelInvoice, markDisputed, recordPayment } from "../lib/appwrite.ts";
 import { useInvoiceRows, usePaymentHistory, useWorkspaceRows, useWorld, viewOf } from "../lib/world.tsx";
 import { istDay, priceLines, storedTotalsMatch } from "../lib/pricing.ts";
@@ -193,6 +194,7 @@ export function InvoiceDetail() {
                 .map((event) => {
                   const Actor = ACTORS[event.actor];
                   const amount = event.type === "payment" || event.type === "sent" ? amountOf(event.payload) : null;
+                  const callId = event.type === "call" ? transcriptCallId(event.payload) : null;
                   return (
                     <li key={event.$id} className={`ln ${amount === null ? "wide" : ""}`}>
                       <div className="m">{t.date(istDay(event.at), { weekday: false })}</div>
@@ -201,6 +203,9 @@ export function InvoiceDetail() {
                         <small className="flex items-center gap-1">
                           <Actor size={13} aria-hidden /> {t.invoice.actors[event.actor]}
                         </small>
+                        {callId && (
+                          <CallTranscript callId={callId} invoiceId={invoice.$id} customerName={customer?.name ?? t.invoice.theCustomer} />
+                        )}
                       </div>
                       {amount !== null && <div className="a">{formatInr(amount)}</div>}
                     </li>

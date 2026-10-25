@@ -188,6 +188,14 @@ test("with calls off, the call screen offers the recorded call, never a dead but
   await expect(page.getByRole("button", { name: "Try again" })).toHaveCount(0);
 });
 
+// A past call's transcript on its Invoice: the seeded Gupta call, behind the timeline's toggle.
+test("an Invoice shows a past call's transcript", async ({ page }) => {
+  await openGupta(page);
+  await page.getByRole("button", { name: "Show transcript" }).click();
+  await expect(page.getByText("I will look at it and call you back.")).toBeVisible();
+  await expect(page.getByText(/मैं Tripura Bamboo Works की ओर से AI सहायक मुनीम/).first()).toBeVisible();
+});
+
 // The pay link's सुनें: loading while the clip is made, then a clear message when the voice fails, and a button to try again.
 test("the pay link's read-aloud shows loading, then says clearly when the voice fails", async ({ page, context }) => {
   await context.route("**/api/pay/*/audio*", async (route) => {

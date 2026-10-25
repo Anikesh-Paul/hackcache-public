@@ -291,7 +291,11 @@ function whyNoInterest(seller: SellerFacts, phrases: DocPhrases): string {
 }
 
 /** The first turns of a stored call, or null when no transcript was kept. */
-export function transcriptExcerpt(raw: string | null, customerRole = "Customer"): string | null {
+/** One line said on a call, as the post-call webhook stored it: `at` is seconds into the call. */
+export type CallTurn = { role: "agent" | "user"; message: string; at: number };
+
+/** The lines a stored call transcript holds, without voice tags. Null when there are none (not in yet, or refused as tampered). */
+export function callTurns(raw: string | null): CallTurn[] | null {
   if (!raw) return null;
   let turns: unknown;
   try {
@@ -300,17 +304,21 @@ export function transcriptExcerpt(raw: string | null, customerRole = "Customer")
     return null;
   }
   if (!Array.isArray(turns)) return null;
-  const lines: string[] = [];
+  const said: CallTurn[] = [];
   for (const turn of turns) {
-    if (lines.length >= EXCERPT_TURNS) break;
     if (!turn || typeof turn !== "object") continue;
-    const role = (turn as { role?: unknown }).role;
-    const message = (turn as { message?: unknown }).message;
+    const { role, message, t } = turn as { role?: unknown; message?: unknown; t?: unknown };
     if ((role !== "agent" && role !== "user") || typeof message !== "string") continue;
-    const said = stripTags(message);
-    if (!said) continue;
-    lines.push(`${role === "agent" ? "Munim" : customerRole}: ${said}`);
+    const text = stripTags(message);
+    if (text) said.push({ role, message: text, at: typeof t === "number" && t >= 0 ? t : 0 });
   }
+  return said.length > 0 ? said : null;
+}
+
+export function transcriptExcerpt(raw: string | null, customerRole = "Customer"): string | null {
+  const lines = (callTurns(raw) ?? [])
+    .slice(0, EXCERPT_TURNS)
+    .map((turn) => `${turn.role === "agent" ? "Munim" : customerRole}: ${turn.message}`);
   return lines.length > 0 ? lines.join("\n") : null;
 }
 
