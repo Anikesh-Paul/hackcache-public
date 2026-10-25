@@ -295,3 +295,62 @@ for (const [width, height] of [
     }
   });
 }
+
+/** Pages in a PDF Chromium wrote: one `/Type /Page` object per page. */
+function pdfPages(pdf: Buffer): number {
+  return pdf.toString("latin1").match(/\/Type\s*\/Page\b/g)?.length ?? 0;
+}
+
+// The Payment Demand Letter and the ODR case file print as A4 PDFs in Hindi (Gupta ji), English (his
+// English copy) and Bengali (Roy Furnishings): nothing wider than the sheet, and the letter on one page.
+test("the letter and the case file print as clean A4 PDFs in Hindi, English and Bengali", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto("/app/invoices");
+  const invoices = page.locator("ul.entries > li");
+  await expect(invoices.first()).toBeVisible({ timeout: 60_000 });
+  const opened = new Map<string, string>();
+  for (const number of ["TBW/26-27/0019", "TBW/26-27/0021"]) {
+    await page.goto("/app/invoices");
+    await invoices.filter({ hasText: number }).getByRole("link").click();
+    await expect(page.getByText(number).first()).toBeVisible();
+    opened.set(number, page.url().split("/").pop()!);
+  }
+
+  const copies = [
+    { number: "TBW/26-27/0019", english: false, title: { letter: "बकाया भुगतान के लिए पत्र", case: "ओडीआर केस फ़ाइल" } },
+    { number: "TBW/26-27/0019", english: true, title: { letter: "Payment Demand Letter", case: "ODR case file" } },
+    { number: "TBW/26-27/0021", english: false, title: { letter: "বকেয়া পরিশোধের চিঠি", case: "ওডিআর কেস ফাইল" } },
+  ];
+  for (const copy of copies) {
+    for (const kind of ["letter", "case"] as const) {
+      await page.emulateMedia({ media: "screen" });
+      await page.goto(`/print/${kind}/${opened.get(copy.number)}`);
+      const sheet = page.locator("article");
+      await expect(sheet).toBeVisible({ timeout: 60_000 });
+      if (copy.english) await page.getByRole("button", { name: "English copy" }).click();
+      await expect(sheet.getByRole("heading", { level: 1 })).toHaveText(copy.title[kind]);
+      const reference = copy.number.replace("TBW/", kind === "letter" ? "TBW/DL/" : "TBW/ODR/");
+      await expect(sheet).toContainText(reference);
+
+      await page.emulateMedia({ media: "print" });
+      await expect(page.getByRole("button", { name: "Print or save as PDF" })).toBeHidden();
+      // Nothing on the sheet passes its right edge, or is cut off inside a box that hides overflow.
+      const overflow = await sheet.evaluate((el) => {
+        const edge = el.getBoundingClientRect().right + 0.5;
+        return [...el.querySelectorAll<HTMLElement>("*:not(.sr-only)")]
+          .filter((node) => {
+            const clips = getComputedStyle(node).overflowX !== "visible";
+            return node.getBoundingClientRect().right > edge || (clips && node.scrollWidth > node.clientWidth + 1);
+          })
+          .map((node) => `${node.tagName.toLowerCase()}: ${node.textContent?.slice(0, 40)}`);
+      });
+      expect(overflow, `${kind} ${copy.number}${copy.english ? " (English)" : ""}`).toEqual([]);
+
+      const pdf = await page.pdf({ format: "A4", preferCSSPageSize: true });
+      expect(pdf.subarray(0, 5).toString("latin1")).toBe("%PDF-");
+      // The letter fits one page; the case file runs onto a second only when the Reminder history is long.
+      expect(pdfPages(pdf), `${kind} ${copy.number} pages`).toBeLessThanOrEqual(kind === "letter" ? 1 : 2);
+      expect(pdfPages(pdf)).toBeGreaterThanOrEqual(1);
+    }
+  }
+});

@@ -51,7 +51,13 @@ export type DocPhrases = {
   reminder: (stage: string, status: string, channel: string) => string;
   status: Record<"sent" | "retried" | "failed" | "queued" | "skipped_cap" | "ready", string>;
   channel: Record<"email" | "whatsapp_link" | "call", string>;
+  /** The channel as a table cell: a noun, not "by email". */
+  channelName: Record<"email" | "whatsapp_link" | "call", string>;
+  udyamType: Record<"micro" | "small" | "medium", string>;
+  payBy: (date: string) => string;
+  scanOrOpen: string;
   headings: {
+    notClaimed: string;
     to: string;
     invoices: string;
     issued: string;
@@ -68,6 +74,29 @@ export type DocPhrases = {
     reminders: string;
     transcript: string;
     interest: string;
+    reference: string;
+    date: string;
+    udyam: string;
+    contact: string;
+    number: string;
+    total: string;
+    amountDue: string;
+    upi: string;
+    notes: string;
+    claimant: string;
+    respondent: string;
+    principal: string;
+    interestSoFar: string;
+    totalClaimed: string;
+    period: string;
+    rate: string;
+    days: string;
+    interestAmount: string;
+    channel: string;
+    stage: string;
+    delivery: string;
+    howToFile: string;
+    said: string;
   };
   amountWords: (paise: number) => string;
 };
@@ -132,6 +161,10 @@ const en: DocPhrases = {
     ready: "ready for you to send",
   },
   channel: { email: "by email", whatsapp_link: "on WhatsApp", call: "by phone" },
+  channelName: { email: "Email", whatsapp_link: "WhatsApp", call: "Phone call" },
+  udyamType: { micro: "Micro enterprise", small: "Small enterprise", medium: "Medium enterprise" },
+  payBy: (date) => `Please pay by ${date}`,
+  scanOrOpen: "Scan with any UPI app, or open the pay link.",
   headings: {
     to: "To",
     invoices: "Invoices",
@@ -149,6 +182,30 @@ const en: DocPhrases = {
     reminders: "Reminder history",
     transcript: "Call transcript excerpt",
     interest: "Interest workings",
+    notClaimed: "Not claimed",
+    reference: "Ref.",
+    date: "Date",
+    udyam: "Udyam",
+    contact: "Contact",
+    number: "Invoice no.",
+    total: "Total",
+    amountDue: "Amount due",
+    upi: "Pay by UPI",
+    notes: "Notes",
+    claimant: "Claimant (supplier)",
+    respondent: "Respondent (buyer)",
+    principal: "Principal past due",
+    interestSoFar: "Interest so far",
+    totalClaimed: "Total claimed",
+    period: "Period",
+    rate: "Rate",
+    days: "Days",
+    interestAmount: "Interest",
+    channel: "Channel",
+    stage: "Ladder step",
+    delivery: "Delivery",
+    howToFile: "How to file on odr.msme.gov.in",
+    said: "Said on the call",
   },
   amountWords: amountInWords,
 };
@@ -225,6 +282,10 @@ const hi: DocPhrases = {
     ready: "आपके भेजने के लिए तैयार",
   },
   channel: { email: "ईमेल से", whatsapp_link: "WhatsApp पर", call: "फ़ोन से" },
+  channelName: { email: "ईमेल", whatsapp_link: "WhatsApp", call: "फ़ोन कॉल" },
+  udyamType: { micro: "सूक्ष्म उद्यम", small: "लघु उद्यम", medium: "मध्यम उद्यम" },
+  payBy: (date) => `कृपया ${date} तक भुगतान करें`,
+  scanOrOpen: "किसी भी UPI ऐप से स्कैन करें, या भुगतान लिंक खोलें।",
   headings: {
     to: "प्रति",
     invoices: "बिल",
@@ -242,6 +303,30 @@ const hi: DocPhrases = {
     reminders: "अनुस्मारक का इतिहास",
     transcript: "कॉल का अंश",
     interest: "ब्याज का हिसाब",
+    notClaimed: "नहीं मांगा गया",
+    reference: "संदर्भ",
+    date: "तारीख",
+    udyam: "उद्यम",
+    contact: "संपर्क",
+    number: "बिल संख्या",
+    total: "कुल",
+    amountDue: "देय राशि",
+    upi: "UPI से भुगतान",
+    notes: "टिप्पणियाँ",
+    claimant: "दावेदार (आपूर्तिकर्ता)",
+    respondent: "प्रतिवादी (खरीदार)",
+    principal: "तारीख के बाद बकाया मूलधन",
+    interestSoFar: "अब तक ब्याज",
+    totalClaimed: "कुल दावा",
+    period: "अवधि",
+    rate: "दर",
+    days: "दिन",
+    interestAmount: "ब्याज",
+    channel: "माध्यम",
+    stage: "सीढ़ी का कदम",
+    delivery: "स्थिति",
+    howToFile: "odr.msme.gov.in पर कैसे दाखिल करें",
+    said: "कॉल पर कहा गया",
   },
   amountWords: hindiRupees,
 };
@@ -319,6 +404,10 @@ const bn: DocPhrases = {
     ready: "আপনার পাঠানোর জন্য তৈরি",
   },
   channel: { email: "ইমেলে", whatsapp_link: "WhatsApp-এ", call: "ফোনে" },
+  channelName: { email: "ইমেল", whatsapp_link: "WhatsApp", call: "ফোন কল" },
+  udyamType: { micro: "ক্ষুদ্র উদ্যোগ", small: "ছোট উদ্যোগ", medium: "মাঝারি উদ্যোগ" },
+  payBy: (date) => `অনুগ্রহ করে ${date}-এর মধ্যে দিন`,
+  scanOrOpen: "যেকোনো UPI অ্যাপে স্ক্যান করুন, বা পেমেন্ট লিঙ্ক খুলুন।",
   headings: {
     to: "প্রতি",
     invoices: "বিল",
@@ -336,6 +425,30 @@ const bn: DocPhrases = {
     reminders: "অনুস্মারকের ইতিহাস",
     transcript: "কলের অংশ",
     interest: "সুদের হিসাব",
+    notClaimed: "চাওয়া হয়নি",
+    reference: "সূত্র",
+    date: "তারিখ",
+    udyam: "উদ্যম",
+    contact: "যোগাযোগ",
+    number: "বিল নম্বর",
+    total: "মোট",
+    amountDue: "দেয় টাকা",
+    upi: "UPI-তে দিন",
+    notes: "টীকা",
+    claimant: "দাবিদার (সরবরাহকারী)",
+    respondent: "বিবাদী (ক্রেতা)",
+    principal: "তারিখ পেরোনো আসল",
+    interestSoFar: "এখন পর্যন্ত সুদ",
+    totalClaimed: "মোট দাবি",
+    period: "সময়কাল",
+    rate: "হার",
+    days: "দিন",
+    interestAmount: "সুদ",
+    channel: "মাধ্যম",
+    stage: "সিঁড়ির ধাপ",
+    delivery: "অবস্থা",
+    howToFile: "odr.msme.gov.in-এ কীভাবে দাখিল করবেন",
+    said: "কলে যা বলা হয়েছে",
   },
   amountWords: amountInWords,
 };

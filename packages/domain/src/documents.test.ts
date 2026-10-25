@@ -7,6 +7,8 @@ import {
   letterText,
   odrCaseFile,
   callTurns,
+  documentReference,
+  udyamNumber,
   transcriptExcerpt,
   type DocumentCall,
   type DocumentCustomer,
@@ -24,6 +26,7 @@ const seller: DocumentSeller = {
   upiVpa: "tripurabamboo@demo",
   ownerEmail: "accounts@tripurabamboo.example",
   udyamType: "micro",
+  udyamNumber: "UDYAM-TR-00-0012345",
   isTrader: false,
 };
 
@@ -325,6 +328,120 @@ describe("documents in the Customer's language", () => {
 
   it("an English copy is the English letter", () => {
     expect(demandLetter({ ...input, lang: "en" }).title).toBe(LETTER_TITLE);
+  });
+});
+
+describe("documentReference", () => {
+  it("puts the document's code after the Invoice number's prefix", () => {
+    expect(documentReference("letter", "TBW/26-27/0019", TODAY)).toBe("TBW/DL/26-27/0019");
+    expect(documentReference("case", "TBW/26-27/0019", TODAY)).toBe("TBW/ODR/26-27/0019");
+    expect(documentReference("letter", "INV/A/26-27/12", TODAY)).toBe("INV/A/DL/26-27/12");
+  });
+
+  it("keeps a number in another shape whole, after the code and the year of the Demo date", () => {
+    expect(documentReference("letter", "1042", TODAY)).toBe("DL/26-27/1042");
+    expect(documentReference("case", "INV-7", "2027-02-01")).toBe("ODR/26-27/INV-7");
+  });
+
+  it("is the opened Invoice's reference on both documents, even when it is not the one past due", () => {
+    expect(letter.reference).toBe("TBW/DL/26-27/0018");
+    const fromNotDue = demandLetter({ seller, customer: guptaCustomer, invoices: [guptaInvoice, notDue], invoiceId: "i30", today: TODAY, payUrl: null });
+    expect(fromNotDue.reference).toBe("TBW/DL/26-27/0030");
+    const file = odrCaseFile({ seller, customer: guptaCustomer, invoices: [guptaInvoice], reminders, calls: [], today: TODAY, invoiceId: "i18" });
+    expect(file.reference).toBe("TBW/ODR/26-27/0018");
+    expect(caseText(file)).toContain("TBW/ODR/26-27/0018");
+    expect(letterText(letter)).toContain("TBW/DL/26-27/0018");
+  });
+});
+
+describe("udyamNumber", () => {
+  it("writes the number as the certificate prints it, however it was typed", () => {
+    for (const typed of ["UDYAM-WB-10-0004127", "udyam-wb-10-0004127", " UDYAM WB 10 0004127 ", "UDYAMWB100004127"]) {
+      expect(udyamNumber(typed), typed).toBe("UDYAM-WB-10-0004127");
+    }
+  });
+
+  it("is null for anything that is not a Udyam number", () => {
+    for (const typed of ["", "UDYAM-WB-10-004127", "UDYAM-W1-10-0004127", "UAM-WB-10-0004127", "16AAKFT3920R1Z1"]) {
+      expect(udyamNumber(typed), typed).toBeNull();
+    }
+  });
+});
+
+describe("the documents' tables", () => {
+  const file = odrCaseFile({
+    seller,
+    customer: { ...guptaCustomer, gstin: "19AAGFG4821K1Z5" },
+    invoices: [guptaInvoice],
+    reminders,
+    calls: [call],
+    today: TODAY,
+  });
+
+  it("gives the letter's letterhead, amount panel and pay link without new sums", () => {
+    expect(letter.letterhead).toEqual({
+      name: "Tripura Bamboo Works",
+      address: "Plot 14, Agartala",
+      gstin: "16AAKFT3920R1Z1",
+      udyam: "UDYAM-TR-00-0012345",
+      udyamType: "Micro enterprise",
+      udyamSample: true,
+      contact: "accounts@tripurabamboo.example",
+    });
+    expect(letter.payBy).toBe("Please pay by Mon 9 Nov 2026");
+    expect(letter.payUrl).toBe("https://tagada.example/pay/abc");
+    expect(letter.upiVpa).toBe("tripurabamboo@demo");
+    expect(letterText(letter).match(/legal notice/gi)).toEqual(["legal notice"]);
+  });
+
+  it("prints the workspace's own Udyam number, and none when it has none", () => {
+    const own = demandLetter({ seller: { ...seller, udyamNumber: "UDYAM-WB-10-0004127" }, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null });
+    expect(own.letterhead).toMatchObject({ udyam: "UDYAM-WB-10-0004127", udyamSample: false });
+    expect(letterText(own)).toContain("UDYAM-WB-10-0004127");
+    const none = demandLetter({ seller: { ...seller, udyamNumber: null }, customer: guptaCustomer, invoices: [guptaInvoice], invoiceId: "i18", today: TODAY, payUrl: null });
+    expect(none.letterhead).toMatchObject({ udyam: null, udyamSample: false });
+  });
+
+  it("sums the cover from the same figures as the sections", () => {
+    expect(file.summary).toEqual({ invoiceCount: 1, principal: "₹1,18,000", interest: "₹2,057.65", total: "₹1,20,057.65" });
+    expect(file.toGstin).toBe("19AAGFG4821K1Z5");
+    expect(file.interestTotal).toBe("₹2,057.65");
+    expect(file.interestRows.map((row) => row.interest)).toEqual(file.interestLines.map((line) => line.split(", ").at(-1)));
+    for (const row of file.interestRows) {
+      expect(row.invoice).toBe("TBW/26-27/0018");
+      expect(row.days).toBeGreaterThan(0);
+    }
+  });
+
+  it("claims no interest on the cover for a trader, and totals the principal alone", () => {
+    const trader = odrCaseFile({ seller: { ...seller, isTrader: true }, customer: guptaCustomer, invoices: [guptaInvoice], reminders: [], calls: [], today: TODAY });
+    expect(trader.summary).toEqual({ invoiceCount: 1, principal: "₹1,18,000", interest: null, total: "₹1,18,000" });
+    expect(trader.interestRows).toEqual([]);
+    expect(trader.interestTotal).toBeNull();
+  });
+
+  it("dates the Reminder history as rows, and keeps the call's speakers apart", () => {
+    expect(file.reminderRows).toEqual([
+      { date: "22 Sep 2026", invoice: null, stage: "Friendly heads-up", channel: "Email", delivery: "sent" },
+      { date: "25 Sep 2026", invoice: null, stage: "Due-date reminder", channel: "Email", delivery: "sent" },
+      { date: "2 Oct 2026", invoice: null, stage: "Overdue reminder with pay link", channel: "WhatsApp", delivery: "sent" },
+    ]);
+    expect(file.transcriptTurns).toEqual([
+      { speaker: "Munim", message: "Namaste. I am an assistant from Tripura Bamboo Works." },
+      { speaker: "Customer", message: "I will look at it and call you back." },
+    ]);
+  });
+
+  it("has every new heading in Hindi and Bengali", () => {
+    for (const lang of ["hi", "bn"] as const) {
+      const local = odrCaseFile({ seller, customer: guptaCustomer, invoices: [guptaInvoice], reminders, calls: [call], today: TODAY, lang });
+      expect(local.reference).toBe("TBW/ODR/26-27/0018");
+      for (const [key, value] of Object.entries(local.headings)) {
+        // IFSC is the same word in every language.
+        if (typeof value === "string" && key !== "ifsc") expect(value, `${lang}.${key}`).not.toBe(file.headings[key as keyof typeof file.headings]);
+      }
+      expect(local.reminderRows[0]?.channel).not.toBe("Email");
+    }
   });
 });
 

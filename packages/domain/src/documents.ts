@@ -8,7 +8,9 @@
 // reminder names. It is not a statutory period.
 import {
   addDays,
+  daysBetween,
   differencePaise,
+  financialYear,
   formatDate,
   formatInr,
   formatRateBps,
@@ -49,6 +51,22 @@ export const SAMPLE_BANK = {
   note: "Pay by bank transfer to this account.",
 } as const;
 
+/**
+ * The Demo world's Udyam registration number, seeded on its workspace. District
+ * code 00 is not issued, so it names no real enterprise; the screen says it is a sample.
+ */
+export const SAMPLE_UDYAM = "UDYAM-TR-00-0012345";
+
+/**
+ * A Udyam registration number as the certificate prints it, UDYAM-XX-00-0000000,
+ * from what the Owner typed: any case, spaces or none. Null when it is not one.
+ */
+export function udyamNumber(text: string): string | null {
+  const plain = text.toUpperCase().replace(/\s+/g, "");
+  const parts = /^UDYAM-?([A-Z]{2})-?(\d{2})-?(\d{7})$/.exec(plain);
+  return parts ? `UDYAM-${parts[1]}-${parts[2]}-${parts[3]}` : null;
+}
+
 export const ODR_STEPS = [
   "Print this page. It lists the Invoices, the interest workings, the Reminder history and the call transcript excerpt.",
   "Open odr.msme.gov.in and sign in with the supplier's Udyam details.",
@@ -68,12 +86,15 @@ export type DocumentSeller = SellerFacts & {
   gstin: string | null;
   upiVpa: string | null;
   ownerEmail: string | null;
+  /** The Udyam registration number; null when the workspace has none. */
+  udyamNumber: string | null;
 };
 
 export type DocumentCustomer = {
   name: string;
   address: string | null;
   place: string | null;
+  gstin?: string | null;
 };
 
 export type DocumentInvoice = InvoiceFacts & {
@@ -107,12 +128,38 @@ export type LetterInvoiceLine = {
   note: string | null;
 };
 
+/** The seller's letterhead: the same on the letter and the case file. */
+export type Letterhead = {
+  name: string;
+  address: string | null;
+  gstin: string | null;
+  udyam: string | null;
+  udyamType: string | null;
+  /** True for the Demo world's seeded number, which the screen badges as a sample. */
+  udyamSample: boolean;
+  contact: string | null;
+};
+
+/** One monthly rest of MSMED interest, as a table row. */
+export type InterestRow = {
+  invoice: string;
+  period: string;
+  rate: string;
+  /** Days in the rest; null for a flat-rate month. */
+  days: number | null;
+  interest: string;
+};
+
 export type DemandLetter = {
+  lang: DocLang;
   /** "Nothing is past due for …" when no Invoice is: the page shows this and nothing to print. */
   nothingDue: string | null;
   /** On screen only, never printed: an agreed Plan or Promise this letter goes against. */
   planBanner: string | null;
   title: string;
+  /** "TBW/DL/26-27/0019": the opened Invoice's number with the document's code. */
+  reference: string;
+  letterhead: Letterhead;
   disclaimer: string;
   /** Amount in words: Hindi when the Customer's language is Hindi, English otherwise. */
   outstandingWords: string;
@@ -127,7 +174,10 @@ export type DemandLetter = {
   invoices: LetterInvoiceLine[];
   outstanding: string;
   deadlineLine: string;
+  /** "Please pay by Mon 9 Nov 2026", under the amount due. */
+  payBy: string;
   upiLine: string;
+  upiVpa: string | null;
   upiUri: string | null;
   bank: {
     accountName: string;
@@ -137,6 +187,10 @@ export type DemandLetter = {
     note: string;
   };
   payLinkLine: string;
+  /** The pay link itself, for small print beside the QR; null when the Invoice has none. */
+  payUrl: string | null;
+  /** "Scan with any UPI app, or open the pay link." */
+  scanOrOpen: string;
   contactLine: string | null;
   signOff: string;
   msmed: null | {
@@ -156,10 +210,35 @@ export type DemandLetter = {
 
 export type CaseReminderLine = { when: string; text: string };
 
+/** One Reminder as a table row. `invoice` is set only when the file names more than one Invoice. */
+export type CaseReminderRow = { date: string; invoice: string | null; stage: string; channel: string; delivery: string };
+
+/** One line said on the call: the speaker for the margin, and the words. */
+export type CaseTurn = { speaker: string; message: string };
+
 export type CaseFile = {
+  lang: DocLang;
   nothingDue: string | null;
   planBanner: string | null;
   title: string;
+  /** "TBW/ODR/26-27/0019". */
+  reference: string;
+  letterhead: Letterhead;
+  toAddress: string | null;
+  toGstin: string | null;
+  /** The cover box: what is claimed, from the same sums as the sections below. */
+  summary: {
+    invoiceCount: number;
+    principal: string;
+    /** Null when no MSMED interest can be claimed. */
+    interest: string | null;
+    total: string;
+  };
+  interestRows: InterestRow[];
+  /** The total row of the interest table, or null when there are no rests. */
+  interestTotal: string | null;
+  reminderRows: CaseReminderRow[];
+  transcriptTurns: CaseTurn[];
   dateLine: string;
   fromName: string;
   toName: string;
@@ -189,20 +268,65 @@ function shortDated(iso: string, lang: DocLang): string {
   return formatDateIn(iso, lang, { weekday: false });
 }
 
-function restLine(
-  invoiceNumber: string,
-  rest: { start: string | null; end: string | null; rates: { days: number | null; annualBps: number }[]; interestPaise: number },
-  phrases: DocPhrases,
-  lang: DocLang,
-): string {
+type Rest = { start: string | null; end: string | null; rates: { days: number | null; annualBps: number }[]; interestPaise: number };
+
+function restRow(invoiceNumber: string, rest: Rest, phrases: DocPhrases, lang: DocLang): InterestRow {
+  // One rate needs no day count beside it: the Days column has it.
+  const [only] = rest.rates;
+  const rate =
+    rest.rates.length === 1 && only
+      ? formatRateBps(only.annualBps)
+      : rest.rates
+          .map((part) => (part.days === null ? formatRateBps(part.annualBps) : phrases.restRate(formatRateBps(part.annualBps), part.days)))
+          .join(" + ");
+  return {
+    invoice: invoiceNumber,
+    period:
+      rest.start && rest.end ? phrases.restSpan(shortDated(rest.start, lang), shortDated(rest.end, lang)) : phrases.restMonth,
+    rate,
+    days: rest.start && rest.end ? daysBetween(rest.start, rest.end) : null,
+    interest: formatInr(rest.interestPaise),
+  };
+}
+
+function restLine(invoiceNumber: string, rest: Rest, phrases: DocPhrases, lang: DocLang): string {
   const rates = rest.rates
     .map((part) => (part.days === null ? formatRateBps(part.annualBps) : phrases.restRate(formatRateBps(part.annualBps), part.days)))
     .join(" + ");
-  const when =
-    rest.start && rest.end
-      ? phrases.restSpan(shortDated(rest.start, lang), shortDated(rest.end, lang))
-      : phrases.restMonth;
-  return `${invoiceNumber}: ${when}, ${rates}, ${formatInr(rest.interestPaise)}`;
+  const { period, interest } = restRow(invoiceNumber, rest, phrases, lang);
+  return `${invoiceNumber}: ${period}, ${rates}, ${interest}`;
+}
+
+const DOC_CODES = { letter: "DL", case: "ODR" } as const;
+
+/**
+ * The document's reference: the Invoice number with the document's code after
+ * its prefix, so TBW/26-27/0019 gives TBW/DL/26-27/0019. A number in another
+ * shape keeps whole, after the code and the financial year of `today`.
+ */
+export function documentReference(what: "letter" | "case", invoiceNumber: string, today: string): string {
+  const code = DOC_CODES[what];
+  const parts = /^(.+)\/(\d{2}-\d{2})\/([^/]+)$/.exec(invoiceNumber);
+  if (parts) return `${parts[1]}/${code}/${parts[2]}/${parts[3]}`;
+  return `${code}/${financialYear(today)}/${invoiceNumber}`;
+}
+
+function letterheadOf(seller: DocumentSeller, phrases: DocPhrases): Letterhead {
+  const sized = seller.udyamType === "micro" || seller.udyamType === "small" || seller.udyamType === "medium" ? seller.udyamType : null;
+  return {
+    name: seller.businessName,
+    address: seller.address,
+    gstin: seller.gstin,
+    udyam: seller.udyamNumber,
+    udyamType: sized ? phrases.udyamType[sized] : null,
+    udyamSample: seller.udyamNumber === SAMPLE_UDYAM,
+    contact: seller.ownerEmail,
+  };
+}
+
+/** The Invoice the page was opened from, else the first one named, for the reference. */
+function referenceInvoice(invoices: readonly DocumentInvoice[], listed: readonly DocumentInvoice[], invoiceId: string | undefined) {
+  return invoices.find((invoice) => invoice.$id === invoiceId) ?? listed[0] ?? invoices[0];
 }
 
 /**
@@ -238,6 +362,7 @@ function prepare(
   const lines: LetterInvoiceLine[] = [];
   const balances: number[] = [];
   const workings: string[] = [];
+  const interestRows: InterestRow[] = [];
   const deductions: string[] = [];
   const interests: number[] = [];
   const principals: number[] = [];
@@ -262,7 +387,10 @@ function prepare(
     if (!meter) continue;
     interests.push(meter.interestPaise);
     principals.push(meter.principalPaise);
-    for (const rest of meter.rests) workings.push(restLine(invoice.number, rest, phrases, lang));
+    for (const rest of meter.rests) {
+      workings.push(restLine(invoice.number, rest, phrases, lang));
+      interestRows.push(restRow(invoice.number, rest, phrases, lang));
+    }
   }
   const outstandingPaise = sumPaise(balances);
   const interestPaise = sumPaise(interests);
@@ -276,6 +404,9 @@ function prepare(
     outstanding: formatInr(outstandingPaise),
     outstandingWords: phrases.amountWords(outstandingPaise),
     workings,
+    interestRows,
+    interestPaise,
+    claimsInterest: interests.length > 0,
     deductions,
     interestTotal,
     nothingDue: listed.length === 0 ? phrases.nothingDue(customer.name) : null,
@@ -376,11 +507,15 @@ export function demandLetter(input: {
         })
       : null;
   const deadlineText = lang === "en" ? formatDate(deadline, { year: true }) : dated(deadline, lang);
+  const opened = referenceInvoice(input.invoices, listed, input.invoiceId);
 
   return {
+    lang,
     nothingDue,
     planBanner,
     title: phrases.title,
+    reference: documentReference("letter", opened?.number ?? "", input.today),
+    letterhead: letterheadOf(input.seller, phrases),
     disclaimer: phrases.disclaimer,
     outstandingWords,
     bankHeading: phrases.bankHeading,
@@ -394,10 +529,14 @@ export function demandLetter(input: {
     invoices: lines,
     outstanding,
     deadlineLine: phrases.deadline(outstanding, deadlineText),
+    payBy: phrases.payBy(deadlineText),
     upiLine: input.seller.upiVpa ? phrases.upi(input.seller.upiVpa, outstanding) : phrases.noUpi,
+    upiVpa: input.seller.upiVpa,
     upiUri,
     bank: { accountName: input.seller.businessName, ...SAMPLE_BANK, note: phrases.bankNote },
     payLinkLine: input.payUrl ? phrases.payLink(input.payUrl) : phrases.noPayLink,
+    payUrl: input.payUrl,
+    scanOrOpen: phrases.scanOrOpen,
     contactLine: input.seller.ownerEmail ? phrases.contact(input.seller.ownerEmail) : null,
     signOff: phrases.signOff(input.seller.businessName),
     msmed:
@@ -426,11 +565,13 @@ export function odrCaseFile(input: {
   reminders: readonly DocumentReminder[];
   calls: readonly DocumentCall[];
   today: string;
+  /** The Invoice the page was opened from, for the reference. The first one named when omitted. */
+  invoiceId?: string;
   lang?: DocLang | null;
 }): CaseFile {
   const lang: DocLang = input.lang === "hi" || input.lang === "bn" ? input.lang : "en";
   const phrases = docPhrases(lang);
-  const { listed, lines, workings, interestTotal, nothingDue, planBanner } = prepare(
+  const { listed, lines, outstandingPaise, outstanding, workings, interestRows, interestPaise, claimsInterest, interestTotal, nothingDue, planBanner } = prepare(
     input.invoices,
     input.promises ?? [],
     input.customer,
@@ -442,10 +583,17 @@ export function odrCaseFile(input: {
   );
   const ids = new Set(listed.map((invoice) => invoice.$id));
   const numbers = new Map(listed.map((invoice) => [invoice.$id, invoice.number]));
-  const reminders = input.reminders
+  const sent = input.reminders
     .filter((reminder) => ids.has(reminder.invoiceId))
-    .sort((a, b) => (a.sentDate ?? "").localeCompare(b.sentDate ?? "") || a.stage - b.stage)
-    .map((reminder) => {
+    .sort((a, b) => (a.sentDate ?? "").localeCompare(b.sentDate ?? "") || a.stage - b.stage);
+  const reminderRows = sent.map((reminder) => ({
+    date: reminder.sentDate ? dated(reminder.sentDate, lang) : phrases.dateNotRecorded,
+    invoice: numbers.size > 1 ? (numbers.get(reminder.invoiceId) ?? null) : null,
+    stage: phrases.stage(stageName(reminder.stage)),
+    channel: phrases.channelName[reminder.channel],
+    delivery: statusWords(reminder.status, phrases),
+  }));
+  const reminders = sent.map((reminder) => {
       const which = numbers.size > 1 ? `${numbers.get(reminder.invoiceId) ?? "Invoice"}, ` : "";
       return {
         when: reminder.sentDate ? dated(reminder.sentDate, lang) : phrases.dateNotRecorded,
@@ -458,11 +606,31 @@ export function odrCaseFile(input: {
     .filter((item): item is { call: DocumentCall; excerpt: string } => item.excerpt !== null)
     .sort((a, b) => (b.call.startedAt ?? "").localeCompare(a.call.startedAt ?? ""));
   const chosen = spoken[0] ?? null;
+  const transcriptTurns = (callTurns(chosen?.call.transcript ?? null) ?? []).slice(0, EXCERPT_TURNS).map((turn) => ({
+    speaker: turn.role === "agent" ? "Munim" : phrases.customerRole,
+    message: turn.message,
+  }));
+  const opened = referenceInvoice(input.invoices, listed, input.invoiceId);
 
   return {
+    lang,
     nothingDue,
     planBanner,
     title: phrases.caseTitle,
+    reference: documentReference("case", opened?.number ?? "", input.today),
+    letterhead: letterheadOf(input.seller, phrases),
+    toAddress: input.customer.address ?? input.customer.place,
+    toGstin: input.customer.gstin ?? null,
+    summary: {
+      invoiceCount: listed.length,
+      principal: outstanding,
+      interest: claimsInterest ? formatInr(interestPaise) : null,
+      total: formatInr(sumPaise([outstandingPaise, interestPaise])),
+    },
+    interestRows,
+    interestTotal: interestRows.length > 0 ? formatInr(interestPaise) : null,
+    reminderRows,
+    transcriptTurns,
     dateLine: dated(input.today, lang),
     fromName: input.seller.businessName,
     toName: input.customer.name,
@@ -481,10 +649,16 @@ export function odrCaseFile(input: {
   };
 }
 
+function letterheadText(head: Letterhead): string[] {
+  return [head.name, head.address ?? "", head.gstin ?? "", head.udyam ?? "", head.udyamType ?? "", head.contact ?? ""];
+}
+
 /** Every word the letter shows, for a grep of the rendered page. */
 export function letterText(letter: DemandLetter): string {
   return [
     letter.title,
+    letter.reference,
+    ...letterheadText(letter.letterhead),
     letter.disclaimer,
     letter.dateLine,
     letter.toName,
@@ -498,6 +672,7 @@ export function letterText(letter: DemandLetter): string {
     letter.outstanding,
     letter.outstandingWords,
     letter.deadlineLine,
+    letter.payBy,
     letter.upiLine,
     letter.bankHeading,
     letter.bank.accountName,
@@ -506,6 +681,7 @@ export function letterText(letter: DemandLetter): string {
     letter.bank.ifsc,
     letter.bank.note,
     letter.payLinkLine,
+    letter.scanOrOpen,
     letter.contactLine ?? "",
     letter.signOff,
     letter.msmed?.label ?? "",
@@ -523,9 +699,16 @@ export function letterText(letter: DemandLetter): string {
 export function caseText(file: CaseFile): string {
   return [
     file.title,
+    file.reference,
+    ...letterheadText(file.letterhead),
     file.dateLine,
     file.fromName,
     file.toName,
+    file.toAddress ?? "",
+    file.toGstin ?? "",
+    file.summary.principal,
+    file.summary.interest ?? "",
+    file.summary.total,
     file.odrExplanation,
     ...file.steps.map((step, index) => `${index + 1}. ${step}`),
     file.nothingDue ?? "",
@@ -534,6 +717,10 @@ export function caseText(file: CaseFile): string {
     file.interestExplanation,
     file.interestNote,
     ...file.interestLines,
+    ...file.interestRows.flatMap((row) => [row.invoice, row.period, row.rate, String(row.days ?? ""), row.interest]),
+    file.interestTotal ?? "",
+    ...file.reminderRows.flatMap((row) => [row.date, row.invoice ?? "", row.stage, row.channel, row.delivery]),
+    ...file.transcriptTurns.flatMap((turn) => [turn.speaker, turn.message]),
     file.reminderNote ?? "",
     ...file.reminders.flatMap((line) => [line.when, line.text]),
     file.transcriptWhen ?? "",
