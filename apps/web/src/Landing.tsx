@@ -4,6 +4,7 @@ import { ArrowRight, Check } from "lucide-react";
 import { formatDate } from "@tagada/money";
 import { DEMO_TODAY } from "@tagada/seed";
 import { useWorldState } from "./lib/world.tsx";
+import { useVoiceStatus } from "./lib/voice-status.ts";
 import { useTour } from "./tour.tsx";
 import { PayLinkQr } from "./pay-qr.tsx";
 import { CallPlayer } from "./sample-call.tsx";
@@ -34,6 +35,9 @@ export function Landing() {
   const navigate = useNavigate();
   const [opening, setOpening] = useState<number | null>(null);
   const [pulled, setPulled] = useState<number | null>(null);
+  const voice = useVoiceStatus();
+  // The door still opens the call screen, which plays the recorded call in place of a live one.
+  const callsOff = voice !== null && voice.calls !== "ready";
 
   const world = state.status === "ready" ? state.world : null;
   // The hero Customer's open Invoice: the call the judge plays and the tour follows.
@@ -88,7 +92,13 @@ export function Landing() {
   const needsWorld = (door: Door) =>
     (door.key === "tour" && !world) || (door.key === "own" && !world) || (door.key === "call" && !hero);
   const what = (door: Door) =>
-    door.key === "tour" ? (moved ? t.landing.eightStepsFresh : t.landing.eightSteps) : door.what;
+    door.key === "tour"
+      ? moved
+        ? t.landing.eightStepsFresh
+        : t.landing.eightSteps
+      : door.key === "call" && callsOff
+        ? "Live calls are off right now: hear a recorded call instead"
+        : door.what;
 
   return (
     <main className={`landing ${opening !== null ? "opening" : ""}`}>

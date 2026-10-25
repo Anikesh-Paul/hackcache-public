@@ -48,6 +48,20 @@ export type CallDeps = {
   now?: () => number;
 };
 
+export type VoiceStatus = { calls: "ready" | "not_configured" | "daily_cap"; readAloud: "ready" | "not_configured" };
+
+export function voiceStatus(deps: {
+  agent: Agent | null;
+  voice: Voice;
+  limits: CallLimits;
+  daily: ReturnType<typeof dailyCounter>;
+}): VoiceStatus {
+  return {
+    calls: !deps.agent ? "not_configured" : deps.daily.used() >= deps.limits.perDay ? "daily_cap" : "ready",
+    readAloud: deps.voice.ready === false ? "not_configured" : "ready",
+  };
+}
+
 /** "a***@gmail.com": enough to recognise the Demo inbox, without showing every visitor the Owner's address. */
 export function maskEmail(address: string): string {
   const at = address.lastIndexOf("@");
@@ -236,6 +250,7 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
     pay("/api/pay/audio", async (ref, c) => {
       const asked = c.req.query("lang");
       const language = asked === "bn" || asked === "en" || asked === "hi" ? asked : "hi";
+      if (voice.ready === false) return c.json({ error: "voice_unavailable" }, 503);
       const clip = await readAloud({ worlds: demo.worlds, files, voice }, ref, language);
       if (!clip) return c.json({ error: "invalid_link" }, 404);
       return c.body(new Uint8Array(clip), 200, { "content-type": "audio/mpeg", "cache-control": "private, max-age=3600" });
@@ -261,6 +276,11 @@ export function createApp({ probeAppwrite, demo, files, voice, call, webOrigin, 
       return c.json({ error: "call_unavailable" }, 500);
     }
   };
+
+  // Whether calls and read-aloud can work here, so no screen offers a button that cannot.
+  app.get("/api/voice/status", (c) =>
+    c.json(voiceStatus({ agent: call?.agent ?? null, voice, limits: call?.limits ?? CALL_LIMITS, daily })),
+  );
 
   app.get(
     "/api/call/signed-url",

@@ -22,8 +22,13 @@ export type CustomerIssue = "name" | "gstin" | "state" | "creditDays" | "email" 
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * A new Customer. Every world is a Demo world, so the call-consent box starts
+ * ticked: a judge can call the Customer they add at once. It stays on the form
+ * to untick, and the server records when it was given (`consentAt`).
+ */
 export function blankCustomer(): CustomerDraft {
-  return { name: "", gstin: "", stateCode: "", creditDays: "30", lang: "en", address: "", email: "", phone: "", consentCalls: false };
+  return { name: "", gstin: "", stateCode: "", creditDays: "30", lang: "en", address: "", email: "", phone: "", consentCalls: true };
 }
 
 /** A saved Customer, to edit. */

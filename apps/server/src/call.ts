@@ -58,8 +58,31 @@ function guardOf(book: Book, ctx: ReturnType<typeof contextOf>) {
   });
 }
 
+/** The dynamic variables every call sends; the agent config in ./agent declares the same names. */
+export const CALL_VARIABLES = [
+  "business_name",
+  "customer_name",
+  "customer_gender",
+  "invoice_no",
+  "amount_words",
+  "stage",
+  "days_overdue",
+  "due_date_words",
+  "today",
+  "calendar",
+  "rule_min_first_pct",
+  "rule_first_within_days",
+  "rule_rest_within_days",
+  "deduction_line",
+  "invoice_id",
+  "workspace_id",
+  "call_id",
+] as const;
+
+export type CallVariable = (typeof CALL_VARIABLES)[number];
+
 /** Everything the agent is told, from the database. Strings, so the webhook can compare them as sent. */
-function variablesFor(book: Book, ctx: CallContext, callId: string): Record<string, string> {
+function variablesFor(book: Book, ctx: CallContext, callId: string): Record<CallVariable, string> {
   const { workspace, invoice, customer } = book;
   const slip = slipOf(book);
   const rule: PlanRule = ctx.rule;
@@ -74,6 +97,8 @@ function variablesFor(book: Book, ctx: CallContext, callId: string): Record<stri
     customer_gender: text(customer?.gender) ?? "neutral",
     invoice_no: text(invoice.number) ?? "",
     amount_words: hindiRupees(ctx.owedPaise),
+    // Before the due date the call is a courtesy heads-up; after it, a reminder of a late bill.
+    stage: slip.invoice.daysLate > 0 ? "overdue" : "before_due",
     days_overdue: String(slip.invoice.daysLate),
     due_date_words: hindiDate(text(invoice.dueDate) ?? ""),
     today: callDay(ctx.today),

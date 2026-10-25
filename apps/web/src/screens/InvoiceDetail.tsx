@@ -444,7 +444,7 @@ function Actions({
   customerName: string;
   payToken: string | null;
   open: boolean;
-  /** Past its due date: only then are the call, the letter and the case file offered. */
+  /** Past its due date: only then are the letter and the case file offered. A call is offered on any open Invoice. */
   overdue: boolean;
   disputed: boolean;
   /** Saved just now from "Make your own invoice": say what to try next. */
@@ -492,7 +492,7 @@ function Actions({
           {open && form === "payment" && (
             <PaymentForm invoice={invoice} balancePaise={balancePaise} today={today} onDone={() => setForm(null)} />
           )}
-          {late && !disputed && (
+          {open && !disputed && (
             <Link to={`/call/${invoiceId}`} className="btn primary px-4 py-3 text-[15px]">
               <Phone aria-hidden /> {t.common.callWithAi}
             </Link>
