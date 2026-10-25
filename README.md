@@ -124,8 +124,16 @@ Every overdue invoice climbs six rungs, from a friendly heads-up to an ODR case 
 - **Print-ready A4** invoices with a UPI QR code for the amount.
 - **MSMED interest**: three times the RBI Bank Rate, compounded monthly, with the dated rate change (16.5% before 7 Oct 2026, 17.25% after) and a **Why?** showing the workings.
 - **Section 43B(h)**: since FY 2023-24, a buyer may claim what they owe a micro or small enterprise as an expense in the Invoice's year only if they pay by the MSMED Act's appointed day (at most 45 days); paid later, only in the year they pay. It's a lawful reason for the buyer to pay on time, not a threat. The overdue reminders, the letter and the call say by when the bill stays in this year, always as "may", and the Invoice shows it with a **Why?**. A trader or a medium enterprise is never shown it.
-- **Payment Demand Letter**: firm, correct, and never called a "legal notice". It is never sent automatically.
-- **ODR case file**: one page with invoices, interest workings, the reminder history, a call excerpt and numbered steps for the government's [odr.msme.gov.in](https://odr.msme.gov.in) portal.
+- **Payment Demand Letter**: firm, correct, and never called a "legal notice". It is never sent automatically. A letterhead with GSTIN, Udyam and a reference number (`TBW/DL/26-27/0019`), the amount due in figures and words, UPI QR and bank transfer side by side, and the MSMED and 43B(h) notes as quiet notes above the signature.
+- **ODR case file**: a cover box with the claimant, the respondent and the total claimed, then numbered sections: the invoices, the MSMED §16 interest table, the dated reminder history, a call excerpt with its English gloss, and the steps for the government's [odr.msme.gov.in](https://odr.msme.gov.in) portal.
+- Both print as A4 in the customer's language (English, हिन्दी or বাংলা), with the business name and page numbers in the footer, and run onto a second page cleanly when the history is long.
+
+<table>
+<tr>
+<td><img src="docs/screenshots/letter.png" alt="The Payment Demand Letter in Hindi for Gupta Traders: letterhead, ₹1,18,000 due in a boxed panel, the invoice table, UPI QR and bank transfer side by side, MSMED and 43B(h) notes, and the signature block" width="440"></td>
+<td><img src="docs/screenshots/case-file.png" alt="The ODR case file for Gupta Traders: claimant and respondent, ₹1,20,057.65 claimed, and numbered sections for invoices, interest, reminders, the call excerpt and filing steps" width="440"></td>
+</tr>
+</table>
 
 ### Built for the owner's language and phone
 

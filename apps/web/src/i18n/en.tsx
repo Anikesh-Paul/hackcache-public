@@ -1096,6 +1096,8 @@ export const en = {
     upiNote: "Simulated UPI ID: no one is paid",
     bankNote: "Sample account for this Demo world. No one is paid.",
     invoiceLoading: "Loading the Invoice…",
+    udyamNote: "Sample Udyam number for this Demo world",
+    glossLoading: "Adding the English gloss…",
   },
   duplicate: {
     title: "Duplicate this invoice",

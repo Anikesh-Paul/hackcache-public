@@ -1775,6 +1775,20 @@ h3 {
   }
 }
 
+/* The letter and the case file. Figures line up in their columns. */
+.doc .num {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 1.25rem;
+}
+.doc-meta > div {
+  display: flex;
+  gap: 0.35rem;
+}
+
 /* A4 print pages: no app chrome, black on white. */
 @media print {
   @page {
@@ -1801,9 +1815,19 @@ h3 {
   .no-print {
     display: none !important;
   }
-  /* The case file is written to fit one A4 page at 12px. */
-  .case-file {
-    font-size: 12px;
-    line-height: 1.35;
+  /* The letter and the case file: blocks never split, headings never sit alone at a page's foot. */
+  .doc .keep,
+  .doc tr {
+    break-inside: avoid;
+  }
+  .doc .doc-h2 {
+    break-after: avoid;
+  }
+  .doc thead {
+    display: table-header-group;
+  }
+  .doc a {
+    color: inherit;
+    text-decoration: none;
   }
 }
