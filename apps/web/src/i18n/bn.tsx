@@ -758,6 +758,8 @@ export const bn: Copy = {
     business: "আপনার ব্যবসা",
     businessName: "ব্যবসার নাম",
     address: "ঠিকানা",
+    udyamNumber: "উদ্যম নিবন্ধন নম্বর (ঐচ্ছিক)",
+    udyamNote: "আপনার উদ্যম সার্টিফিকেটে যেমন আছে, যেমন UDYAM-XX-00-0000000। এটি বকেয়া পরিশোধের চিঠি আর ওডিআর কেস ফাইলে ছাপা হয়।",
     registration: "GST নিবন্ধন",
     registrations: {
       regular: { name: "সাধারণ GST", note: "ট্যাক্স ইনভয়েস, GST সহ" },
@@ -808,6 +810,7 @@ export const bn: Copy = {
     problems: {
       businessName: "আপনার ব্যবসার একটি নাম দিন।",
       address: "ঠিকানাটি খুব লম্বা।",
+      udyamNumber: "উদ্যম নম্বরটি সার্টিফিকেটের মতো লিখুন, যেমন UDYAM-XX-00-0000000।",
       registrationType: "আপনার নিবন্ধন কী ধরনের তা বেছে নিন।",
       aggregateTurnoverPaise: "টার্নওভার টাকায় লিখুন, যেমন 1,80,00,000।",
       planRule: "বাকি টাকা প্রথম কিস্তির পরে দেয় হতে হবে; প্রথম কিস্তি 1% থেকে 100%।",

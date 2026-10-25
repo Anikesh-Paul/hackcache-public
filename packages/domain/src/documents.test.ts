@@ -8,6 +8,7 @@ import {
   odrCaseFile,
   callTurns,
   documentReference,
+  udyamNumber,
   transcriptExcerpt,
   type DocumentCall,
   type DocumentCustomer,
@@ -350,6 +351,20 @@ describe("documentReference", () => {
     expect(file.reference).toBe("TBW/ODR/26-27/0018");
     expect(caseText(file)).toContain("TBW/ODR/26-27/0018");
     expect(letterText(letter)).toContain("TBW/DL/26-27/0018");
+  });
+});
+
+describe("udyamNumber", () => {
+  it("writes the number as the certificate prints it, however it was typed", () => {
+    for (const typed of ["UDYAM-WB-10-0004127", "udyam-wb-10-0004127", " UDYAM WB 10 0004127 ", "UDYAMWB100004127"]) {
+      expect(udyamNumber(typed), typed).toBe("UDYAM-WB-10-0004127");
+    }
+  });
+
+  it("is null for anything that is not a Udyam number", () => {
+    for (const typed of ["", "UDYAM-WB-10-004127", "UDYAM-W1-10-0004127", "UAM-WB-10-0004127", "16AAKFT3920R1Z1"]) {
+      expect(udyamNumber(typed), typed).toBeNull();
+    }
   });
 });
 

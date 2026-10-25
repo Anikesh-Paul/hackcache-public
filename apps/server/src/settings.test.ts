@@ -90,6 +90,19 @@ describe("POST /api/settings", () => {
     }
   });
 
+  it("saves the Udyam number in the certificate's form, clears it, and refuses one in another shape", async () => {
+    expect((await save({ udyamNumber: " udyam-wb 10 0004127 " })).status).toBe(200);
+    expect(workspace().udyamNumber).toBe("UDYAM-WB-10-0004127");
+    for (const value of ["UDYAM-WB-10-004127", "12345", 42]) {
+      const res = await save({ udyamNumber: value });
+      expect(res.status, String(value)).toBe(400);
+      expect(await res.json()).toMatchObject({ field: "udyamNumber" });
+    }
+    expect(workspace().udyamNumber).toBe("UDYAM-WB-10-0004127");
+    expect((await save({ udyamNumber: "" })).status).toBe(200);
+    expect(workspace().udyamNumber).toBeNull();
+  });
+
   it("lets the owner email be cleared, and refuses a stranger", async () => {
     expect((await save({ ownerEmail: null })).status).toBe(200);
     expect(workspace().ownerEmail).toBeNull();
