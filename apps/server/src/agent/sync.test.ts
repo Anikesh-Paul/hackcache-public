@@ -20,6 +20,7 @@ describe("the agent config", () => {
     expect(Object.keys(body.conversation_config.agent.dynamic_variables.dynamic_variable_placeholders)).toEqual([...CALL_VARIABLES]);
     expect(body.conversation_config.agent.first_message).toBe(MUNIM_FIRST_MESSAGE);
     expect(body.conversation_config.agent.prompt.tool_ids).toEqual(["t1", "t2"]);
+    expect(body.conversation_config.agent.prompt.llm).toBe("claude-haiku-5-5");
     expect(body.conversation_config.tts.voice_id).toBe("2zRM7PkgwBPiau2jvVXc");
     expect(body.platform_settings.auth.enable_auth).toBe(true);
     expect(CLIENT_TOOLS.map((t) => t.name)).toEqual(["propose_plan", "record_outcome"]);
