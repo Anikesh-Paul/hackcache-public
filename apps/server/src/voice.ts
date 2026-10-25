@@ -3,11 +3,12 @@
 import type { Agent } from "./call.ts";
 import type { Voice } from "./pay.ts";
 
-const VOICE_ID = "2zRM7PkgwBPiau2jvVXc";
-const MODEL_ID = "eleven_v4_turbo";
+export const VOICE_ID = "2zRM7PkgwBPiau2jvVXc";
+export const MODEL_ID = "eleven_v4_turbo";
 
 export function elevenLabsVoice(apiKey: string | undefined): Voice {
   return {
+    ready: Boolean(apiKey),
     async speak(text, language = "hi") {
       if (!apiKey) throw new Error("ELEVENLABS_API_KEY is not set (see .env.example)");
       const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_64`, {

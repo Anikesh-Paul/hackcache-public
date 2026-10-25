@@ -96,8 +96,8 @@ export function spokenName(name: string): string {
   return words.find((w) => !NOT_A_NAME.has(w.toLowerCase())) ?? words[0] ?? "";
 }
 
-/** The call agent's first message, as set on the ElevenLabs agent; ElevenLabs fills in the {{variables}}. */
-const MUNIM_FIRST_MESSAGE =
+/** The call agent's first message, as `pnpm agent:sync` sets it on the ElevenLabs agent; ElevenLabs fills in the {{variables}}. */
+export const MUNIM_FIRST_MESSAGE =
   "नमस्ते {{customer_name}} जी, मैं {{business_name}} की ओर से AI सहायक मुनीम बोल रही हूँ। आपके {{amount_words}} के बिल के बारे में बात करनी थी, क्या अभी दो मिनट बात हो सकती है?";
 
 /** Munim's first line on a call: she names the business and says she is an AI. */

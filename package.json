@@ -13,7 +13,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "smoke": "playwright test",
-    "appwrite:setup": "tsx --env-file-if-exists=.env scripts/appwrite-setup.ts"
+    "appwrite:setup": "tsx --env-file-if-exists=.env scripts/appwrite-setup.ts",
+    "agent:sync": "tsx --env-file-if-exists=.env scripts/elevenlabs-agent.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

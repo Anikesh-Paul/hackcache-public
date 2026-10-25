@@ -38,9 +38,9 @@ export type FileStore = {
   deleteScreenshot(fileId: string): Promise<void>;
 };
 
-/** Text to speech: MP3 bytes. `language` is the ElevenLabs language code. */
+/** Text to speech: MP3 bytes. `language` is the ElevenLabs language code. `ready` is false when no key is set. */
 export type SpeakLanguage = "hi" | "bn" | "en";
-export type Voice = { speak(text: string, language?: SpeakLanguage): Promise<Uint8Array> };
+export type Voice = { ready?: boolean; speak(text: string, language?: SpeakLanguage): Promise<Uint8Array> };
 
 export type PayDeps = { worlds: WorldStore; files: FileStore; voice: Voice; proof?: ProofReader | null };
 

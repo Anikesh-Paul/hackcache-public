@@ -1,7 +1,7 @@
 // The Owner's Settings: business details, registration and turnover (they
 // drive the document type and the e-invoicing note), the Plan rule, which
-// Ladder stages the daily run sends by itself, the reply-to email and the
-// language. Only the fields sent are changed, and each is checked here.
+// Ladder stages the daily run sends by itself, the reply-to email, the
+// language and the Demo date clock's time of day. Only the fields sent are changed, and each is checked here.
 import { AUTO_SEND_SWITCHES, CUSTOMER_LANGS, planRule } from "@tagada/domain";
 import type { WorldStore } from "./demo.ts";
 
@@ -34,6 +34,8 @@ const CHECKS: Record<string, Check> = {
   ownerEmail: (v) =>
     v === null || v === "" ? { value: null } : typeof v === "string" && v.length <= 254 && EMAIL.test(v.trim()) ? { value: v.trim() } : null,
   lang: (v) => (typeof v === "string" && (CUSTOMER_LANGS as readonly string[]).includes(v) ? { value: v } : null),
+  // "HH:MM", IST: the call screen's "Set the clock to 11 AM" brings it back inside calling hours.
+  clock: (v) => (typeof v === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? { value: v } : null),
 };
 
 export async function saveSettings(worlds: WorldStore, workspaceId: string, body: unknown): Promise<SettingsResult> {
